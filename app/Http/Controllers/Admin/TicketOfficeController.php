@@ -14,7 +14,7 @@ use Illuminate\Http\RedirectResponse;
 class TicketOfficeController extends Controller
 {
 
-    
+
     public function create()
     {
         $entry = new Cart();
@@ -23,7 +23,7 @@ class TicketOfficeController extends Controller
             ->orderBy('starts_on');
 
         if (!request()->get('show_expired', false)) {
-            $builder->where('ends_on', '>', \Carbon\Carbon::now()); // end of session
+            $builder->where('ends_on', '>', \Carbon\Carbon::now());
         }
 
         $sessions = $builder->get();
@@ -34,7 +34,7 @@ class TicketOfficeController extends Controller
             $builder_packs->where('starts_on', '<=', \Carbon\Carbon::now())
                 ->where(function ($query) {
                     $query->whereNull('ends_on')
-                        ->orWhere('ends_on', '>', \Carbon\Carbon::now()); // end of session
+                        ->orWhere('ends_on', '>', \Carbon\Carbon::now());
                 });
         }
 
@@ -44,11 +44,41 @@ class TicketOfficeController extends Controller
             $s->rates->map(function ($rate) {
                 $rate->setAttribute('rate_name', $rate->name);
             });
-
-            //$s->setRelation('rates', $rates);
         });
 
-        return view('core.ticket-office.create', compact('entry', 'sessions', 'packs'));
+        // Procesar datos antiguos si existen
+        $old_data = $this->processOldData();
+
+        return view('core.ticket-office.create', compact('entry', 'sessions', 'packs', 'old_data'));
+    }
+
+    /**
+     * Procesa los datos antiguos del formulario
+     */
+    private function processOldData()
+    {
+        if (!request()->old()) {
+            return [];
+        }
+
+        $old_data = [
+            "client" => [
+                "email" => request()->old('client_email'),
+                "firstname" => request()->old('client_firstname'),
+                "lastname" => request()->old('client_lastname')
+            ],
+            "inscriptions" => []
+        ];
+
+        foreach (request()->old('session_id', []) as $key => $value) {
+            $old_data['inscriptions'][] = [
+                'session_id' => (request()->old('session_id')[$key]) ?? '',
+                'rate_id' => (request()->old('rate_id')[$key]) ?? '',
+                'quantity' => (request()->old('quantity')[$key]) ?? 0,
+            ];
+        }
+
+        return $old_data;
     }
 
     /**

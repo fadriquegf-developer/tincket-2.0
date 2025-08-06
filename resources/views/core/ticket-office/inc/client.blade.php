@@ -1,40 +1,36 @@
 <div class="box">
-    <div class="box-header with-border">
+    <div class="box-header">
         <h3 class="box-title">
-            {{ __('backend.ticket.client') }}
+            {{ __('ticket-office.client') }}
         </h3>
     </div>
-    <div class="box-body form-horizontal">
-        <div class="form-group">
-            <label for="client.email" class="col-sm-2 control-label">{{ __('backend.ticket.email') }}</label>
-            <div class="input-group col-sm-9">
+    <div class="box-body">
+        <div class="row mb-3">
+            <label for="client.email" class="col-sm-3 col-form-label">{{ __('ticket-office.email') }}</label>
+            <div class="col-sm-9">
                 <input type="email" class="form-control" name="client.email" id="email" ng-model="client.email" />
-
             </div>
         </div>
-        <div class="form-group">
-            <label for="client.firstname" class="col-sm-2 control-label">{{ __('backend.ticket.firstname') }}</label>
-            <div class="input-group col-sm-9">
+        <div class="row mb-3">
+            <label for="client.firstname" class="col-sm-3 col-form-label">{{ __('ticket-office.firstname') }}</label>
+            <div class="col-sm-9">
                 <input type="text" class="form-control" name="client.firstname" id="firstname"
                     ng-model="client.firstname" />
             </div>
         </div>
-        <div class="form-group">
-            <label for="client.lastname" class="col-sm-2 control-label">{{ __('backend.ticket.lastname') }}</label>
-            <div class="input-group col-sm-9">
+        <div class="row mb-3">
+            <label for="client.lastname" class="col-sm-3 col-form-label">{{ __('ticket-office.lastname') }}</label>
+            <div class="col-sm-9">
                 <input type="text" class="form-control" name="client.lastname" id="lastname"
                     ng-model="client.lastname" />
             </div>
         </div>
     </div>
 </div>
+
 @push('after_scripts')
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
-
-    <!-- FOOTER SCRIPTS -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
 
     <script>
         // Setup CSRF
