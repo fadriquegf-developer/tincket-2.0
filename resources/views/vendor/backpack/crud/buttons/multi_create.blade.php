@@ -1,0 +1,1 @@
+<a href="{{ route('session.multi-create') }}" class="btn btn-primary"><i class="la la-plus"></i>{{ __('backend.multi_session.add_season') }}</a>

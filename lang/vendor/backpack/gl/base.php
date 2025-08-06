@@ -1,0 +1,98 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Backpack\Base Language Lines
+    |--------------------------------------------------------------------------
+    */
+
+    'registration_closed' => 'O rexistro de usuarios está pechado.',
+    'no_email_column' => 'Os usuarios non teñen unha dirección de correo electrónico asociada.',
+    'first_page_you_see' => 'A páxina que ves despois de iniciar sesión',
+    'login_status' => 'Estado da conexión',
+    'logged_in' => '¡Vostede iniciou sesión!',
+    'toggle_navigation' => 'Activar/desactivar a navegación',
+    'administration' => 'ADMINISTRACIÓN',
+    'user' => 'USUARIO',
+    'logout' => 'Saír',
+    'login' => 'Iniciar sesión',
+    'register' => 'Crear usuario',
+    'name' => 'Nome',
+    'email_address' => 'Correo',
+    'email' => 'Correo electrónico',
+    'username' => 'Nome de usuario',
+    'password' => 'Contrasinal',
+    'old_password' => 'Contrasinal anterior',
+    'new_password' => 'Contrasinal novo',
+    'confirm_password' => 'Confirmar contrasinal',
+    'remember_me' => 'Lembrar contrasinal',
+    'forgot_your_password' => '¿Esqueceu o seu contrasinal?',
+    'reset_password' => 'Restablecer o contrasinal',
+    'send_reset_link' => 'Enviar enlace para restablecer o contrasinal',
+    'click_here_to_reset' => 'Fai clic aquí para restablecer o contrasinal',
+    'change_password' => 'Cambiar o contrasinal',
+    'unauthorized' => 'Non autorizado.',
+    'dashboard' => 'Panel',
+    'handcrafted_by' => 'Realizado por',
+    'powered_by' => 'Creado con',
+    'my_account' => 'A miña conta',
+    'update_account_info' => 'Actualizar a información da conta',
+    'save' => 'Gardar',
+    'cancel' => 'Cancelar',
+    'error' => 'Erro',
+    'success' => 'Exitoso',
+    'warning' => 'Advertencia',
+    'notice' => 'Aviso',
+    'old_password_incorrect' => 'Contrasinal antigo incorrecto.',
+    'password_dont_match' => 'Os contrasinais non coinciden.',
+    'password_empty' => 'Asegúrese de que ambos campos de contrasinal estean completos.',
+    'password_updated' => 'Contrasinal actualizado.',
+    'account_updated' => 'Conta actualizada correctamente.',
+    'unknown_error' => 'Produciuse un erro. Por favor, inténtao de novo.',
+    'error_saving' => 'Erro ao gardar. Por favor, inténtao de novo.',
+    'error_login' => 'O seu contrasinal cambiouse noutro navegador. Por favor, inicie sesión de novo co seu novo contrasinal.',
+    'session_expired_error' => 'A súa sesión caducou. Por favor, inicie sesión de novo na súa conta.',
+    'welcome' => '¡Benvido!',
+    'use_sidebar' => 'Utilice a barra lateral á esquerda para crear, editar ou eliminar contido.',
+
+    'error_page' => [
+        'title' => 'Erro :error',
+        'button' => 'Ir á páxina de inicio',
+        'message_4xx' => 'Por favor, <a :href_back>volte atrás</a> ou vaia a <a :href_homepage>a páxina de inicio</a>',
+        'message_500' => 'Produciuse un erro interno do servidor. Se o erro persiste, póñase en contacto co equipo de desenvolvemento.',
+        'message_503' => 'O servidor está sobrecargado ou en mantemento. Por favor, inténtao máis tarde.',
+        '400' => 'Solicitude errónea.',
+        '401' => 'Acción non autorizada.',
+        '403' => 'Prohibido.',
+        '404' => 'Páxina non atopada.',
+        '405' => 'Método non permitido.',
+        '408' => 'Tempo de espera esgotado.',
+        '429' => 'Demasiadas peticións.',
+        '500' => 'Non es ti, son eu.',
+    ],
+
+    'password_reset' => [
+        'greeting' => '¡Ola!',
+        'subject' => 'Notificación de restablecemento do contrasinal',
+        'line_1' => 'Recibiu este correo electrónico porque recibimos unha solicitude de restablecemento do contrasinal para a súa conta.',
+        'line_2' => 'Faga clic no botón de abaixo para restablecer o seu contrasinal:',
+        'button' => 'Restablecer o contrasinal',
+        'notice' => 'Se non solicitou un restablecemento do contrasinal, non se require acción adicional.',
+    ],
+
+    'step' => 'Paso',
+    'confirm_email' => 'Confirmar correo electrónico',
+    'choose_new_password' => 'Elixa un novo contrasinal',
+    'confirm_new_password' => 'Confirmar o novo contrasinal',
+    'throttled' => 'Xa solicitou un restablecemento do contrasinal recentemente. Por favor, revise o seu correo electrónico. Se non recibiu o correo de restablecemento, inténtao máis tarde.',
+    'throttled_request' => 'Excedeu o máximo de intentos. Por favor, agarde uns minutos e inténtao de novo.',
+
+    'verify_email' => [
+        'email_verification' => 'Verificación do correo electrónico',
+        'verification_link_sent' => 'Enviouse un enlace de verificación á súa dirección de correo electrónico.',
+        'email_verification_required' => 'Por favor, verifique a súa dirección de correo electrónico facendo clic no enlace que lle enviamos.',
+        'resend_verification_link' => 'Reenviar enlace',
+    ],
+];

@@ -1,0 +1,21 @@
+stages:
+  - deploy
+
+deploy_production:
+  stage: deploy
+  tags:
+    - deploy
+  script:
+    - sudo rsync -avz ./ /var/www/tincket-2.0
+
+    - cd /var/www/tincket-2.0
+
+    - sudo chown -R ec2-user:ec2-user /var/www/tincket-2.0
+
+    - php artisan migrate --force
+
+    - sudo chown -R apache:apache storage bootstrap/cache
+    - sudo chmod -R 775 storage bootstrap/cache
+    
+  only:
+    - main 
