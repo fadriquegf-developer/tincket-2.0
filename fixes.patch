@@ -1,0 +1,121 @@
+diff --git a/resources/views/core/ticket-office/create.blade.php b/resources/views/core/ticket-office/create.blade.php
+new file mode 100644
+index 0000000..9f00039
+--- /dev/null
++++ b/resources/views/core/ticket-office/create.blade.php
+@@ -0,0 +1,89 @@
++@extends(backpack_view('layouts.horizontal'))
++
++@php
++    /**
++     * View for creating a new cart from the ticket office.
++     *
++     * This view intentionally avoids any JavaScript templating so that
++     * the page will render server‑side without leaving curly braces
++     * visible in the markup. It presents a basic form that allows an
++     * administrator to select a rate for each available session and
++     * optionally include packs in the cart. More advanced behaviours
++     * such as seat selection or dynamic price calculation can be
++     * implemented on top of this foundation using Vue/React or plain
++     * JavaScript, but are outside the scope of this minimal fix.
++     */
++@endphp
++
++@section('header')
++    <section class="container-fluid my-4" bp-section="page-header">
++        <h1 class="mb-0">{{ __('backend.ticket_office.create') ?? 'Crear comanda' }}</h1>
++    </section>
++@endsection
++
++@section('content')
++    <form method="POST" action="{{ route('ticket-office.store') }}">
++        @csrf
++
++        <div class="card mb-4">
++            <div class="card-header">
++                <h5 class="mb-0">{{ __('backend.ticket_office.sessions') ?? 'Sessions' }}</h5>
++            </div>
++            <div class="card-body">
++                @forelse($sessions as $session)
++                    <div class="mb-4 border rounded p-3">
++                        <div class="mb-2">
++                            <strong>{{ $session->event->name ?? $session->name }}</strong><br>
++                            <small class="text-muted">
++                                {{ $session->name }} – {{ optional($session->starts_on)->format('d/m/Y H:i') }}
++                            </small>
++                        </div>
++                        <div class="row g-2 align-items-end">
++                            <div class="col-sm-4">
++                                <label class="form-label" for="rate_{{ $session->id }}">{{ __('backend.ticket.rate') ?? 'Tarifa' }}</label>
++                                <select id="rate_{{ $session->id }}" name="inscriptions[rate_id][]" class="form-select form-select-sm">
++                                    @foreach($session->rates as $rate)
++                                        <option value="{{ $rate->id }}">{{ $rate->rate_name }} – €{{ number_format($rate->price ?? 0, 2) }}</option>
++                                    @endforeach
++                                </select>
++                            </div>
++                            <div class="col-sm-4">
++                                <label class="form-label" for="slot_{{ $session->id }}">{{ __('backend.ticket.slot_id') ?? 'Slot ID' }}</label>
++                                <input type="number" id="slot_{{ $session->id }}" name="inscriptions[slot_id][]" class="form-control form-control-sm" placeholder="{{ __('backend.ticket.slot_placeholder') ?? 'Opcional' }}" />
++                            </div>
++                            <div class="col-sm-2">
++                                <label class="form-label" for="qty_{{ $session->id }}">{{ __('backend.ticket.quantity') ?? 'Quantitat' }}</label>
++                                <input type="number" min="1" value="1" id="qty_{{ $session->id }}" name="inscriptions[quantity][]" class="form-control form-control-sm" />
++                            </div>
++                        </div>
++                        <input type="hidden" name="inscriptions[session_id][]" value="{{ $session->id }}" />
++                    </div>
++                @empty
++                    <p class="text-muted">{{ __('backend.ticket_office.no_sessions') ?? 'No hi ha sessions disponibles' }}</p>
++                @endforelse
++            </div>
++        </div>
++
++        <div class="card mb-4">
++            <div class="card-header">
++                <h5 class="mb-0">{{ __('backend.ticket_office.packs') ?? 'Packs' }}</h5>
++            </div>
++            <div class="card-body">
++                @forelse($packs as $pack)
++                    <div class="form-check">
++                        {{-- Use a JSON string as the value to maintain compatibility with existing controller logic --}}
++                        <input class="form-check-input" type="checkbox" name="packs[]" id="pack_{{ $pack->id }}"
++                               value='{{ json_encode(["pack_id" => $pack->id, "selection" => []]) }}'>
++                        <label class="form-check-label" for="pack_{{ $pack->id }}">
++                            {{ $pack->name }}
++                        </label>
++                    </div>
++                @empty
++                    <p class="text-muted">{{ __('backend.ticket_office.no_packs') ?? 'No hi ha packs disponibles' }}</p>
++                @endforelse
++            </div>
++        </div>
++
++        <button type="submit" class="btn btn-primary">{{ __('backend.ticket_office.confirm') ?? 'Confirmar cistella' }}</button>
++    </form>
++@endsection
+\ No newline at end of file
+diff --git a/routes/web.php b/routes/web.php
+index 10015b7..fd2b998 100644
+--- a/routes/web.php
++++ b/routes/web.php
+@@ -4,6 +4,18 @@
+ use App\Models\Brand;
+ 
+ 
+-/* Route::crud('custom-settings/brand', \App\Http\Controllers\Admin\SettingsBrandCrudController::class);
+-Route::crud('user', \App\Http\Controllers\Admin\UserCrudController::class); */
++// Register basic CRUD routes for the settings and user entities.
++//
++// These routes were previously commented out which meant that
++// visiting the corresponding URLs would return a 502 (Bad Gateway)
++// because no matching route existed. Enabling them here ensures
++// that the `SettingsBrandCrudController` and `UserCrudController`
++// are reachable via their respective prefixes and that Backpack
++// can display the associated CRUD interfaces. If duplicate
++// definitions exist elsewhere (for example in the `core.php` or
++// `engine.php` route files) Laravel will use the first match and
++// gracefully ignore subsequent ones.
++
++Route::crud('custom-settings/brand', \App\Http\Controllers\Admin\SettingsBrandCrudController::class);
++Route::crud('user', \App\Http\Controllers\Admin\UserCrudController::class);
+ 

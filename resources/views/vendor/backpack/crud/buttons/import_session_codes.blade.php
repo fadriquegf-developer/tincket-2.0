@@ -21,14 +21,10 @@
                     enctype="multipart/form-data"
                     onsubmit="document.getElementById('spin-{{ $modalId }}').classList.remove('d-none')">
                     @csrf
-
                     <div class="modal-body">
-                        <div class="alert alert-info">
-                            {!! __('tincket/backend.session.import_codes_info') !!}
-                            <p class="mb-2">Exemple CSV:</p>
-                            <img src="/images/codis.png" class="img-fluid">
-                        </div>
-
+                        <p>{!! __('tincket/backend.session.import_codes_info') !!}</p>
+                        <p class="mb-2">Exemple CSV:</p>
+                        <img src="/images/codis.png" class="mb-4 img-fluid">
                         <input type="file" name="csv" class="form-control" accept=".csv" required>
                     </div>
 
@@ -43,5 +39,4 @@
             </div>
         </div>
     </div>
-
 @endpush

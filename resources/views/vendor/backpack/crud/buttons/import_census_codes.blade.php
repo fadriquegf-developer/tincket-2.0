@@ -11,14 +11,12 @@
                     <h5 class="modal-title">{{ __('backend.session.import_codes') }}</h5>
                     <button class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-
                 <form method="POST" action="{{ route('censu.import-codes') }}" enctype="multipart/form-data">
                     @csrf
-                    <div class="alert alert-info">{{ __('backend.session.import_codes_info') }}
-                            <p>Exemple:</p>
-                            <img src="/images/codis.png" style="margin-top: 10px;">
-                        </div>
                     <div class="modal-body">
+                        <p>{{ __('backend.session.import_codes_info') }}</p>
+                        <p>Exemple:</p>
+                        <img src="/images/codis.png" class="mb-4 img-fluid">
                         <input type="file" name="csv" class="form-control" accept=".csv" required>
                     </div>
                     <div class="modal-footer">
