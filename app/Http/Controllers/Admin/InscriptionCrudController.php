@@ -39,226 +39,209 @@ class InscriptionCrudController extends CrudController
     }
 
 
-    protected function setupListOperation()
-    {
+protected function setupListOperation()
+{
+    
 
-        CRUD::enableExportButtons();
-        $this->crud->query
-            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
-            ->select('inscriptions.*');
+    // 1) Evita $with globales del modelo en ESTA query (si tu modelo Inscription los tiene)
+    $this->crud->query->setEagerLoads([]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.event'),
-            'type' => 'relationship',
-            'name' => 'session_id',          // <— el campo foráneo en la tabla “inscriptions”
-            'entity' => 'session',             // <— el nombre exacto de la relación en Inscription::session()
-            'attribute' => 'event_name',          // <— el accesor en Session: getEventNameAttribute()
-            'model' => Session::class, // <— namespace completo de tu modelo Session
-            'searchLogic' => function ($query, $column, $searchTerm) {
-                // 1) Entrar en la relación “session” del modelo Inscription
-                $query->whereHas('session', function ($q) use ($searchTerm) {
-                    // 2) Dentro de “session”, entrar en “event”
-                    //    y filtrar por su campo “name” (o el campo original donde guardas el nombre)
-                    $q->whereHas('event', function ($q2) use ($searchTerm) {
-                        $q2->where('name', 'like', '%' . strtolower($searchTerm) . '%');
-                    });
-                });
-            },
-        ]);
+    // 2) Eager loading mínimo y con columnas acotadas (anidado para evitar 2 cargas)
+    $this->crud->with([
+        'session:id,name,starts_on,event_id,brand_id',
+        'session.event:id,name',
+        'slot:id,name',
+        'cart:id,client_id,confirmation_code,created_at',
+        // confirmedPayment: trae SOLO lo que pintas
+        'cart.confirmedPayment:id,cart_id,gateway,tpv_name,paid_at,deleted_at',
+    ]);
 
-        CRUD::addColumn([
-            'name' => 'session_display',            // Identificador interno (no importa si no existe en BD)
-            'label' => __('backend.inscription.session'),
-            'type' => 'closure',                    // Usaremos un closure para formatear “nombre + fecha”
-            'function' => function ($inscription) {
-                // 1) Obtenemos la sesión relacionada
-                $session = $inscription->session;
-                if (!$session) {
-                    return '-';
-                }
-                // 2) Formateamos la fecha de inicio. Si no existe, mostramos “-”
-                $fecha = $session->starts_on
-                    ? $session->starts_on->format('d/m/Y H:i')
-                    : '-';
-                // 3) Escapamos el nombre y lo concatenamos con la fecha
-                return e($session->name) . ' ' . $fecha;
-            },
-            // 4) Para que el buscador funcione, añadimos searchLogic:
-            'searchLogic' => function ($query, $column, $searchTerm) {
-                // Filtramos por “nombre de sesión” (sessions.name) y/o “fecha” (sessions.starts_on)
-                $query->whereHas('session', function ($q) use ($searchTerm) {
-                    // Convertimos el término en minúsculas:
-                    $term = strtolower($searchTerm);
-                    $q->whereRaw('LOWER(sessions.name) LIKE ?', ["%{$term}%"])
-                        ->orWhereRaw("DATE_FORMAT(sessions.starts_on, '%d/%m/%Y %H:%i') LIKE ?", ["%{$searchTerm}%"]);
-                    // — Si no necesitas buscar por fecha formateada, puedes omitir la línea de orWhereRaw.
-                });
-            },
-        ]);
+    // 3) Select de inscriptions mínimo (solo lo que usas)
+    $this->crud->query->select([
+        'inscriptions.id',
+        'inscriptions.session_id',
+        'inscriptions.slot_id',
+        'inscriptions.barcode',
+        'inscriptions.code',
+        'inscriptions.price_sold',
+        'inscriptions.group_pack_id',
+        'inscriptions.updated_at',
+        'inscriptions.cart_id',
+        'inscriptions.deleted_at', // quítalo si no usas el filtro "trashed" a la vez
+    ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.slot'),
-            'type' => 'select',
-            'name' => 'slot_id',
-            'entity' => 'slot',
-            'attribute' => 'name',
-            'model' => \App\Models\Slot::class,
-        ]);
+    // 4) Orden 100% indexable y estable
+    $this->crud->orderBy('inscriptions.updated_at', 'desc')
+               ->orderBy('inscriptions.id', 'desc');
 
-        CRUD::addColumn([
-            'name' => 'barcode',
-            'label' => __('backend.inscription.barcode'),
-        ]);
+    // 5) Export: desactívalo mientras mides (puede lanzar consultas extra)
+    // CRUD::disableExportButtons();
 
-        CRUD::addColumn([
-            'name' => 'code',
-            'label' => __('backend.inscription.code'),
-        ]);
+    // ==== Columnas (usan las relaciones ya cargadas) ====
 
-        CRUD::addColumn([
-            'name' => 'price_sold_formatted',       // nombre cualquiera (no existe en BD)
-            'label' => __('backend.inscription.pricesold'),
-            'type' => 'closure',                    // v5+: usa closure en lugar de model_callback
-            'function' => function ($inscription) {
-                // Concatena “€” y formatea a dos decimales:
-                return number_format($inscription->price_sold, 2) . ' €';
-            },
-        ]);
+    CRUD::addColumn([
+        'label' => __('backend.inscription.event'),
+        'name'  => 'event_display',
+        'type'  => 'closure',
+        'function' => fn($ins) => optional(optional($ins->session)->event)->name ?? '-',
+    ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.paymentplatform'),
-            'name' => 'payment_platform',
-            'type' => 'closure',
-            'escaped' => false,
-            'function' => function ($inscription) {
-                $payment = optional($inscription->cart->confirmedPayment);
-                $gateway = $payment->gateway ?? 'NA';
-                $tpv_name = $payment->tpv_name ?? '';
-                return e($gateway) . '<br/><small>' . e($tpv_name) . '</small>';
-            },
-        ]);
+    CRUD::addColumn([
+        'name'  => 'session_display',
+        'label' => __('backend.inscription.session'),
+        'type'  => 'closure',
+        'function' => function ($ins) {
+            $s = $ins->session;
+            if (!$s) return '-';
+            // Evita Carbon::parse; asegúrate de tener casts en el modelo: 'starts_on' => 'datetime'
+            $fecha = $s->starts_on ? $s->starts_on->format('d/m/Y H:i') : '-';
+            return e($s->name).' '.$fecha;
+        },
+    ]);
 
-        CRUD::addColumn([
-            'name' => 'updated_at',
-            'label' => __('backend.inscription.modifiedon'),
-            'type' => 'date.str'
-        ]);
+    CRUD::addColumn([
+        'label' => __('backend.inscription.slot'),
+        'name'  => 'slot_display',
+        'type'  => 'closure',
+        'function' => fn($ins) => optional($ins->slot)->name ?? '-',
+    ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.client'),
-            'name' => 'client_link',
-            'type' => 'closure',
-            'escaped' => false,
-            'function' => function ($inscription) {
-                if (isset($inscription->cart->client_id)) {
-                    $clientId = $inscription->cart->client_id;
-                    $url = backpack_url("client/{$clientId}/show");
-                    return sprintf(
-                        '<a href="%s" target="_blank">%s</a>',
-                        e($url),
-                        e($clientId)
-                    );
-                }
+    CRUD::addColumn(['name' => 'barcode', 'label' => __('backend.inscription.barcode')]);
+    CRUD::addColumn(['name' => 'code',    'label' => __('backend.inscription.code')]);
 
-                return 'Client eliminat';
-            },
-        ]);
+    CRUD::addColumn([
+        'name'  => 'price_sold_formatted',
+        'label' => __('backend.inscription.pricesold'),
+        'type'  => 'closure',
+        'function' => fn($ins) => number_format($ins->price_sold, 2).' €',
+    ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.origin'),
-            'name' => 'origin_display',
-            'type' => 'closure',
-            'function' => function ($inscription) {
-                return $inscription->group_pack_id === null
-                    ? 'Simple'
-                    : 'Pack';
-            },
-        ]);
+    CRUD::addColumn([
+        'label'   => __('backend.inscription.paymentplatform'),
+        'name'    => 'payment_platform',
+        'type'    => 'closure',
+        'escaped' => false,
+        'function'=> function ($ins) {
+            // Ya viene eager loaded: no hay N+1
+            $p = optional(optional($ins->cart)->confirmedPayment);
+            $gateway = $p->gateway ?? 'NA';
+            $tpv     = $p->tpv_name ?? '';
+            return e($gateway).'<br/><small>'.e($tpv).'</small>';
+        },
+    ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.inscription.cardconfirmationcode'),
-            'name' => 'cart_confirmation_link',
-            'type' => 'closure',
-            'escaped' => false,
-            'function' => function ($inscription) {
-                if (isset($inscription->cart->confirmation_code)) {
-                    $cartId = $inscription->cart_id;
-                    $code = $inscription->cart->confirmation_code;
-                    $url = backpack_url("cart/{$cartId}/show");
-                    return sprintf(
-                        '<a href="%s" target="_blank">%s</a>',
-                        e($url),
-                        e($code)
-                    );
-                }
-                return 'Cistella eliminada';
-            },
-        ]);
+    CRUD::addColumn([
+        'name'  => 'updated_at',
+        'label' => __('backend.inscription.modifiedon'),
+        'type'  => 'date.str'
+    ]);
 
-        // Filtros
-
-        $this->crud->addFilter(
-            [
-                'name' => 'last_3_months',
-                'type' => 'simple',
-                'label' => __('backend.cart.last_3_months'),
-            ],
-            false,
-            function () {
-                // hace 3 meses, a las 00:00
-                $date = now()->subMonths(3)->startOfDay();
-                $this->crud->addClause('where', 'carts.created_at', '>=', $date);
+    CRUD::addColumn([
+        'label'   => __('backend.inscription.client'),
+        'name'    => 'client_link',
+        'type'    => 'closure',
+        'escaped' => false,
+        'function'=> function ($ins) {
+            $clientId = optional($ins->cart)->client_id;
+            if ($clientId) {
+                $url = backpack_url("client/{$clientId}/show");
+                return '<a href="'.e($url).'" target="_blank">'.e($clientId).'</a>';
             }
-        );
+            return 'Client eliminat';
+        },
+    ]);
 
-        CRUD::addFilter([
-            'type' => 'simple',
-            'name' => 'trashed',
-            'label' => __('backend.inscription.showremovedinscriptions'),
-        ], false, function () {
-            $this->crud->query->onlyTrashed();
-        });
+    CRUD::addColumn([
+        'label'    => __('backend.inscription.origin'),
+        'name'     => 'origin_display',
+        'type'     => 'closure',
+        'function' => fn($ins) => $ins->group_pack_id === null ? 'Simple' : 'Pack',
+    ]);
 
-        CRUD::addFilter([
-            'type' => 'select2',
-            'name' => 'event_id',
-            'label' => __('backend.inscription.event'),
-        ], function () {
-            return \App\Models\Event::orderBy('name')
-                ->pluck('name', 'id')
-                ->toArray();
-        }, function ($value) {
-            CRUD::addClause('whereHas', 'session', function ($q) use ($value) {
-                $q->where('event_id', $value);
-            });
-        });
+    CRUD::addColumn([
+        'label'   => __('backend.inscription.cardconfirmationcode'),
+        'name'    => 'cart_confirmation_link',
+        'type'    => 'closure',
+        'escaped' => false,
+        'function'=> function ($ins) {
+            $code = optional($ins->cart)->confirmation_code;
+            if ($code) {
+                $url = backpack_url("cart/{$ins->cart_id}/show");
+                return '<a href="'.e($url).'" target="_blank">'.e($code).'</a>';
+            }
+            return 'Cistella eliminada';
+        },
+    ]);
 
-        CRUD::addFilter([
-            'type' => 'date_range',
-            'name' => 'paid_range',
-            'label' => __('backend.inscription.modifiedon'),
-        ], false, function ($value) {
+    // ==== Filtros (usa whereHas; todos pegan a índices) ====
+
+    // Últimos 3 meses (usa carts.created_at vía relación; más barato que subselect)
+    $this->crud->addFilter(
+        ['name'=>'last_3_months','type'=>'simple','label'=>__('backend.cart.last_3_months')],
+        false,
+        function () {
+            $date = now()->subMonths(3)->startOfDay();
+            $this->crud->query->whereHas('cart', fn($q) => $q->where('created_at', '>=', $date));
+        }
+    );
+
+    // Trashed (si realmente usas deleted_at en inscriptions; si no, quita el deleted_at del select)
+    CRUD::addFilter(
+        ['type'=>'simple','name'=>'trashed','label'=>__('backend.inscription.showremovedinscriptions')],
+        false,
+        fn () => $this->crud->query->onlyTrashed()
+    );
+
+    // Evento (usa whereHas sobre session; hay índice sessions.event_id)
+    CRUD::addFilter(
+        ['type'=>'select2_ajax','name'=>'event_id','label'=>__('backend.inscription.event'),'placeholder'=>__('backpack::crud.select')],
+        backpack_url('api/event'),
+        fn ($eventId) => $this->crud->query->whereHas('session', fn($q) => $q->where('event_id', $eventId))
+    );
+
+    // Rango de pago (usa la relación eager: cart.confirmedPayment → EXISTS con el índice de payments)
+    CRUD::addFilter(
+        ['type'=>'date_range','name'=>'paid_range','label'=>__('backend.inscription.modifiedon')],
+        false,
+        function ($value) {
             $dates = json_decode($value);
-            CRUD::addClause('whereHas', 'cart.confirmedPayment', function ($q) use ($dates) {
-                $q->whereDate('paid_at', '>=', $dates->from)
-                    ->whereDate('paid_at', '<=', $dates->to);
-            });
-        });
+            if (!empty($dates->from) && !empty($dates->to)) {
+                $from = $dates->from.' 00:00:00';
+                $to   = $dates->to.' 23:59:59';
+                $this->crud->query->whereHas(
+                    'cart.confirmedPayment',
+                    fn($q) => $q->whereBetween('paid_at', [$from, $to])->whereNull('deleted_at')
+                );
+            }
+        }
+    );
 
-        CRUD::addFilter([
-            'type' => 'select2',
-            'name' => 'gateway',
-            'label' => __('backend.inscription.paymentplatform'),
-        ], function () {
-            return \App\Models\Payment::whereNotNull('gateway')
-                ->distinct()->pluck('gateway', 'gateway')->toArray();
-        }, function ($value) {
-            CRUD::addClause('whereHas', 'cart.confirmedPayment', function ($q) use ($value) {
-                $q->where('gateway', $value);
-            });
-        });
+    // Gateways (usa whereHas en vez de subquery)
+    $gateways = cache()->remember('inscriptions_gateways_distinct', 600, function () {
+        return \App\Models\Payment::whereNotNull('gateway')
+            ->whereNull('deleted_at')
+            ->distinct()->orderBy('gateway')
+            ->pluck('gateway', 'gateway')->toArray();
+    });
 
-    }
+    CRUD::addFilter(
+        ['type'=>'select2','name'=>'gateway','label'=>__('backend.inscription.paymentplatform')],
+        $gateways,
+        fn($value) => $this->crud->query->whereHas(
+            'cart.confirmedPayment',
+            fn($q) => $q->where('gateway', $value)->whereNull('deleted_at')
+        )
+    );
+
+    // 5) Búsqueda global: solo columnas locales
+    $this->crud->setOperationSetting('searchLogic', [
+        'barcode' => fn($q,$c,$t) => $q->orWhere('inscriptions.barcode','like',"%{$t}%"),
+        'code'    => fn($q,$c,$t) => $q->orWhere('inscriptions.code','like',"%{$t}%"),
+    ]);
+}
+
+
+
 
     public function generate($id)
     {
@@ -323,6 +306,7 @@ class InscriptionCrudController extends CrudController
         $inscription = Inscription::findOrFail($request->inscription_id);
         $inscription->rate_id = $request->rate_id;
         $inscription->price = $request->price;
+        $inscription->price_sold = $request->price;
         $inscription->save();
 
         return redirect()->back()->with('success', 'Inscripción actualizada correctamente.');

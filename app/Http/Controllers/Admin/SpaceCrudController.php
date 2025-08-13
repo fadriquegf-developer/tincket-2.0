@@ -170,10 +170,6 @@ class SpaceCrudController extends CrudController
 
     /**
      * Muestra el tab “Layout” con tu campo personalizado de SVG.
-     * **Importante**: aquí el `type` debe coincidir con tu archivo
-     * blade de campo. Si lo tenías en
-     * resources/views/vendor/backpack/crud/fields/tincket/svg_layout.blade.php,
-     * usa `'type' => 'tincket.svg_layout'`.
      */
     private function setLayoutTab(Space $space)
     {
@@ -196,9 +192,9 @@ class SpaceCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'svg_path',
-            'type' => 'svg_layout', // <–– o el namespace que uses para tu blade
+            'type' => 'svg_layout',
             'label' => '',
-            'wrapperAttributes' => ['class' => 'col-xs-12 text-center'],
+            'wrapperAttributes' => ['class' => 'text-center'],
             'tab' => 'Layout',
         ]);
     }

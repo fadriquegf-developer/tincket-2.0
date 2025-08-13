@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\MinImageWidth;
 use Illuminate\Foundation\Http\FormRequest;
+use Backpack\Pro\Uploads\Validation\ValidDropzone;
 
 class SessionRequest extends FormRequest
 {
@@ -18,9 +20,9 @@ class SessionRequest extends FormRequest
             'space' => 'required',
             'autolock_n' => 'required|integer|min:0',
             'code_type' => 'required|in:null,session,census,user',
-            'images.*' => 'dimensions:min_width=1200',
-            'custom_logo' => 'nullable|dimensions:max_width=256',
-            'banner' => 'nullable|dimensions:min_width=1200',
+            'images' => ValidDropzone::field()->file(['dimensions:min_width=1200']),
+            'custom_logo'  => ['nullable', new MinImageWidth(120)],
+            'banner' =>  ['nullable', new MinImageWidth(1200)],
         ];
 
     }

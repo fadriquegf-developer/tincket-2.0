@@ -89,6 +89,9 @@
           <i class="la la-money me-1"></i>
           {{ __('backend.cart.changeGateway') }}
         </button>
+        @php
+            $currentGateway = $entry->payment->gateway ?? null;
+        @endphp
         @push('after_scripts')
         {{-- Modal: Cambiar Plataforma de Pagament --}}
         <div class="modal fade" id="changePaymentGateway" tabindex="-1" aria-hidden="true">
@@ -98,21 +101,27 @@
                 @csrf
                 <input type="hidden" name="cart_id" value="{{ $entry->getKey() }}">
                 <div class="modal-header">
-                  <h5 class="modal-title">Selecciona la plataforma de pagament</h5>
+                  <h5 class="modal-title">{{__('backend.cart.select_gateway')}}</h5>
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tancar"></button>
                 </div>
                 <div class="modal-body">
                   <div class="mb-3">
                     <label for="gateway" class="form-label">Gateway</label>
                     <select id="gateway" name="gateway" class="form-select">
-                      <option value="cash">Efectiu</option>
-                      <option value="card">Targeta de crèdit</option>
+                      <option value="TicketOffice"
+                          {{ $currentGateway === 'TicketOffice' ? 'selected' : '' }}>
+                          {{__('backend.cart.cash')}}
+                      </option>
+                      <option value="Redsys Redirect"
+                          {{ $currentGateway === 'Redsys Redirect' ? 'selected' : '' }}>
+                          {{__('backend.cart.card')}}
+                      </option>
                     </select>
                   </div>
                 </div>
                 <div class="modal-footer">
-                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tancar</button>
-                  <button type="submit" class="btn btn-primary">Cambiar</button>
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{__('backend.cart.close')}}</button>
+                  <button type="submit" class="btn btn-primary">{{__('backend.cart.change')}}</button>
                 </div>
               </form>
             </div>
@@ -240,11 +249,11 @@
     @method('PUT')
 
     <div class="row mb-3">
-      <div class="col-md-6">
+      <div class="col-md-8">
         @include('core.cart.inc.payment')
       </div>
 
-      <div class="col-md-6">
+      <div class="col-md-4">
         @include('core.cart.inc.comment')
       </div>
     </div>

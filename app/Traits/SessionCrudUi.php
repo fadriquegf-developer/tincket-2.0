@@ -11,6 +11,7 @@ use App\Models\Inscription;
 use App\Models\SessionSlot;
 use App\Models\SessionTempSlot;
 use Illuminate\Support\Facades\DB;
+use App\Uploaders\WebpImageUploader;
 use App\Http\Requests\SessionRequest;
 use Backpack\CRUD\app\Library\Widget;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
@@ -291,7 +292,6 @@ trait SessionCrudUi
         Widget::add()->to('after_content')->type('view')->view('core.session.add-sessions-modal');
         CRUD::setOperationSetting('lineButtonsAsDropdown', true);
         CRUD::addButtonFromView('top', 'multi_create', 'buttons.multi_create', 'end');
-
     }
 
     /**
@@ -336,84 +336,112 @@ trait SessionCrudUi
         }
     }
 
+    // Modificar el método setLayoutTab en el trait SessionCrudUi
+
     private function setLayoutTab($space, $session_id)
     {
-        // Obtener el mapa de slots base desde el espacio
-        $slots_map = $space->slots->map(function ($slot) {
+        // 1. Obtener TODOS los slots del espacio con sus propiedades completas
+        $spaceSlots = $space->slots->keyBy('id');
+
+        // 2. Crear el mapa base con los estados heredados del espacio
+        $slots_map = $spaceSlots->map(function ($slot) {
             return [
                 'id' => $slot->id,
                 'name' => $slot->name,
-                'status_id' => null,
+                'status_id' => $slot->status_id, // ← IMPORTANTE: heredar el status del espacio
+                'comment' => $slot->comment,     // ← También heredar el comentario
+                'x' => $slot->x,
+                'y' => $slot->y,
+                'zone_id' => $slot->zone_id,
             ];
         });
 
-        // Slots bloqueados manualmente en la sesión
-        $locked_slots = SessionSlot::with('slot')->where('session_id', $session_id)->get();
+        // 3. Sobrescribir con los slots bloqueados manualmente en la sesión (SessionSlot)
+        $sessionSlots = SessionSlot::where('session_id', $session_id)->get();
 
-        if ($locked_slots->count() > 0) {
-            $locked_slots_map = $locked_slots->map(function ($slot) use ($slots_map) {
-                return [
-                    'id' => $slot->slot_id,
-                    'status_id' => $slot->status_id,
-                    'name' => $slots_map->where('id', $slot->slot_id)->first()['name'] ?? '',
-                    'comment' => $slot->comment,
-                    'type' => 'SessionSlot',
-                ];
-            });
-
-            $slots_map = $locked_slots_map->merge($slots_map)->unique('id');
+        if ($sessionSlots->count() > 0) {
+            foreach ($sessionSlots as $sessionSlot) {
+                // Si existe un SessionSlot, sobrescribe los valores del slot del espacio
+                if ($slots_map->has($sessionSlot->slot_id)) {
+                    $slots_map[$sessionSlot->slot_id] = array_merge(
+                        $slots_map[$sessionSlot->slot_id],
+                        [
+                            'status_id' => $sessionSlot->status_id,
+                            'comment' => $sessionSlot->comment,
+                            'type' => 'SessionSlot', // Para identificar que viene de la sesión
+                        ]
+                    );
+                }
+            }
         }
 
-        // Slots bloqueados automáticamente (autolocks confirmados)
+        // 4. Sobrescribir con los slots bloqueados automáticamente (autolocks confirmados)
         $autolocks = SessionTempSlot::whereNull('expires_on')
-            ->with('slot')
             ->where('session_id', $session_id)
             ->get();
 
         if ($autolocks->count() > 0) {
-            $autolocks_map = $autolocks->map(function ($slot) use ($slots_map) {
-                return [
-                    'id' => $slot->slot_id,
-                    'status_id' => $slot->status_id,
-                    'name' => $slots_map->where('id', $slot->slot_id)->first()['name'] ?? '',
-                    'comment' => trans('tincket/backend.session.autolock_type'),
-                ];
-            });
-
-            $slots_map = $autolocks_map->merge($slots_map)->unique('id');
+            foreach ($autolocks as $autolock) {
+                if ($slots_map->has($autolock->slot_id)) {
+                    $slots_map[$autolock->slot_id] = array_merge(
+                        $slots_map[$autolock->slot_id],
+                        [
+                            'status_id' => $autolock->status_id,
+                            'comment' => trans('backend.session.autolock_type'),
+                            'type' => 'Autolock',
+                        ]
+                    );
+                }
+            }
         }
 
-        // Slots vendidos (pagados)
-        $sold_slots = Inscription::paid()
+        // 5. Marcar los slots vendidos (tienen prioridad máxima)
+        $soldSlots = Inscription::paid()
             ->where('session_id', $session_id)
+            ->whereNotNull('slot_id')
             ->get();
 
-        if ($sold_slots->count() > 0) {
-            $sold_slots_map = $sold_slots->map(function ($slot) use ($slots_map) {
-                return [
-                    'id' => $slot->slot_id,
-                    'status_id' => 2, // ID de estado "vendido"
-                    'name' => $slots_map->where('id', $slot->slot_id)->first()['name'] ?? '',
-                ];
-            });
-
-            $slots_map = $sold_slots_map->merge($slots_map)->unique('id');
+        if ($soldSlots->count() > 0) {
+            foreach ($soldSlots as $inscription) {
+                if ($slots_map->has($inscription->slot_id)) {
+                    $slots_map[$inscription->slot_id] = array_merge(
+                        $slots_map[$inscription->slot_id],
+                        [
+                            'status_id' => 2, // ID de estado "vendido"
+                            'comment' => null, // Las vendidas no suelen tener comentario
+                            'type' => 'Sold',
+                        ]
+                    );
+                }
+            }
         }
 
-        // Preparar las variables para la vista
-        $this->data['slots_map'] = collect(array_values($slots_map->toArray()));
+        // 6. Preparar las variables para la vista
+        $this->data['slots_map'] = $slots_map->values()->all();
+
+        // 7. Las zonas siempre vienen del espacio (con sus colores)
         $this->data['zones_map'] = $space->zones->map(function ($zone) {
             return [
                 'id' => $zone->id,
                 'name' => $zone->name,
+                'color' => $zone->color, // ← IMPORTANTE: incluir el color de la zona
             ];
-        });
+        })->values()->all();
 
-        // Compartir con el blade personalizado
+        // 8. Log para debugging
+        \Log::info("[SessionCrudUi] Preparando mapa para sesión {$session_id}", [
+            'total_slots' => $slots_map->count(),
+            'session_slots' => $sessionSlots->count(),
+            'autolocks' => $autolocks->count(),
+            'sold' => $soldSlots->count(),
+            'zones' => $space->zones->count(),
+        ]);
+
+        // 9. Compartir con el blade
         \View::share('slots_map', $this->data['slots_map']);
         \View::share('zones_map', $this->data['zones_map']);
 
-        // Añadir el campo personalizado al formulario
+        // 10. Añadir el campo personalizado al formulario
         $this->crud->addField([
             'name' => 'svg_path',
             'label' => '',
@@ -478,7 +506,7 @@ trait SessionCrudUi
             'type' => 'text',
             'label' => __('backend.session.title'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -489,7 +517,7 @@ trait SessionCrudUi
             'type' => 'slug',
             'target' => 'name',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -505,7 +533,7 @@ trait SessionCrudUi
                 'locale' => ['format' => 'DD/MM/YYYY HH:mm']
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -516,7 +544,7 @@ trait SessionCrudUi
             'type' => 'relationship',
             'attribute' => 'name_city', // lo que se muestra en el select
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -526,7 +554,7 @@ trait SessionCrudUi
             'type' => 'switch',
             'label' => __('backend.session.visibility'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -536,7 +564,7 @@ trait SessionCrudUi
             'type' => 'switch',
             'label' => __('backend.session.only_pack'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -546,7 +574,7 @@ trait SessionCrudUi
             'type' => 'switch',
             'label' => __('backend.session.private'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -556,7 +584,7 @@ trait SessionCrudUi
             'type' => 'switch',
             'label' => __('backend.session.hide_n_positions'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic',
         ]);
@@ -588,12 +616,7 @@ trait SessionCrudUi
             'type' => 'dropzone',
             'upload' => true,
             'disk' => 'public',
-            'prefix' => 'uploads/'
-                . get_current_brand()->code_name
-                . '/session/'
-                . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__')
-                . '/',
-            // … otros ajustes (maxFiles, acceptedFiles, etc.) …
+            'hint' => __('backend.events.minWidth'),
             'tab' => 'Basic',
         ]);
     }
@@ -611,7 +634,7 @@ trait SessionCrudUi
                 'locale' => ['format' => 'DD/MM/YYYY HH:mm']
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.session.inscriptions'),
         ]);
@@ -621,7 +644,7 @@ trait SessionCrudUi
             'type' => 'text',
             'label' => __('backend.session.external_url'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.session.inscriptions'),
         ]);
@@ -631,7 +654,7 @@ trait SessionCrudUi
             'type' => 'number',
             'label' => __('backend.session.maximumplaces'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-3',
+                'class' => 'form-group col-md-3',
             ],
             'tab' => __('backend.session.inscriptions'),
         ]);
@@ -643,7 +666,7 @@ trait SessionCrudUi
             'attributes' => ["max" => 100, "min" => 0],
             'suffix' => "%",
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-6 col-sm-3',
+                'class' => 'form-group col-md-3',
             ],
             'tab' => __('backend.session.inscriptions'),
             'default' => 100
@@ -660,7 +683,7 @@ trait SessionCrudUi
             ],
             'default' => 0,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-12',
+                'class' => 'form-group col-md-12',
             ],
             'attributes' => array_merge([
                 'ng-model' => 'basic.is_numbered'
@@ -674,7 +697,7 @@ trait SessionCrudUi
                 'name' => 'is_numbered_info',
                 'type' => 'custom_html',
                 'wrapperAttributes' => [
-                    'class' => 'form-group col-xs-12 col-sm-12',
+                    'class' => 'form-group col-md-12',
                 ],
                 'value' => '<p class="alert alert-danger">' . __('backend.session.is_numbered_info') . '</p>',
                 'tab' => __('backend.session.inscriptions'),
@@ -691,7 +714,7 @@ trait SessionCrudUi
             ],
             'allows_null' => true,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-6 col-sm-3',
+                'class' => 'form-group col-md-3',
             ],
             'tab' => __('backend.session.inscriptions')
         ]);
@@ -703,7 +726,7 @@ trait SessionCrudUi
             'attributes' => ['min' => 0, 'required' => 'required'],
             'default' => 0,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-6 col-sm-3',
+                'class' => 'form-group col-md-3',
             ],
             'tab' => __('backend.session.inscriptions'),
         ]);
@@ -726,7 +749,7 @@ trait SessionCrudUi
             ],
             'default' => 0,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-9',
+                'class' => 'form-group col-md-9',
             ],
             'inline' => true,
         ]);
@@ -745,7 +768,7 @@ trait SessionCrudUi
         CRUD::addField([
             'name' => 'tpv',         // nombre de la RELACIÓN (no tpv_id)
             'label' => 'TPV',
-            'type' => 'relationship',// pinta un select2 con búsqueda
+            'type' => 'relationship', // pinta un select2 con búsqueda
             'attribute' => 'name',        // columna visible en la lista
             'allows_null' => true,
             'tab' => __('backend.menu.rates'),
@@ -775,7 +798,7 @@ trait SessionCrudUi
             'type' => 'color',
             'label' => __('backend.session.session_color'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-6',
+                'class' => 'form-group col-lg-6',
             ],
             'tab' => 'Ticket',
         ]);
@@ -785,7 +808,7 @@ trait SessionCrudUi
             'type' => 'color',
             'label' => __('backend.session.session_bg_color'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-6',
+                'class' => 'form-group col-lg-6',
             ],
             'tab' => 'Ticket',
         ]);
@@ -794,15 +817,21 @@ trait SessionCrudUi
             'name' => 'custom_logo',
             'label' => __('backend.session.custom_logo'),
             'type' => 'image',
-            'upload' => false, // Lo procesamos manualmente en el mutator
             'crop' => true,
-            //'aspect_ratio' => 1.78, // Opcional
+            //'aspect_ratio' => 1.78,
+            'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . (CRUD::getCurrentEntry()?->id ?? '__TEMP__'),
+                'uploader' => WebpImageUploader::class,
+                'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
+                'custom_name' => 'custom-logo',
+                'resize' => [
+                    'max' => 120
+                ]
             ],
+            'hint' => __('backend.session.minWidth'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-12',
+                'class' => 'form-group col-lg-12',
             ],
             'tab' => 'Ticket',
         ]);
@@ -811,15 +840,21 @@ trait SessionCrudUi
             'name' => 'banner',
             'label' => __('backend.session.banner'),
             'type' => 'image',
-            'upload' => false,
             'crop' => true,
-            // 'aspect_ratio' => 2.5 / 1, // opcional
+            //'aspect_ratio' => 1.78,
+            'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . (CRUD::getCurrentEntry()?->id ?? '__TEMP__'),
+                'uploader' => WebpImageUploader::class,
+                'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
+                'custom_name' => 'banner',
+                'resize' => [
+                    'max' => 1200
+                ]
             ],
+            'hint' => __('backend.events.minWidth'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-12',
+                'class' => 'form-group col-lg-12',
             ],
             'tab' => 'Ticket'
         ]);
@@ -839,7 +874,7 @@ trait SessionCrudUi
             ],
             'allows_null' => false,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.rate.code'),
         ]);

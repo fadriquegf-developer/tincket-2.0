@@ -128,7 +128,7 @@
 
     <!-- Taquilla -->
     <x-backpack::menu-dropdown title="{{ __('backend.menu.box_office') }}" icon="la la-ticket-alt">
-        <x-backpack::menu-dropdown-item title="{{ __('backend.menu.box_office') }}"
+        <x-backpack::menu-dropdown-item title="{{ __('backend.menu.box_office') }}" icon="la la-cash-register"
             :link="backpack_url('ticket-office/create')" />
         @can('validations.index')
             <x-backpack::menu-dropdown-item title="{{ __('backend.menu.validation') }}" icon="la la-barcode"

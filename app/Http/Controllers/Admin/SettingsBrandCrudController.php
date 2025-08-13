@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Brand;
 use App\Models\Taxonomy;
+use App\Models\RegisterInput;
 use App\Traits\AllowUsersTrait;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
@@ -53,7 +54,7 @@ class SettingsBrandCrudController extends CrudController
         $this->setupTaxonomiesTab();
         $this->setupTpvTab();
         $this->setupCartTab();
-        //$this->setupRegisterTab();
+        $this->setupRegisterTab();
         $this->setupLegalTab();
     }
 
@@ -67,11 +68,11 @@ class SettingsBrandCrudController extends CrudController
             ->label(__('backend.brand_settings.logo'))
             ->crop(true)->aspect_ratio(2.5 / 1)
             ->withFiles([
-                'disk'      => 'public',
-                'path'      => "uploads/{$brand->code_name}/media",
-                'uploader'  => \App\Uploaders\WebpImageUploader::class,
+                'disk' => 'public',
+                'path' => "uploads/{$brand->code_name}/media",
+                'uploader' => \App\Uploaders\WebpImageUploader::class,
                 'fileNamer' => fn($file, $u) => 'logo-' . $u->entry->code_name . '.webp',
-                'resize'      => ['max' => 300],
+                'resize' => ['max' => 300],
             ])
             ->wrapper(['class' => 'form-group col-md-6'])
             ->tab(__('backend.brand_settings.tabs.brand'));
@@ -82,11 +83,11 @@ class SettingsBrandCrudController extends CrudController
             ->crop(true)
             ->aspect_ratio(2.5 / 1)
             ->withFiles([
-                'disk'       => 'public',
-                'path'       => "uploads/{$brand->code_name}/media",
-                'uploader'   => \App\Uploaders\WebpImageUploader::class,
-                'fileNamer'  => fn($file, $u) => 'banner-' . $u->entry->code_name . '.webp',
-                'resize'      => ['max' => 1200],
+                'disk' => 'public',
+                'path' => "uploads/{$brand->code_name}/media",
+                'uploader' => \App\Uploaders\WebpImageUploader::class,
+                'fileNamer' => fn($file, $u) => 'banner-' . $u->entry->code_name . '.webp',
+                'resize' => ['max' => 1200],
                 'conversions' => [],
             ])
             ->wrapper(['class' => 'form-group col-md-6'])
@@ -181,19 +182,19 @@ class SettingsBrandCrudController extends CrudController
             'fake' => true,
             'store_in' => 'extra_config',
             'tab' => __('backend.brand_settings.tabs.taxonomies'),
-            'hint' => '<span class="small">'.__('backend.brand_settings.taxonomychildswillbedisplayed').'</span>'
+            'hint' => '<span class="small">' . __('backend.brand_settings.taxonomychildswillbedisplayed') . '</span>'
         ]);
-        
+
         CRUD::addField([
-            'label'     => __('backend.brand_settings.hiddentaxonomies'),
-            'type'      => 'checklist_hidden_taxonomies',
-            'name'      => 'hidden_taxonomies',
-            'model'     => Taxonomy::class, // <- Asegúrate que sea string o use completo
+            'label' => __('backend.brand_settings.hiddentaxonomies'),
+            'type' => 'checklist_hidden_taxonomies',
+            'name' => 'hidden_taxonomies',
+            'model' => Taxonomy::class, // <- Asegúrate que sea string o use completo
             'attribute' => 'name',
-            'fake'      => true,
-            'store_in'  => 'extra_config',
-            'tab'       => __('backend.brand_settings.tabs.taxonomies'),
-            'hint'      => '<span class="small">'
+            'fake' => true,
+            'store_in' => 'extra_config',
+            'tab' => __('backend.brand_settings.tabs.taxonomies'),
+            'hint' => '<span class="small">'
                 . __('backend.brand_settings.select_which_taxonomies_will')
                 . ' <strong>' . __('backend.brand_settings.not') . '</strong>'
                 . __('backend.brand_settings.be_shown_in_fronend') . '.</span>',
@@ -210,7 +211,7 @@ class SettingsBrandCrudController extends CrudController
             'fake' => true,
             'store_in' => 'extra_config',
             'tab' => __('backend.brand_settings.tabs.taxonomies'),
-            'hint' => '<span class="small">'.__('backend.brand_settings.this_should_be_the_posts_taxonomy').'</span>'
+            'hint' => '<span class="small">' . __('backend.brand_settings.this_should_be_the_posts_taxonomy') . '</span>'
         ]);
 
         CRUD::addField([
@@ -224,7 +225,7 @@ class SettingsBrandCrudController extends CrudController
             'allows_null' => true,
             'store_in' => 'extra_config',
             'tab' => __('backend.brand_settings.tabs.taxonomies'),
-        ]); 
+        ]);
     }
 
     private function setupTpvTab()
@@ -268,15 +269,15 @@ class SettingsBrandCrudController extends CrudController
             ->tab(__('backend.brand_settings.tabs.cart'));
     }
 
-    /* private function setupRegisterTab()
+    private function setupRegisterTab()
     {
         $register_inputs = RegisterInput::get();
 
-        foreach($register_inputs as $input){
+        foreach ($register_inputs as $input) {
             $this->crud->addField([
-                'name' => "input[".$input->name_form."][id]", // JSON variable name
+                'name' => "input.{$input->name_form}.id", // JSON variable name
                 'label' => $input->title, // human-readable label for the input
-                'tab' => 'Registre',
+                'tab' => __('backend.brand_settings.tabs.register'),
                 'wrapperAttributes' => [
                     'class' => 'form-group col-md-12',
                 ],
@@ -284,31 +285,31 @@ class SettingsBrandCrudController extends CrudController
                 'attributes' => [
                     'readonly' => 'readonly',
                     'style' => 'display:none;',
-                  ],
+                ],
             ]);
             $this->crud->addField([   // Checkbox
-                'name' => "input[".$input->name_form."][active]",
+                'name' => "input.{$input->name_form}.active",
                 'label' => 'Active',
                 'type' => 'checkbox',
-                'value' => request()->get('brand')->register_inputs()->where('register_inputs.id', $input->id)->first() ? true : false,
-                'tab' => 'Registre',
+                'value' => get_current_brand()->register_inputs()->where('register_inputs.id', $input->id)->first() ? true : false,
+                'tab' => __('backend.brand_settings.tabs.register'),
                 'wrapperAttributes' => [
                     'class' => 'form-group col-md-4',
                 ],
             ]);
             $this->crud->addField([   // Checkbox
-                'name' => "input[".$input->name_form."][required]",
+                'name' => "input.{$input->name_form}.required",
                 'label' => 'Required',
                 'type' => 'checkbox',
-                'value' => request()->get('brand')->register_inputs()->where('register_inputs.id', $input->id)->first() ? request()->get('brand')->register_inputs()->where('register_inputs.id', $input->id)->first()->pivot->required : false,
-                'tab' => 'Registre',
+                'value' => get_current_brand()->register_inputs()->where('register_inputs.id', $input->id)->first() ? get_current_brand()->register_inputs()->where('register_inputs.id', $input->id)->first()->pivot->required : false,
+                'tab' => __('backend.brand_settings.tabs.register'),
                 'wrapperAttributes' => [
                     'class' => 'form-group col-md-4',
                 ],
             ]);
         }
-        
-    } */
+
+    }
 
     private function setupLegalTab()
     {
@@ -363,5 +364,28 @@ class SettingsBrandCrudController extends CrudController
             ->fake(true)
             ->store_in('extra_config')
             ->tab(__('backend.brand_settings.tabs.legal'));
+    }
+
+    public function update()
+    {
+        $response = $this->traitUpdate();
+        $this->syncRegisterInputs($this->crud->entry);
+        return $response;
+    }
+
+    private function syncRegisterInputs($brand)
+    {
+        $data = request()->input('input', []);
+
+        $attach = [];
+        foreach ($data as $item) {
+            if (!empty($item['active'])) {              // solo los “marcados”
+                $attach[$item['id']] = [
+                    'required' => !empty($item['required']),
+                ];
+            }
+        }
+
+        $brand->register_inputs()->sync($attach);
     }
 }

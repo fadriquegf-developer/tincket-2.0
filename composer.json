@@ -23,6 +23,7 @@
         "barryvdh/laravel-dompdf": "^3.1",
         "cviebrock/eloquent-sluggable": "^12.0",
         "doctrine/dbal": "^4.2",
+        "html2text/html2text": "^4.3",
         "intervention/image": "^3.11",
         "intervention/image-laravel": "^1.5",
         "laravel/framework": "^12.0",

@@ -59,7 +59,8 @@ class ClientCrudController extends CrudController
         CRUD::denyAccess('bulkDestroy');
         CRUD::enableExportButtons();
         CRUD::addButtonFromView('top', 'import_csv', 'client_import_button', 'end');
-        CRUD::addButtonFromModelFunction('top', 'export', 'exportButton', 'end');
+        CRUD::addButtonFromModelFunction('top', 'export', 'exportButton', position: 'end');
+        CRUD::addButtonFromModelFunction('top', 'newsletter', 'newsletterButton', 'end');
 
         CRUD::addFilter([
             'name' => 'session',
@@ -163,7 +164,6 @@ class ClientCrudController extends CrudController
                 'model' => \App\Models\Brand::class,
             ]);
         }
-
     }
 
     protected function setupCreateOperation()
@@ -282,6 +282,13 @@ class ClientCrudController extends CrudController
         ]);
 
         CRUD::addField([
+            'name' => 'info_password',
+            'label' => __('backend.user.info_password'),
+            'type' => 'custom_html',
+            'value' => '<div class="alert alert-info">' . __('backend.user.info_password') . '</div>'
+        ]);
+
+        CRUD::addField([
             'name' => 'newsletter',
             'label' => 'Newsletter',
             'type' => 'switch',
@@ -384,5 +391,4 @@ class ClientCrudController extends CrudController
             ];
         }));
     }
-
 }

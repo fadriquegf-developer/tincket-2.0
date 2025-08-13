@@ -60,7 +60,7 @@ class CartConfirm implements ShouldQueue
 
         $this->storeGiftCardsPdf($this->cart);
 
-        //if ($this->hasToSendEmail) $this->sendConfirmationEmail($this->cart);
+        if ($this->hasToSendEmail) $this->sendConfirmationEmail($this->cart);
     }
 
     /**
@@ -69,7 +69,7 @@ class CartConfirm implements ShouldQueue
      * 
      * @param Cart $cart
      */
-    /* public function sendConfirmationEmail(Cart $cart)
+    public function sendConfirmationEmail(Cart $cart)
     {
         if (isset($cart->client)) {
             app()->setLocale($cart->client->locale);
@@ -83,7 +83,7 @@ class CartConfirm implements ShouldQueue
         foreach ($cart->gift_cards()->hasEmail()->get() as $gift) {
             $mailer->to(trim($gift->email))->send(new GiftCardMail($gift));
         }
-    } */
+    }
 
     private function storeInscriptionsPdf($cart)
     {

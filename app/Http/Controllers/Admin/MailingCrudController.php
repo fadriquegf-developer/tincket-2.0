@@ -37,7 +37,7 @@ class MailingCrudController extends CrudController
         CRUD::setModel(Mailing::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/mailing');
         CRUD::setEntityNameStrings(__('backend.menu.mail'), __('backend.menu.mails'));
-        //$this->setAccessUsingPermissions();
+        $this->setAccessUsingPermissions();
         $this->crud->allowAccess('send');
 
         $this->crud->setLabeller(function ($val) {
@@ -163,7 +163,7 @@ class MailingCrudController extends CrudController
             'label' => __('backend.mail.campaign_name'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ]
         ]);
 
@@ -173,7 +173,7 @@ class MailingCrudController extends CrudController
             'type' => 'slug',
             'target' => 'name',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ]
         ]);
 
@@ -182,7 +182,7 @@ class MailingCrudController extends CrudController
             'label' => __('backend.mail.subject'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ]
         ]);
 
@@ -192,7 +192,7 @@ class MailingCrudController extends CrudController
             'type' => 'select_from_array',
             'options' => config('backpack.crud.locales'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ]
         ]);
 
@@ -256,13 +256,13 @@ class MailingCrudController extends CrudController
     {
         $this->setupCreateOperation();
 
-        /*if (\Auth::user()->hasRole('admin')) {
+        /* if (\Auth::user()->hasRole('admin')) {
             CRUD::addField([
                 'name' => 'testing_email',
                 'label' => __('backend.mail.test_it'),
-                'type' => 'tincket.mailings.test_it',
+                'type' => 'test_it',
             ]);
-        }*/
+        } */
     }
 
     public function store(MailingCrudRequest $request)

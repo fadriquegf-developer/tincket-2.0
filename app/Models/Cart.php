@@ -65,7 +65,7 @@ class Cart extends BaseModel
     {
         return $this->HasMany(Inscription::class)->where('group_pack_id', NULL);
     }
-    
+
     public function allInscriptions()
     {
         return $this->HasMany(Inscription::class);
@@ -128,7 +128,7 @@ class Cart extends BaseModel
             ->first();
     }
 
-    
+
     /**
      * A Cart is expired when expires_on date is already passed or created_at
      * is passed more than max TTL attribute (60 minutes, for example)
@@ -145,34 +145,41 @@ class Cart extends BaseModel
 
     public function getPriceSoldAttribute(): float
     {
-        $this->loadMissing([
+        // Usar load en lugar de loadMissing para forzar recarga
+        $this->load([
+            'groupPacks.pack',
             'groupPacks.inscriptions',
             'inscriptions',
             'gift_cards',
         ]);
 
+        // Separar GroupPacks por tipo de redondeo
         [$rounded, $notRounded] = $this->groupPacks->partition(
             fn($gp) => $gp->pack->cart_rounded
         );
 
+        // Para packs con redondeo, redondear la suma total
         $priceRounded = round(
             $rounded->flatMap->inscriptions->sum('price_sold'),
             0
         );
 
+        // Para packs sin redondeo, mantener 2 decimales
         $priceNotRounded = round(
             $notRounded->flatMap->inscriptions->sum('price_sold'),
             2
         );
 
+        // Inscripciones directas (sin pack)
         $priceInscriptions = round(
             $this->inscriptions
                 ->whereNull('group_pack_id')
-                ->filter(fn($insc) => !$insc->gift_card)
+                ->reject(fn($insc) => $insc->gift_card_id !== null)
                 ->sum('price_sold'),
             2
         );
 
+        // Gift cards
         $priceGiftCards = $this->gift_cards->sum('price');
 
         return $priceRounded + $priceNotRounded + $priceInscriptions + $priceGiftCards;

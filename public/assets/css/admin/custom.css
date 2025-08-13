@@ -1,0 +1,7 @@
+/* Css para customizar pequeños elementos del tabler de backpack */
+
+a:has(> .caret),
+a.dropdown-toggle,
+a.has-caret {
+    min-width: 2.5rem;
+}

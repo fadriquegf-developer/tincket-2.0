@@ -2,19 +2,19 @@
 
 namespace App\Models;
 
-use App\Traits\HasImages;
 use App\Scopes\BrandScope;
 use App\Models\Inscription;
 use App\Models\SessionSlot;
+use Illuminate\Support\Str;
 use App\Traits\LogsActivity;
+use App\Traits\HasTranslations;
 use App\Traits\OwnedModelTrait;
 use App\Traits\SetsUserOnCreate;
 use App\Traits\SetsBrandOnCreate;
 use App\Observers\SessionObserver;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
-use App\Traits\HasTranslations;
 
 class Session extends BaseModel
 {
@@ -27,7 +27,6 @@ class Session extends BaseModel
     use CrudTrait;
     use SoftDeletes;
     use HasTranslations;
-    use HasImages;
     use OwnedModelTrait;
 
     //protected $hidden = ['max_places', 'max_inscr_per_order'];
@@ -102,15 +101,14 @@ class Session extends BaseModel
         if (get_brand_capability() !== 'engine') {
             static::addGlobalScope(new BrandScope());
         }
+
         Session::observe(SessionObserver::class);
 
-    }
+        static::saved(function (self $event) {
+            $event->relocateTempUploads();
+        });
 
-    /* protected static function boot()
-    {
-        parent::boot();
-        Session::observe(Observers\SessionObserver::class);
-    } */
+    }
 
     public function user()
     {
@@ -303,47 +301,12 @@ class Session extends BaseModel
 
     public function getEventNameAttribute()
     {
-        $evt = $this->event()->withTrashed()->first();
-        return $evt ? $evt->name : 'hola';
+        $evt = $this->relationLoaded('event')
+            ? $this->event
+            : $this->event()->withTrashed()->first();
+
+        return $evt?->name ?? '-';
     }
-
-    public function setImagesAttribute($value)
-    {
-        // Si llega null, lo dejamos como array vacío
-        if (is_null($value)) {
-            $this->attributes['images'] = json_encode([]);
-            return;
-        }
-
-        // --- 1) Si llega string, intentamos decodificarlo como JSON ---
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-            if (is_array($decoded)) {
-                $value = $decoded;
-            } else {
-                // No era JSON válido → dejamos $value como array vacío
-                $value = [];
-            }
-        }
-
-        // --- 2) Si llega stdClass (o cualquier objeto), convertimos a array ---
-        if ($value instanceof \stdClass) {
-            // Convertimos recursivamente a array; en este caso es un objeto con keys "1","2",…
-            $value = (array) $value;
-        }
-
-        // --- 3) Finalmente, aseguramos que sea array indexado numéricamente ---
-        if (is_array($value)) {
-            // Si vinieran claves no numéricas, hacemos array_values()
-            $arrayOnly = array_values($value);
-            $this->attributes['images'] = json_encode($arrayOnly);
-            return;
-        }
-
-        // Si nada de lo anterior, guardamos array vacío
-        $this->attributes['images'] = json_encode([]);
-    }
-
 
     public function getShowSessionButton()
     {
@@ -586,6 +549,72 @@ class Session extends BaseModel
         }
 
         return 'Sessió ' . $this->starts_on;
+    }
+
+    protected function relocateTempUploads(): void
+    {
+        $singleImageFields = ['custom_logo', 'banner'];
+
+        $brand = get_current_brand()->code_name;
+        $baseDir = "uploads/{$brand}/session/{$this->id}";     // destino final
+        $disk = Storage::disk('public');
+
+        $dirty = false;
+        $tempDirsUsed = [];
+
+        /* ---------- mover cada campo monovalor ---------- */
+        foreach ($singleImageFields as $attr) {
+
+            // normaliza separadores «\» → «/»
+            $path = str_replace('\\', '/', $this->{$attr});
+
+            // comprueba «/__temp__/» en minúsculas
+            if (!$path || !Str::contains(Str::lower($path), '/temp/')) {
+                continue; // ya está donde toca o está vacío
+            }
+
+            // mueve archivos y obtenemos la carpeta temporal usada
+            [$finalPath, $tmpDir] = $this->moveToFinalDir($path, $baseDir, $disk);
+
+            $this->{$attr} = $finalPath;
+            $tempDirsUsed[] = str_replace('\\', '/', $tmpDir);  // ⭐
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $this->saveQuietly();   // evita sessions/updated_at innecesarios
+        }
+    }
+
+    /**
+     * Mueve un archivo (y sus variantes md-/sm-) al directorio final.
+     *
+     * @return array{0:string,1:string}  [ruta_final, carpeta_temp_origen]
+     */
+    private function moveToFinalDir(string $original, string $baseDir, $disk): array
+    {
+        // normaliza separadores para trabajar siempre con «/»
+        $original = str_replace('\\', '/', $original);
+
+        if (!$disk->exists($original)) {
+            return [$original, dirname($original)];
+        }
+
+        $filename = basename($original);
+        $dest = "{$baseDir}/{$filename}";
+
+        $disk->makeDirectory($baseDir);
+        $disk->move($original, $dest);
+
+        // mover variantes prefijadas (md-, sm-)
+        foreach (['md-', 'sm-'] as $pre) {
+            $src = dirname($original) . "/{$pre}{$filename}";
+            if ($disk->exists($src)) {
+                $disk->move($src, "{$baseDir}/{$pre}{$filename}");
+            }
+        }
+
+        return [$dest, dirname($original)];
     }
 
 }

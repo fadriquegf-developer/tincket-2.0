@@ -27,7 +27,7 @@ class Taxonomy extends BaseModel
     use Sluggable, SluggableScopeHelpers;
     use OwnedModelTrait;
 
-    protected $fillable = ['name', 'slug', 'parent_id', 'lft', 'rgt', 'depth', 'active','brand_id','user_id'];
+    protected $fillable = ['name', 'slug', 'parent_id', 'lft', 'rgt', 'depth', 'active', 'brand_id', 'user_id'];
     public $translatable = ['name', 'slug'];
 
     protected $hidden = [
@@ -54,7 +54,7 @@ class Taxonomy extends BaseModel
 
     public function events()
     {
-        $brand = get_current_brand()? get_current_brand() : request()->get('brand');
+        $brand = get_current_brand() ? get_current_brand() : request()->get('brand');
 
         // check return self events or allowed partners events
         $partners = $brand->partnershipedChildBrands->pluck('id')->toArray();

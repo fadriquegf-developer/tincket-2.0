@@ -1,11 +1,11 @@
-Benvolgut {{ $cart->client->name or '{name}' }},
+Benvolgut {{ $cart->client->name ?? '{name}' }},
 
 En aquest email trobaràs adjuntes les entrades del festival. Recorda
 imprimir-les o portar-les descarregades al mòbil. Per a qualsevol dubte
 pots posar-te en contacte amb nosaltres en aquesta adreça de correu:
 info@torellomountainfilm.cat .
 
-El teu codi de compra és: {{ $cart->confirmation_code or '{code}' }} 
+El teu codi de compra és: {{ $cart->confirmation_code ?? '{code}' }} 
 
 Esperem que gaudeixis del Festival!
 

@@ -31,6 +31,20 @@ class TaxonomyCrudController extends CrudController
     protected function setupListOperation()
     {
         CRUD::addColumn([
+            'name' => 'visibility',
+            'label' => '',
+            'type' => 'closure',
+            'function' => function ($entry) {
+                if ($entry->active == 1) {
+                    return '<i class="la la-circle" title="' . __('backend.session.visibility') . '" aria-hidden="true" style="color:green;"></i>';
+                } else {
+                    return '<i class="la la-circle" title="' . __('backend.session.no-visibility') . '" aria-hidden="true" style="color:red;"></i>';
+                }
+            },
+            'escaped' => false,
+        ]);
+
+        CRUD::addColumn([
             'name' => 'name',
             'label' => __('backend.taxonomy.name'),
             'type' => 'text',

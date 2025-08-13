@@ -5,14 +5,10 @@ namespace App\Http\Controllers\Admin;
 use App\Models\Post;
 use App\Models\Taxonomy;
 use App\Observers\PostObserver;
-use Illuminate\Support\Str;
 use App\Traits\AllowUsersTrait;
-use App\Traits\SetsBrandOnCreate;
-use Prologue\Alerts\Facades\Alert;
 use App\Traits\CrudPermissionTrait;
 use App\Uploaders\WebpImageUploader;
 use App\Http\Requests\PostCrudRequest;
-use Intervention\Image\Laravel\Facades\Image;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
@@ -48,10 +44,6 @@ class PostCrudController extends CrudController
 
     protected function setupListOperation()
     {
-
-        if ($this->isSuperuser()) {
-            $this->crud->addButtonFromModelFunction('top', 'optimice-images', 'optimiceImages', 'end');
-        }
 
         CRUD::addFilter(
             [
@@ -118,8 +110,7 @@ class PostCrudController extends CrudController
 
     protected function setupUpdateOperation()
     {
-        CRUD::setValidation(PostCrudRequest::class);
-        $this->setupFields();
+        $this->setupCreateOperation();
     }
 
     protected function setupFields()
@@ -128,7 +119,7 @@ class PostCrudController extends CrudController
             'name' => 'name',
             'type' => 'text',
             'label' => __('backend.post.posttitle'),
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
         CRUD::addField([
@@ -136,14 +127,14 @@ class PostCrudController extends CrudController
             'label' => __('backend.post.slug'),
             'type' => 'slug',
             'target' => 'name',
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
         CRUD::addField([
             'name' => 'lead',
             'type' => 'text',
             'label' => __('backend.post.lead'),
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
         CRUD::addField([
@@ -154,36 +145,47 @@ class PostCrudController extends CrudController
                 'format' => 'DD/MM/YYYY HH:mm',
                 'language' => 'ca',
             ],
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
-        //no funciona
-        /* $taxonomy_id = optional(get_current_brand()->extra_config)->posting_taxonomy_id;
+        $taxonomy_id = get_current_brand()->extra_config['posting_taxonomy_id'];
+
         if ($taxonomy_id) {
-            CRUD::addField([
-                'label' => __('backend.post.taxonomies'),
-                'type' => 'checklist_from_builder',
-                'name' => 'taxonomies',
-                'entity' => 'taxonomy',
-                'attribute' => 'name',
-                'builder' => Taxonomy::whereParentId($taxonomy_id),
-                'morph' => true,
-                'hint' => '<span class="small">' . __('backend.post.select_as_many_taxonomies') . '</span>',
-            ]);
+            $options = Taxonomy::where('parent_id', $taxonomy_id)
+                ->active()
+                ->get()
+                ->mapWithKeys(fn($tax) => [
+                    $tax->id => $tax->getTranslation('name', app()->getLocale())
+                ]);
+
+            // Solo añadir el campo si hay opciones
+            if ($options->isNotEmpty()) {
+                CRUD::field([
+                    'label' => __('backend.post.taxonomies'),
+                    'type' => 'checklist',
+                    'name' => 'taxonomies',
+                    'entity' => 'taxonomies',
+                    'attribute' => 'title',
+                    'model' => Taxonomy::class,
+                    'options' => fn() => $options,
+                    'pivot' => true,
+                ]);
+            }
+
         }
- */
+
         CRUD::addField([
             'name' => 'meta_title',
             'label' => __('backend.post.meta_title'),
             'type' => 'textarea',
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
         CRUD::addField([
             'name' => 'meta_description',
             'label' => __('backend.post.meta_description'),
             'type' => 'textarea',
-            'wrapperAttributes' => ['class' => 'form-group col-xs-12 col-sm-6'],
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
         CRUD::addField([
@@ -202,14 +204,15 @@ class PostCrudController extends CrudController
             'withFiles' => [
                 'disk' => 'public',
                 'uploader' => WebpImageUploader::class,
-                'path' => 'uploads/' . get_current_brand()->code_name . '/post',
+                'path' => 'uploads/' . get_current_brand()->code_name . '/post/' . ($this->crud->getCurrentEntry()?->id ?? 'temp') . '/',
                 'resize' => [
                     'max' => 1200,
                 ],
                 'conversions' => [
-                    'md' => 800,
-                    'sm' => 400,
+                    'md' => 992,
+                    'sm' => 576,
                 ],
+                'custom_name' => 'image',
             ],
         ]);
 
@@ -219,74 +222,34 @@ class PostCrudController extends CrudController
             'type' => 'dropzone',
             'upload' => true,
             'disk' => 'public',
-            'prefix' => 'uploads/'
-                . get_current_brand()->code_name
-                . '/post/'
-                . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__')
-                . '/',
+            'hint' => __('backend.events.minWidth'),
         ]);
     }
 
     public function store(PostCrudRequest $request)
     {
-
         $response = $this->traitStore();
-        $post = $this->crud->getCurrentEntry();
 
-        PostObserver::processGalleryImages($post);
+        $taxonomies = $request->input('taxonomies');
 
-        $this->crud->entry->taxonomies()->sync($request->input('taxonomies', []));
+        if (is_string($taxonomies)) {
+            $taxonomies = json_decode($taxonomies, true);
+        }
+
+        $this->crud->entry->taxonomies()->sync($taxonomies ?? []);
         return $response;
     }
 
     public function update(PostCrudRequest $request)
     {
         $response = $this->traitUpdate();
-        $this->crud->entry->taxonomies()->sync($request->input('taxonomies', []));
+        $taxonomies = $request->input('taxonomies');
+
+        if (is_string($taxonomies)) {
+            $taxonomies = json_decode($taxonomies, true);
+        }
+
+        $this->crud->entry->taxonomies()->sync($taxonomies ?? []);
         return $response;
-    }
-
-    public function imagesToImage()
-    {
-        $posts = Post::withTrashed()->where('image', null)->get();
-        foreach ($posts as $post) {
-            $post->image = $post->images[0];
-            $post->save();
-        }
-        return 'hecho';
-    }
-
-    public function optimizeImages()
-    {
-
-        $posts = Post::where('brand_id', $this->brand->id)->get();
-        $destination_path = "uploads/{$this->brand->code_name}/post";
-
-        foreach ($posts as $post) {
-            $extension = pathinfo($post->image, PATHINFO_EXTENSION);
-            if ($extension !== 'webp' && $post->image && $this->get_http_response_code($post->image) === "200") {
-                $image_base64 = base64_encode(file_get_contents($post->image));
-                $image = Image::make($image_base64)->resize(800, null, fn($c) => $c->aspectRatio())->encode('webp', 80);
-                $filename = $post->id . "-post-image-" . str_random(6) . ".webp";
-
-                if (\Storage::disk('public')->put("{$destination_path}/{$filename}", $image->stream())) {
-                    $post->image = "{$destination_path}/{$filename}";
-                    $post->save();
-                }
-            }
-        }
-
-        Alert::success(__('Imatges optimitzades correctament'))->flash();
-        return back();
-    }
-
-    public function get_http_response_code($url)
-    {
-        try {
-            $headers = get_headers($url);
-            return substr($headers[0], 9, 3);
-        } catch (\Throwable $th) {
-            return '500';
-        }
     }
 }

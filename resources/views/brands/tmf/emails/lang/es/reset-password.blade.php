@@ -2,7 +2,7 @@
 @section('content')
 
 <p>
-    Estimado {{ $client->name or '{name}' }},<br>
+    Estimado {{ $client->name ?? '{name}' }},<br>
     <br>
     Te enviamos este email puesto que nos has solicitado un cambio de password.<br/>
     <br>

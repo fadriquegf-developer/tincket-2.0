@@ -131,6 +131,7 @@ return [
         'password' => 'Contrasenya',
         'password_confirmation' => 'Confirmar contrasenya',
         'brand' => 'Client',
+        'info_password' => 'La contrasenya ha de tenir almenys 8 caràcters, incloure una lletra majúscula, una minúscula, un número i un símbol, i coincidir amb la confirmació.'
     ],
 
     'capability' => [
@@ -184,8 +185,6 @@ return [
         //CartTab
         "cartTTL" => "Minuts inicials per finalitzar la cistella",
         "maxCartTTL" => "Minuts màxims per finalitzar la cistella",
-
-        //RegisterTab
 
         //LegalTab
         "legal_notice" => "Avís Legal",
@@ -496,6 +495,7 @@ return [
         'remove_filters' => 'Eliminar filtres',
         'filters' => 'Filtres',
         'banner_info' => "L'amplada del banner ha de ser mínim de 1200px d'amplada per a una visualització correcta",
+        'image' => "L'amplada de l'Imatge promocional principal ha de ser mínim de 1200px d'amplada per a una visualització correcta",
         'enable_gift_cards' => 'Targetes regal',
         'price_gift_card' => 'Preu targetes regal',
         'gift_card_text' => 'Text targetes regal',
@@ -531,6 +531,8 @@ return [
         'created_at' => 'Creat a',
         'updated_at' => 'Actualitzat a',
         'deleted_at' => 'Eliminat a',
+        'minWidth' => "L'amplada mínima de cada imatge ha de ser de 1200px.",
+        'gallery' => 'Galeria',
     ],
 
     'session' => [
@@ -619,6 +621,11 @@ return [
         'ends_on' => 'Data i hora de finalització',
         'inscription_starts_on' => 'Data i hora d\'inici de la inscripció',
         'inscription_ends_on' => 'Data i hora de finalització de la inscripció',
+        'listPDF' => 'Llistat de inscripcions sense PDF generat',
+        'minWidth' => "L'amplada mínima del Logotip ha de ser de 120px.",
+        'marked_as_liquidated' => 'Marcada com a liquidada correctament',
+        'marked_as_unliquidated' => 'Marcada com a no liquidada correctament',
+
     ],
 
     'cart' => [
@@ -638,6 +645,11 @@ return [
         'regenerate_send_tickets' => 'Regenerar i enviar entrades',
         'send_mail_payment' => 'Enviar email per realitzar Pagament',
         'payment_ticket_office' => 'Realitzar pagament a taquilla',
+        'card' => 'Targeta de crèdit',
+        'cash' => 'Efectiu',
+        'select_gateway' => 'Selecciona la plataforma de pagament',
+        'close' => 'Tancar',
+        'change' => 'Canviar',
         'inc' => [
             'inscriptionsset' => 'Conjunt d\'inscripcions',
             'search' => 'Cerca',
@@ -658,6 +670,8 @@ return [
             'place' => 'Butaca',
             'options' => 'Opcions',
             'preview' => 'Previsualitzar',
+            'gateway_response' => 'Resposta TPV',
+            'show_detail' => 'Ver detalles'
         ],
         'error' => [
             'msg_pdf_not_rendered' => 'El PDF encara no s\'ha imprès, torneu-ho a intentar en una estona',
@@ -873,6 +887,7 @@ return [
         'configuration' => 'Configuració',
         'minpercart' => 'Mínim per cistella',
         'maxpercart' => 'Màxim per cistella',
+        'rules' => 'Reglas',
         'discounts' => 'Descomptes',
         'discount' => 'Descompte',
         'sessionamounts' => 'Quantitat de sessions',
@@ -881,11 +896,11 @@ return [
         'extra' => 'Extra',
         'config' =>
             [
-                'round-alert' => '<div class="text-danger"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
+                'round-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
                 'round-nearest' => 'Activar factor d\'arrodoniment per als packs amb %',
-                'one-session-alert' => '<div class="text-danger"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
+                'one-session-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
                 'one-session-x-event' => 'Activar per permetre només una sessió per esdeveniment',
-                'cart_rounded-alert' => '<div class="text-danger"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
+                'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
                 'cart_rounded' => 'Activar arrodonir el preu total del pack o packs',
             ]
     ],

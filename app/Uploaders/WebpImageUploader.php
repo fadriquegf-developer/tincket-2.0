@@ -26,15 +26,17 @@ use Intervention\Image\Encoders\WebpEncoder;
 
 class WebpImageUploader extends SingleFile
 {
-    protected ?int  $maxWidth    = null;
+    protected ?int $maxWidth = null;
     protected array $conversions = [];
+    protected ?string $customName = null;
 
     public function __construct($crud, $field)
     {
         parent::__construct($crud, $field);
 
-        $this->maxWidth    = data_get($field, 'resize.max');
+        $this->maxWidth = data_get($field, 'resize.max');
         $this->conversions = data_get($field, 'conversions', []);
+        $this->customName = data_get($field, 'custom_name', null);
     }
 
     public function uploadFiles(Model $entry, $value = null)
@@ -49,12 +51,12 @@ class WebpImageUploader extends SingleFile
         }
 
         $previousFile = $this->getPreviousFiles($entry);
-        $inputRaw     = CRUD::getRequest()->input($this->getName());
+        $inputRaw = CRUD::getRequest()->input($this->getName());
 
         $wantsDelete = ($value === false) || ($inputRaw === null) || ($inputRaw === '') || ($inputRaw === 'null');
 
         if ($wantsDelete && $previousFile) {
-            Storage::disk($this->getDisk())->delete($previousFile);
+            $this->deleteWithConversions($previousFile);
             return null;
         }
 
@@ -63,11 +65,11 @@ class WebpImageUploader extends SingleFile
             (is_string($value) && str_starts_with($value, 'data:image'))
         ) {
             if ($previousFile) {
-                Storage::disk($this->getDisk())->delete($previousFile);
+                $this->deleteWithConversions($previousFile);
             }
 
-            $path     = $this->getPath();
-            $fileName = 'img-' . Str::uuid() . '.webp';
+            $path = $this->getPath();
+            $fileName = $this->customName ? $this->customName . '-' . Str::uuid() . '.webp' : 'img-' . Str::uuid() . '.webp';
 
             $img = $value instanceof UploadedFile
                 ? Image::read($value->getRealPath())
@@ -92,5 +94,19 @@ class WebpImageUploader extends SingleFile
         }
 
         return $previousFile;
+    }
+
+    private function deleteWithConversions(string $path): void
+    {
+        $disk = Storage::disk($this->getDisk());
+
+        // 1. Elimina el original si existe
+        $disk->delete($path);
+
+        // 2. Elimina cada conversión (lg-, md-, sm-, …)
+        foreach ($this->conversions as $suffix => $width) {
+            $variant = dirname($path) . "/{$suffix}-" . basename($path);
+            $disk->delete($variant);
+        }
     }
 }

@@ -8,8 +8,6 @@ Route::middleware(['web', 'auth:backpack', 'capability:basic'])->group(function 
     Route::crud('role', \App\Http\Controllers\Admin\RoleCrudController::class);
 
     Route::crud('post', \App\Http\Controllers\Admin\PostCrudController::class);
-    Route::get('post/optimize-images', [\App\Http\Controllers\Admin\PostCrudController::class, 'optimizeImages'])->name('post.optimice-images');
-    Route::get('post/image-to-images', [\App\Http\Controllers\Admin\PostCrudController::class, 'imagesToImage'])->name('post.images-to-image');
 
     Route::crud('event', \App\Http\Controllers\Admin\EventCrudController::class);
     Route::get('event/{id}/clone', [\App\Http\Controllers\Admin\EventCrudController::class, 'clone'])->name('event.clone');

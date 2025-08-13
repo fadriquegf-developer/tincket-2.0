@@ -9,8 +9,8 @@
         {!! $text ?? '' !!}
     @else
         <p>
-            Enhorabona, el teu amic {{ $gift->cart->client->name or '{name}' }} t'ha regalat un cec regal amb el codi
-            <b>{{ $gift->code }}</b> per a l'espectacle <b>{{ $event->name or '{event}' }}</b>.
+            Enhorabona, el teu amic {{ $gift->cart->client->name ?? '{name}' }} t'ha regalat un cec regal amb el codi
+            <b>{{ $gift->code }}</b> per a l'espectacle <b>{{ $event->name ?? '{event}' }}</b>.
         </p>
         <p>
             Salutacions

@@ -30,8 +30,21 @@ class Slot extends BaseModel
 
     public function rates()
     {
-        if (!isset($this->pivot_session_id)) {
-            throw new \Exception("Rates of Slot for which Session?");
+        // Validación mejorada
+        if (!isset($this->pivot_session_id) || !$this->pivot_session_id) {
+            \Log::warning("Slot rates() called without pivot_session_id", [
+                'slot_id' => $this->id,
+                'trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)
+            ]);
+
+            // Retornar una relación vacía en lugar de lanzar excepción
+            return $this->morphToMany(
+                Rate::class,
+                'assignated_rate',
+                'assignated_rates',
+                'assignated_rate_id',
+                'rate_id'
+            )->whereRaw('1=0'); // Esto asegura que no se devuelvan resultados
         }
 
         return $this->morphToMany(

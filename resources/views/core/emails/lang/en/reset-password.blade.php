@@ -1,7 +1,7 @@
 @extends('core.emails.layout')
 @section('content')
 <p>
-    Dear {{ $client->name or '{name}' }},<br>
+    Dear {{ $client->name ?? '{name}' }},<br>
     <br>
     We're sending this email to you because you've rencently asked to reset your password.<br/>
     <br>

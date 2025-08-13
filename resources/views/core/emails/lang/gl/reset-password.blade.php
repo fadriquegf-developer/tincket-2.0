@@ -1,7 +1,7 @@
 @extends('core.emails.layout')
 @section('content')
 <p>
-    Ola {{ $client->name or '{name}' }},<br>
+    Ola {{ $client->name ?? '{name}' }},<br>
     <br>
     Solicitaches un cambio de contrasinal?<br/>
     <br>

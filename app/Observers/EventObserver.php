@@ -25,13 +25,11 @@ class EventObserver
         $event->setTranslation('description', 'es', $event->description);
         $event->setTranslation('description', 'ca', $event->description);
         $event->setTranslation('description', 'gl', $event->description);
-        $event->save();
+        $event->saveQuietly();
     }
 
     public function saved(Event $event)
     {
-        \Log::info('[SessionObserver] saved▶️ images = ' . json_encode($event->images));
-        $this->processImages($event);
         $this->processImages($event);
     }
 
@@ -41,61 +39,108 @@ class EventObserver
         $eventId = $event->id;
         $basePath = "uploads/{$brand}/event/{$eventId}/";
 
-        $changes = false;
+        // Obtener imágenes nuevas del modelo o request como fallback
+        $rawInput = $event->images;
 
-        // 3) images
-        $paths = $event->images;
-
-        // Si por alguna razón viene como string JSON, lo convertimos a array
-        if (is_string($paths)) {
-            $decoded = json_decode($paths, true);
-            $paths = is_array($decoded) ? $decoded : [];
+        if (empty($rawInput)) {
+            $rawInput = request()->input('images', []);
         }
 
-        if (!empty($paths) && is_array($paths)) {
-            $finalPaths = [];
+        if (is_string($rawInput)) {
+            $decoded = json_decode($rawInput, true);
+            $newPaths = is_array($decoded) ? array_values($decoded) : [];
+        } elseif (is_array($rawInput)) {
+            $newPaths = array_values($rawInput);
+        } else {
+            $newPaths = [];
+        }
 
-            foreach ($paths as $relativePath) {
-                try {
+        $oldPaths = $event->getOriginal('images') ?? [];
+        $oldPaths = array_values($oldPaths);
+        $newPaths = array_values($newPaths);
 
-                    $fullTempPath = storage_path("app/public/{$relativePath}");
-                    if (!file_exists($fullTempPath)) {
-                        Log::warning("SessionObserver: No se encontró archivo temporal: {$relativePath}");
-                        continue;
-                    }
+        $finalPaths = [];
 
-                    $img = Image::read($fullTempPath);
-                    if ($img->width() > 1200) $img = $img->scale(width: 1200);
+        foreach ($newPaths as $relativePath) {
+            if (!str_contains($relativePath, 'backpack/temp/')) {
+                $finalPaths[] = $relativePath;
+                continue;
+            }
 
-                    $newName = 'extra-' . Str::uuid() . '.webp';
-                    $finalPath = $basePath . $newName;
-                    // => "uploads/brand/session/{id}/extra-uuid.webp"
+            $fullTempPath = storage_path("app/public/{$relativePath}");
+            if (!file_exists($fullTempPath)) {
+                Log::warning("EventObserver: No se encontró imagen temporal: {$relativePath}");
+                continue;
+            }
 
-                    Storage::disk('public')->put($finalPath, $img->encode(new WebpEncoder(quality: 80)));
-                    // Borramos el temporal __TEMP__
-                    Storage::disk('public')->delete($relativePath);
-
-                    $finalPaths[] = $finalPath;
-                } catch (\Throwable $e) {
-                    Log::error("Error procesando image extra (Session ID={$eventId}): " . $e->getMessage());
+            try {
+                $img = Image::read($fullTempPath);
+                if ($img->width() > 1200) {
+                    $img = $img->scale(width: 1200);
                 }
-            }
 
-            if (!empty($finalPaths)) {
-                $event->images = $finalPaths;
-                $changes = true;
+                $uuid = Str::uuid();
+                $filename = "extra-image-{$uuid}.webp";
+                $finalPath = $basePath . $filename;
+
+                Storage::disk('public')->put($finalPath, $img->encode(new WebpEncoder(quality: 80)));
+
+                // Versión md
+                $mdPath  = $basePath . "md-{$filename}";
+                $mdImage = Image::read($fullTempPath);
+                if ($mdImage->width() > 996) {
+                    $mdImage = $mdImage->scale(width: 996);
+                }
+                Storage::disk('public')->put($mdPath, $mdImage->encode(new WebpEncoder(quality: 80)));
+
+                // Versión sm
+                $smPath = $basePath . "sm-{$filename}";
+                $smImage = Image::read($fullTempPath);
+                if ($smImage->width() > 576) {
+                    $smImage = $smImage->scale(width: 576);
+                }
+
+                Storage::disk('public')->put($smPath, $smImage->encode(new WebpEncoder(quality: 80)));
+
+                Storage::disk('public')->delete($relativePath);
+
+                $finalPaths[] = $finalPath;
+            } catch (\Throwable $e) {
+                Log::error("EventObserver: Error procesando imagen: {$e->getMessage()}");
             }
         }
 
-        if ($changes) {
+        // Eliminar imágenes antiguas que ya no están
+        $removed = array_diff($oldPaths, $finalPaths);
+        foreach ($removed as $removedPath) {
+            Storage::disk('public')->delete($removedPath);
+
+            $dir  = pathinfo($removedPath, PATHINFO_DIRNAME);
+            $file = pathinfo($removedPath, PATHINFO_BASENAME);
+
+            Storage::disk('public')->delete("{$dir}/sm-{$file}");
+            Storage::disk('public')->delete("{$dir}/md-{$file}");
+        }
+
+        // Guardar si hay cambios
+        if ($finalPaths !== $oldPaths) {
+            $event->images = $finalPaths;
             $event->saveQuietly();
         }
     }
+
+
+
     public function deleted(Event $event)
     {
         $event->sessions->each(function ($session) {
             $session->delete();
         });
+
+        $brand = get_current_brand()->code_name;
+        $dir = "uploads/{$brand}/event/{$event->id}";
+
+        Storage::disk('public')->deleteDirectory($dir);
     }
 
 }

@@ -22,6 +22,34 @@ class Inscription extends BaseModel
 
     protected $dates = ['checked_at'];
 
+    protected $fillable = [
+        'cart_id',
+        'session_id',
+        'rate_id',
+        'gift_card_id',
+        'barcode',
+        'code',
+        'price',
+        'price_sold',
+        'checked_at',
+        'out_event',
+        'created_at',
+        'updated_at',
+        'deleted_at',
+        'deleted_user_id',
+        'metadata',
+        'group_pack_id',
+        'slot_id'
+    ];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+        'price_sold' => 'decimal:2',
+        'out_event' => 'boolean',
+        'metadata' => 'array',
+        'updated_at' => 'datetime',
+    ];
+
     protected static function boot()
     {
         parent::boot();
@@ -91,6 +119,21 @@ class Inscription extends BaseModel
             ->select('inscriptions.*');
     }
 
+    public function scopeForBrandFast(Builder $q, Brand $brand): Builder
+    {
+        
+        return $q
+            ->join('sessions', 'sessions.id', '=', 'inscriptions.session_id')
+            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
+            ->join('payments', function ($j) {
+                $j->on('payments.cart_id', '=', 'inscriptions.cart_id')
+                    ->whereNull('payments.deleted_at')
+                    ->whereNotNull('payments.paid_at');
+            })
+            ->where('sessions.brand_id', $brand->id)
+            ->distinct('inscriptions.id'); // evita duplicados por múltiples payments
+    }
+
 
     public function scopePaid($query)
     {
@@ -155,5 +198,4 @@ class Inscription extends BaseModel
 
         return brand_asset(\Storage::url('uploads/' . $customLogo), $this->cart->brand);
     }
-
 }

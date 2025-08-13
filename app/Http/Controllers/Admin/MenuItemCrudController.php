@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Models\MenuItem;
 use App\Models\Page;
+use App\Models\MenuItem;
 use App\Traits\CrudPermissionTrait;
+use App\Http\Requests\MenuItemCrudRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
@@ -48,6 +49,7 @@ class MenuItemCrudController extends CrudController
 
     protected function setupCreateOperation()
     {
+        CRUD::setValidation(MenuItemCrudRequest::class);
         CRUD::addField([
             'name' => 'name',
             'type' => 'text',

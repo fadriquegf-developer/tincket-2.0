@@ -12,6 +12,7 @@ use App\Traits\OwnedModelTrait;
 use App\Traits\BackpackSluggable;
 use App\Traits\SetsBrandOnCreate;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Cviebrock\EloquentSluggable\SluggableScopeHelpers;
@@ -27,7 +28,7 @@ class Post extends BaseModel
     use SetsBrandOnCreate;
     use LogsActivity;
     use OwnedModelTrait;
-    
+
 
     protected $dateFormat = 'Y-m-d H:i:s';
     protected $hidden = [];
@@ -60,7 +61,6 @@ class Post extends BaseModel
     ];
 
     protected $casts = [
-        'images' => 'array',
         'gallery' => 'array',
     ];
 
@@ -76,11 +76,20 @@ class Post extends BaseModel
             static::addGlobalScope(new BrandScope());
         }
 
+        static::saved(function (self $post) {
+            $post->relocateTempUploads();
+        });
     }
 
     public function __construct(array $attributes = array())
     {
         parent::__construct($attributes);
+    }
+
+    public function taxonomies()
+    {
+        return $this->morphToMany(Taxonomy::class, 'classifiable');
+
     }
 
     public function getDates()
@@ -107,11 +116,6 @@ class Post extends BaseModel
         ];
     }
 
-    public function optimiceImages()
-    {
-        return '<a href="' . route('post.optimice-images') . '" class="btn btn-primary"> <i class="la la-image me-1"></i> ' . __('backend.post.optimice_images') . '</a>';
-    }
-
     public function getSlugOrNameAttribute()
     {
         if ($this->slug != '') {
@@ -121,46 +125,58 @@ class Post extends BaseModel
         return $this->name;
     }
 
-    public function getImageAttribute($value)
+    /* public function getImageAttribute($value)
     {
         return $value ? \Storage::url($value) : null;
-    }
+    } */
 
-    public function setGalleryAttribute($value)
+    protected function relocateTempUploads(): void
     {
-        // Si llega null, lo dejamos como array vacío
-        if (is_null($value)) {
-            $this->attributes['gallery'] = json_encode([]);
+        if (!$this->id || empty($this->image))
+            return;
+
+        $brand = get_current_brand()->code_name;
+        $disk = Storage::disk('public');
+
+        // Normaliza lo justo: backslashes -> slashes y quita prefijos "storage/"
+        $path = str_replace('\\', '/', (string) $this->image);
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, 8); // "storage/" => rutas relativas al disk 'public'
+        } elseif (str_starts_with($path, '/storage/')) {
+            $path = substr($path, 9);
+        }
+
+        // Solo actuamos si viene de __TEMP__
+        if (stripos($path, '/post/temp/') === false)
+            return;
+
+        $baseDir = "uploads/{$brand}/post/{$this->id}";
+        $srcDir = dirname($path);
+        $filename = basename($path);
+        $dest = "{$baseDir}/{$filename}";
+
+        $disk->makeDirectory($baseDir);
+
+        // Mover principal
+        if ($disk->exists($path)) {
+            $disk->move($path, $dest);
+        } else {
             return;
         }
 
-        // --- 1) Si llega string, intentamos decodificarlo como JSON ---
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-            if (is_array($decoded)) {
-                $value = $decoded;
-            } else {
-                // No era JSON válido → dejamos $value como array vacío
-                $value = [];
+        // Mover variantes md- y sm- si existen
+        foreach (['md-', 'sm-'] as $pre) {
+            $srcVar = "{$srcDir}/{$pre}{$filename}";
+            if ($disk->exists($srcVar)) {
+                $disk->move($srcVar, "{$baseDir}/{$pre}{$filename}");
             }
         }
 
-        // --- 2) Si llega stdClass (o cualquier objeto), convertimos a array ---
-        if ($value instanceof \stdClass) {
-            // Convertimos recursivamente a array; en este caso es un objeto con keys "1","2",…
-            $value = (array) $value;
+        // Actualiza el campo sin re-disparar eventos
+        if ($this->image !== $dest) {
+            $this->image = $dest;
+            $this->saveQuietly();
         }
-
-        // --- 3) Finalmente, aseguramos que sea array indexado numéricamente ---
-        if (is_array($value)) {
-            // Si vinieran claves no numéricas, hacemos array_values()
-            $arrayOnly = array_values($value);
-            $this->attributes['gallery'] = json_encode($arrayOnly);
-            return;
-        }
-
-        // Si nada de lo anterior, guardamos array vacío
-        $this->attributes['gallery'] = json_encode([]);
     }
 
 }

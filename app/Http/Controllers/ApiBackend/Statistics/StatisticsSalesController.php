@@ -2,246 +2,227 @@
 
 namespace App\Http\Controllers\ApiBackend\Statistics;
 
-use App\Models\Inscription;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\Payment\Impl\PaymentTicketOfficeService;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon; 
+use Illuminate\Support\Str;
+use Carbon\Carbon;
 
-
-class StatisticsSalesController extends \App\Http\Controllers\Controller
+class StatisticsSalesController extends Controller
 {
-
+    /**
+     * GET /api/statistics/sales
+     *
+     * Parámetros esperados (desde sales.js):
+     * - session_id: string "1,2,3" (opcional)
+     * - breakdown: string "R" | "P" | "U" | "T"
+     * - summary: 0|1 (si 1, devolvemos sólo agregados)
+     * - sales_range: JSON {"from": <epoch_ms>, "to": <epoch_ms>} (opcional)
+     * - page, per_page (opcional) para paginar detalle
+     */
     public function get(Request $request)
     {
-        $sessions_id = explode(',', $request->get('session_id', ''));
-        $sales_range = json_decode($request->get('sales_range', '{}'));
+        // ---- 1) Parseo de filtros ----
+        $sessionIds = collect(explode(',', trim((string) $request->get('session_id', ''))))
+            ->filter(fn($v) => $v !== '')
+            ->map(fn($v) => (int) $v)
+            ->values();
 
-        // Construir la consulta sin el join directo a payments
-        $query = Inscription::with([
-            'session.event',
-            'cart.client',
-            'cart.seller',
-            'cart.confirmedPayment',
-            'group_pack.pack',
-            'gift_card'
-        ])
-            ->whereIn('session_id', $sessions_id)
-            ->whereHas('cart', function ($query) {
-                $query->whereNotNull('confirmation_code')
-                    ->whereNull('deleted_at');
-            })
-            ->whereNull('inscriptions.deleted_at');
+        $breakdown = (string) $request->get('breakdown', 'R'); // R|P|U|T
+        $summary   = (bool) $request->boolean('summary', false);
 
-        // Filtro por tipo "TicketOffice" si se especifica breakdown = 'T'
-        if ($request->get('breakdown') == 'T') {
-            $query->whereHas('cart', function ($query) {
-                $query->where('seller_type', 'App\Models\User');
-            });
+        $range     = $this->parseRange($request->get('sales_range'));
+        $from      = $range['from'] ?? null; // Carbon|null
+        $to        = $range['to']   ?? null; // Carbon|null
+
+        // Paginación para detalle (si el front no la usa, al menos capea el tamaño)
+        $perPage   = (int) $request->get('per_page', 5000);
+        $perPage   = max(1, min(10000, $perPage)); // límite duro para no matar el navegador
+
+        // Locale para extraer cadenas JSON traducidas
+        $locale = app()->getLocale() ?: 'es';
+
+        // 2) Subconsulta del ÚLTIMO pago por cart SIN funciones ventana (compatible MySQL/MariaDB)
+        $latestPayments = DB::table('payments as p')
+            ->select(
+                'p.id',
+                'p.cart_id',
+                'p.gateway',
+                'p.gateway_response',
+                'p.paid_at'
+            )
+            ->whereNull('p.deleted_at')
+            ->whereRaw("
+                p.id = (
+                    SELECT p2.id
+                    FROM payments p2
+                    WHERE p2.cart_id = p.cart_id
+                    AND p2.deleted_at IS NULL
+                    ORDER BY p2.paid_at DESC, p2.id DESC
+                    LIMIT 1
+                )
+            ");
+
+        // 3) Query base (reutiliza lo demás igual que lo tenías)
+        $base = DB::table('inscriptions as i')
+            ->join('sessions as s', 's.id', '=', 'i.session_id')
+            ->leftJoin('rates as r', 'r.id', '=', 'i.rate_id')
+            ->leftJoin('group_packs as gp', 'gp.id', '=', 'i.group_pack_id')
+            ->leftJoin('packs as pk', 'pk.id', '=', 'gp.pack_id')
+            ->join('carts as c', 'c.id', '=', 'i.cart_id')
+            ->join('events as e', 'e.id', '=', 's.event_id')
+            ->leftJoin(DB::raw('(' . $latestPayments->toSql() . ') as lp'), 'lp.cart_id', '=', 'c.id')
+            ->mergeBindings($latestPayments)
+            ->leftJoin('payments as pay', 'pay.id', '=', 'lp.id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.seller_id')
+            ->leftJoin('clients as cl', 'cl.id', '=', 'c.client_id')
+            ->whereNotNull('pay.paid_at');
+
+        // ---- 4) Filtros ----
+        if ($sessionIds->isNotEmpty()) {
+            $base->whereIn('i.session_id', $sessionIds);
+        }
+        if ($from) {
+            $base->where('pay.paid_at', '>=', $from);
+        }
+        if ($to) {
+            // inclusivo hasta fin del día del "to"
+            $base->where('pay.paid_at', '<', $to->copy()->addDay()->startOfDay());
         }
 
-        // Construir los objetos DateTime a partir del sales_range
-        $from = (new \DateTime())->setTimestamp($sales_range->from / 1000)
-            ->setTimezone(new \DateTimeZone(config('app.timezone')));
-        $to = (new \DateTime())->setTimestamp($sales_range->to / 1000)
-            ->setTimezone(new \DateTimeZone(config('app.timezone')));
+        // ---- 5) Selección de columnas mínimas ----
+        $jsonLocalePath = '$."' . str_replace('"', '\"', $locale) . '"';
 
-        // Obtener las inscripciones y filtrar por la fecha de pago del último payment (confirmedPayment)
-        $inscriptions = $query->get()->filter(function ($inscription) use ($from, $to) {
-            $payment = $inscription->cart->confirmedPayment;
-            if (!$payment || !$payment->paid_at) {
-                return false;
-            }
-            // Convertir paid_at a un objeto Carbon
-            $paidAt = Carbon::parse($payment->paid_at);
-            return $paidAt >= $from && $paidAt <= $to;
-        });
+        $ticketPaymentType = "JSON_UNQUOTE(JSON_EXTRACT(pay.gateway_response, '$.payment_type'))";
 
-        $brief = collect();
+        $detailSelect = [
+            DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(r.name, '$jsonLocalePath')), r.name, '') as rate_name"),
+            DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(pk.name, '$jsonLocalePath')), pk.name, '') as pack_name"),
+            DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(s.name, '$jsonLocalePath')), s.name, '') as session_name"),
+            DB::raw("COALESCE(JSON_UNQUOTE(JSON_EXTRACT(e.name, '$jsonLocalePath')), e.name, '') as event_name"),
+            's.starts_on as session_starts_on',
+            'pay.paid_at',
+            'i.price_sold',
+            'i.group_pack_id as group_pack_id',
+            'pk.id as pack_id',
+            'c.id as cart_id',
+            'c.confirmation_code',
+            'cl.email as client_email',
+            DB::raw("CASE
+           WHEN u.id IS NOT NULL THEN COALESCE(u.name,'—')
+           ELSE 'Web API'
+         END AS seller_name"),
+            'pay.gateway as payment_method',
+            DB::raw("$ticketPaymentType as ticket_payment_type"),
+        ];
 
-        if ($request->get('breakdown') == 'R') {
-            $brief = $this->breakdownByRate($inscriptions);
-        } elseif ($request->get('breakdown') == 'P') {
-            $brief = $this->breakdownByPayment($inscriptions);
-        } elseif ($request->get('breakdown') == 'U') {
-            $brief = $this->breakdownByUser($inscriptions);
-        } elseif ($request->get('breakdown') == 'T') {
-            $brief = $this->breakdownByTicketOffice($inscriptions);
+
+        // ---- 6) Resumen agregado en SQL cuando summary=1 ----
+        if ($summary) {
+            $summaryRows = $this->buildSummarySQL((clone $base), $breakdown, $jsonLocalePath, $ticketPaymentType)->get();
+
+            return response()->json([
+                'results' => [],
+                'summary' => $summaryRows,
+            ]);
         }
 
-        $brief = $this->addTotals(collect($brief));
+        // ---- 7) Detalle (con cap/paginación) ----
+        $rows = (clone $base)
+            ->select($detailSelect)
+            ->limit($perPage)
+            ->get();
 
         return response()->json([
-            'brief' => $brief,
-            'results' => $request->input('summary') === "true" ? [] : $inscriptions
+            'results' => $rows,
         ]);
     }
 
-    private function breakdownByRate(\Illuminate\Support\Collection $inscriptions)
+    /**
+     * Construye el query de summary según breakdown.
+     *
+     * R: por tarifa/pack
+     * P: por método de pago (gateway)
+     * U: por vendedor
+     * T: pagos de TicketOffice por tipo (gateway_response.payment_type)
+     */
+    private function buildSummarySQL($base, string $bk, string $jsonLocalePath, string $ticketPaymentType)
     {
-        $packs =  [
-            'name' => 'Packs',
-            'count' => 0,
-            'amount' => 0,
-            'details' => []
-        ];
-        $countPacks = collect();
+        // Expresiones que usaremos en SELECT/GROUP BY (compatibles con ONLY_FULL_GROUP_BY)
+        $sellerExpr = "CASE
+                 WHEN u.id IS NOT NULL THEN COALESCE(u.name,'—')
+                 ELSE 'Web API'
+               END";
+        $methodExpr    = "COALESCE(pay.gateway, '—')";
+        $ratePackExpr  = "
+            COALESCE(
+                NULLIF(COALESCE(JSON_EXTRACT(r.name, '$jsonLocalePath'), r.name, ''), ''),
+                COALESCE(JSON_EXTRACT(pk.name, '$jsonLocalePath'), pk.name, ''),
+                '—'
+            )
+        ";
 
-        // filter and count info packs
-        $inscriptions = $inscriptions->filter(function ($item, $key) use (&$packs, $countPacks) {
-            $isPack = $item->group_pack_id;
-            if ($isPack) {
-                $packs['count']++;
-                $packs['amount'] += $item->price_sold;
-                $packName = $item->group_pack->pack->name;
+        switch (strtoupper($bk)) {
+            case 'U': // Vendedor
+                return $base->selectRaw("
+                        $sellerExpr AS name,
+                        COUNT(*)    AS count,
+                        SUM(i.price_sold) AS amount
+                    ")
+                    ->groupByRaw($sellerExpr)
+                    ->orderByRaw('COUNT(*) DESC');
 
-                $packId = $item->group_pack->pack->id;
-                if (!array_key_exists($item->group_pack->pack->id, $packs['details'])) {
-                    // new
-                    $packs['details'][$packId] = [
-                        'name' => $packName,
-                        'count' => 0,
-                        'amount' => 0
-                    ];
-                }
+            case 'T': // TicketOffice por tipo
+                return $base->where('pay.gateway', '=', 'TicketOffice')
+                    ->selectRaw("
+                        $ticketPaymentType AS name,
+                        COUNT(*)    AS count,
+                        SUM(i.price_sold) AS amount
+                    ")
+                    ->groupByRaw($ticketPaymentType)
+                    ->orderByRaw('COUNT(*) DESC');
 
-                $packs['details'][$packId]['count']++;
-                $packs['details'][$packId]['amount'] += $item->price_sold;
+            case 'P': // Método de pago
+                return $base->selectRaw("
+                        $methodExpr AS name,
+                        COUNT(*)    AS count,
+                        SUM(i.price_sold) AS amount
+                    ")
+                    ->groupByRaw($methodExpr)
+                    ->orderByRaw('COUNT(*) DESC');
 
-                // count n packs
-                $groupPacksIds = $countPacks->get($packId, collect());
-                if (!$groupPacksIds->contains($item->group_pack_id)) {
-                    $groupPacksIds->push($item->group_pack_id);
-                }
-                $countPacks->put($packId, $groupPacksIds);
-            }
-            return !$isPack;
-        });
-
-        $nTotalPacks = 0;
-        foreach ($countPacks as $packId => $packsIds) {
-            $n = $packsIds->count();
-            $packs['details'][$packId]['nPacks'] = $n;
-            $nTotalPacks += $n;
+            case 'R': // Tarifa/Pack (default)
+            default:
+                return $base->selectRaw("
+                        $ratePackExpr AS name,
+                        COUNT(*)      AS count,
+                        SUM(i.price_sold) AS amount
+                    ")
+                    ->groupByRaw($ratePackExpr)
+                    ->orderByRaw('COUNT(*) DESC');
         }
-        $packs['nPacks'] = $nTotalPacks;
-
-        $brief = $inscriptions->groupBy('rate.name')->values()->map(function ($group, $index) {
-            return [
-                'name' => $group->first()->rate->name,
-                'count' => $group->count(),
-                'amount' => $group->sum('price_sold'),
-                'details' => $group->groupBy('cart.confirmedPayment.gateway')->values()->map(function ($group) {
-                    return [
-                        'name' => $group->first()->cart->confirmedPayment->gateway ?? 'NA',
-                        'count' => $group->count(),
-                        'amount' => $group->sum('price_sold'),
-                    ];
-                })
-            ];
-        });
-
-        // Fix error: Merging an empty eloquent collection with a non-empty
-        // Solution add toBase()
-        // https://github.com/laravel/framework/issues/22626
-        $brief = $brief->toBase()->merge([
-            $packs
-        ]);
-
-        return $brief;
     }
 
-    private function breakdownByPayment($inscriptions)
+
+    /**
+     * sales_range: JSON {"from": <epoch_ms>, "to": <epoch_ms>}
+     * Devuelve ['from' => Carbon|null, 'to' => Carbon|null]
+     */
+    private function parseRange($raw): array
     {
-        $brief = $inscriptions->groupBy('cart.confirmedPayment.gateway')->values()->map(function ($group, $index) {
-            // if is pack show pack name
-            $carts = $group->filter(function ($value, $key) {
-                return $value->group_pack_id == NULL;
-            });
+        if (empty($raw)) return ['from' => null, 'to' => null];
 
-            $groupPacks = $group->filter(function ($value, $key) {;
-                return $value->group_pack_id != NULL;
-            });
+        $arr = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+        $from = null;
+        $to   = null;
 
-            $details = $carts->groupBy('rate.name')->values()->map(function ($group) {
-                return [
-                    'name' => $group->first()->rate->name ?? '',
-                    'count' => $group->count(),
-                    'amount' => $group->sum('price_sold'),
-                ];
-            });
+        if (isset($arr['from']) && is_numeric($arr['from'])) {
+            $from = Carbon::createFromTimestampMs($arr['from'])->startOfDay();
+        }
+        if (isset($arr['to']) && is_numeric($arr['to'])) {
+            $to = Carbon::createFromTimestampMs($arr['to'])->endOfDay();
+        }
 
-            $detailsPacks = $groupPacks->groupBy('group_pack.pack.name')->values()->map(function ($group) {
-                return [
-                    'name' => $group->first()->group_pack->pack->name ?? '',
-                    'count' => $group->count(),
-                    'amount' => $group->sum('price_sold'),
-                ];
-            });
-
-            $details = $details->merge($detailsPacks);
-
-            return [
-                'name' => $group->first()->cart->confirmedPayment->gateway ?? 'NA',
-                'count' => $group->count(),
-                'amount' => $group->sum('price_sold'),
-                'details' => $details
-            ];
-        });
-
-        return $brief;
-    }
-
-    private function addTotals(\Illuminate\Support\Collection $brief)
-    {
-        return $brief->merge([
-            [
-                'name' => 'All',
-                'count' => $brief->sum('count'),
-                'amount' => $brief->sum('amount')
-            ]
-        ]);
-    }
-
-    private function breakdownByUser($inscriptions)
-    {
-        $brief = $inscriptions->groupBy('cart.seller_id')->values()->map(function ($group, $index) {
-            return [
-                'name' => $group->first()->cart->seller->name ?? 'NA',
-                'count' => $group->count(),
-                'amount' => $group->sum('price_sold'),
-                'details' => []
-            ];
-        });
-
-        // need to show rate name in results
-        $inscriptions->groupBy('rate.name');
-
-        return $brief;
-    }
-
-    private function breakdownByTicketOffice($inscriptions)
-    {
-
-        $brief = $inscriptions->groupBy(function ($item, int $key) {
-            $payment = json_decode($item->cart->confirmedPayment->gateway_response);
-            return isset($payment->payment_type) ? $payment->payment_type : 'NA';
-        })->values()->map(function ($group, $index) {
-            $payment = json_decode($group->first()->cart->confirmedPayment->gateway_response);
-            $paymentType = isset($payment->payment_type) ? $payment->payment_type : 'NA';
-
-            return [
-                'name' => $paymentType ? trans('tincket/backend.ticket.payment_type.' . $paymentType) : 'NA',
-                'count' => $group->count(),
-                'amount' => $group->sum('price_sold'),
-                'details' => []
-            ];
-        });
-
-
-        // need to show rate name in results
-        $inscriptions->groupBy('rate.name');
-
-        return $brief;
+        return ['from' => $from, 'to' => $to];
     }
 }

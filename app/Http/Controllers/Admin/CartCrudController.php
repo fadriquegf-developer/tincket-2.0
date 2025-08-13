@@ -429,10 +429,14 @@ class CartCrudController extends CrudController
     public function changeGateway(Request $request, Cart $cart)
     {
         $payment = $cart->payment;
-        $resp = json_decode($payment->gateway_response ?? '{}');
-        $resp->payment_type = $request->input('gateway');
 
-        $payment->gateway_response = json_encode($resp);
+    /* 2) actualiza la columna visible --------------------------- */
+    $payment->gateway = $request->input('gateway');   // <- ESTA línea faltaba
+
+    /* 3) mantiene coherencia en el JSON (por si lo usas luego) -- */
+    $resp = json_decode($payment->gateway_response ?? '{}', true);
+    $resp['payment_type'] = $payment->gateway;
+    $payment->gateway_response = json_encode($resp, JSON_UNESCAPED_UNICODE);
         $payment->save();
 
         return redirect()->route('cart.show', $cart->id);

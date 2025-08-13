@@ -6,7 +6,7 @@
         <img src="{{ $entity->image }}" width="320" style="width: 320px" />
         <span style="font-size: 24px; display: block;">{{ $entity->name }}</span>
         <span style="margin-bottom: 25px;">
-            {{ \Illuminate\Support\Str::limit(strip_tags($entity->description), 200) }}
+             {{ \Illuminate\Support\Str::limit(strip_tags(html_entity_decode($entity->description)), 200) }}
         </span>
     </a>
 </td>

@@ -24,11 +24,14 @@ class EventCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation {
+        store as traitStore;
     }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation {
+        update as traitUpdate;
     }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation {
+        destroy as traitDestroy;
     }
     use \Backpack\Pro\Http\Controllers\Operations\DropzoneOperation;
     use CrudPermissionTrait;
@@ -46,7 +49,6 @@ class EventCrudController extends CrudController
         CRUD::addButtonFromModelFunction('line', 'create_session', 'getCreateSessionButton', 'end');
         CRUD::addButtonFromModelFunction('line', 'clone', 'getCloneButton', 'end');
         CRUD::addButtonFromModelFunction('line', 'show_event', 'getShowEventButton', 'end');
-
     }
 
     protected function setupListOperation()
@@ -109,8 +111,6 @@ class EventCrudController extends CrudController
         ], false, function () {
             CRUD::addClause('published');
         });
-
-
     }
 
     protected function setupShowOperation(): void
@@ -371,7 +371,6 @@ class EventCrudController extends CrudController
             'type' => 'view',
             'view' => 'vendor.backpack.crud.event.sales_table',
         ]);
-
     }
 
     protected function setupCreateOperation(): void
@@ -388,26 +387,11 @@ class EventCrudController extends CrudController
     protected function setupUpdateOperation(): void
     {
         $this->setupCreateOperation();
-
     }
 
     public function store(EventCrudRequest $request)
     {
-        if (is_string($request->images)) {
-            $decoded = json_decode($request->images, true);
-
-            // Si es un array asociativo, pasamos a array plano
-            if (is_array($decoded)) {
-                $request->merge([
-                    'images' => array_values($decoded)
-                ]);
-            }
-        }
-
         $response = $this->traitStore();
-        $event = $this->crud->getCurrentEntry();
-
-        EventObserver::processImages($event);
 
         $taxonomies = json_decode($request->get('taxonomies'), true) ?? [];
 
@@ -435,25 +419,6 @@ class EventCrudController extends CrudController
 
     public function update(EventCrudRequest $request)
     {
-        $event = $this->crud->getCurrentEntry();
-        $oldImages = $event->images ?? [];
-
-        // Normalizamos `$request->images` (stdClass → array, JSON-string → array)
-        if ($request->images instanceof \stdClass) {
-            $arrayFromObject = array_values((array) $request->images);
-            $request->merge(['images' => $arrayFromObject]);
-            Log::info('[Debug][SessionUpdate] Normalizado stdClass → array: ' . json_encode($arrayFromObject));
-        }
-        if (is_string($request->images)) {
-            $decoded = json_decode($request->images, true);
-            if (is_array($decoded)) {
-                $arrayFromJson = array_values($decoded);
-                $request->merge(['images' => $arrayFromJson]);
-                Log::info('[Debug][SessionUpdate] Normalizado JSON-string → array: ' . json_encode($arrayFromJson));
-            }
-        }
-
-
         $response = $this->traitUpdate();
 
         $taxonomies = json_decode($request->get('taxonomies'), true) ?? [];
@@ -475,25 +440,6 @@ class EventCrudController extends CrudController
         $taxonomies = array_merge($taxonomies, $extraTaxonomies);
 
         $this->crud->entry->allTaxonomies()->sync(array_map('intval', $taxonomies));
-
-        $event = $this->crud->getCurrentEntry();
-
-        EventObserver::processImages($event);
-
-        //  Volvemos a leer `$session->images` ya procesadas (definitivas)
-        $event->refresh();
-        $newImages = $event->images ?? [];
-
-        // Calculamos qué imágenes antiguas hay que eliminar del disco
-        $toDelete = array_diff($oldImages, $newImages);
-
-        foreach ($toDelete as $oldPath) {
-            if (Storage::disk('public')->exists($oldPath)) {
-                Storage::disk('public')->delete($oldPath);
-            } else {
-                Log::warning('[Debug][SessionUpdate] No existe en disco, no se pudo borrar: ' . $oldPath);
-            }
-        }
 
         return $response;
     }
@@ -545,7 +491,7 @@ class EventCrudController extends CrudController
             'type' => 'text',
             'label' => __('backend.events.eventname'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_basic'),
         ]);
@@ -556,7 +502,7 @@ class EventCrudController extends CrudController
             'target' => 'name',
             'label' => __('backend.events.slug'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_basic'),
         ]);
@@ -566,7 +512,7 @@ class EventCrudController extends CrudController
             'type' => 'text',
             'label' => __('backend.events.lead'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_basic'),
         ]);
@@ -580,7 +526,7 @@ class EventCrudController extends CrudController
                 'language' => 'ca',
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_basic'),
         ]);
@@ -590,17 +536,29 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.posterimage'),
             'type' => 'image',
             'crop' => true,
-            'aspect_ratio' => 1.78,
+            //'aspect_ratio' => 1.78,
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
                 'uploader' => WebpImageUploader::class,
-                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__'),
+                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'resize' => [
                     'max' => 1200,
                 ],
+                'conversions' => [
+                    'md' => 992,
+                    'sm' => 576,
+                ],
+                'custom_name' => 'poster-image',
             ],
             'tab' => __('backend.events.tab_basic'),
+        ]);
+
+        CRUD::addField([
+            'name' => 'separator2',
+            'type' => 'custom_html',
+            'value' => '<div class="alert alert-info">' . __('backend.events.image') . '</div>',
+            'tab' => __('backend.events.tab_basic')
         ]);
 
         $this->addTagField();
@@ -691,11 +649,7 @@ class EventCrudController extends CrudController
             'type' => 'dropzone',
             'upload' => true,
             'disk' => 'public',
-            'prefix' => 'uploads/'
-                . get_current_brand()->code_name
-                . '/event/'
-                . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__')
-                . '/',
+            'hint' => __('backend.events.minWidth'),
             'tab' => __('backend.events.tab_extra'),
         ]);
 
@@ -703,7 +657,7 @@ class EventCrudController extends CrudController
             'name' => 'email',
             'label' => __('backend.events.responsibleemail'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_extra'),
         ]);
@@ -712,7 +666,7 @@ class EventCrudController extends CrudController
             'name' => 'phone',
             'label' => __('backend.events.responsiblephone'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_extra'),
         ]);
@@ -721,7 +675,7 @@ class EventCrudController extends CrudController
             'name' => 'site',
             'label' => __('backend.events.website'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.events.tab_extra'),
         ]);
@@ -738,7 +692,7 @@ class EventCrudController extends CrudController
             'max' => 10,
             'min' => 0,
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_extra'),
         ]);
@@ -752,7 +706,7 @@ class EventCrudController extends CrudController
             'type' => 'switch',
             'tab' => __('backend.events.tab_inscriptions'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
         ]);
 
@@ -772,7 +726,7 @@ class EventCrudController extends CrudController
             'type' => 'ckeditor',
             'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_ticket'),
         ]);
@@ -781,15 +735,20 @@ class EventCrudController extends CrudController
             'name' => 'custom_logo',
             'label' => __('backend.events.custom_logo'),
             'type' => 'image',
-            'upload' => false,
             'crop' => true,
-            'aspect_ratio' => 1.78,
+            //'aspect_ratio' => 1.78,
+            'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__'),
+                'uploader' => WebpImageUploader::class,
+                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
+                'custom_name' => 'custom-logo',
+                'resize' => [
+                    'max' => 1200
+                ]
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_ticket'),
         ]);
@@ -798,15 +757,19 @@ class EventCrudController extends CrudController
             'name' => 'banner',
             'label' => __('backend.events.banner'),
             'type' => 'image',
-            'upload' => false,
+            'upload' => true,
             'crop' => true,
-            //'aspect_ratio' => 1.78,
             'withFiles' => [
                 'disk' => 'public',
-                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? '__TEMP__'),
+                'uploader' => WebpImageUploader::class,
+                'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
+                'custom_name' => 'banner',
+                'resize' => [
+                    'max' => 1200
+                ]
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_ticket'),
         ]);
@@ -814,7 +777,7 @@ class EventCrudController extends CrudController
         CRUD::addField([
             'name' => 'separator',
             'type' => 'custom_html',
-            'value' => '<div class="alert alert-danger">' . __('backend.events.banner_info') . '</div>',
+            'value' => '<div class="alert alert-info">' . __('backend.events.banner_info') . '</div>',
             'tab' => __('backend.events.tab_ticket')
         ]);
     }
@@ -826,9 +789,8 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.enable_gift_cards'),
             'type' => 'switch',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
-
             'tab' => __('backend.events.tab_gift'),
         ]);
 
@@ -837,7 +799,7 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.price_gift_card'),
             'type' => 'number',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'attributes' => ["step" => "any"],
             'tab' => __('backend.events.tab_gift'),
@@ -849,7 +811,7 @@ class EventCrudController extends CrudController
             'type' => 'ckeditor',
             'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_gift'),
             'hint' => __('backend.events.gift_card_email_text_hint'),
@@ -861,7 +823,7 @@ class EventCrudController extends CrudController
             'type' => 'ckeditor',
             'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_gift'),
             'hint' => __('backend.events.gift_card_email_text_hint'),
@@ -873,7 +835,7 @@ class EventCrudController extends CrudController
             'type' => 'ckeditor',
             'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_gift'),
             'hint' => __('backend.events.gift_card_email_text_hint'),
@@ -885,7 +847,7 @@ class EventCrudController extends CrudController
             'type' => 'ckeditor',
             'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12',
+                'class' => 'form-group',
             ],
             'tab' => __('backend.events.tab_gift'),
 
@@ -895,7 +857,6 @@ class EventCrudController extends CrudController
             'type' => 'view',
             'view' => 'vendor.backpack.crud.inc.gift_card_script',
         ]);
-
     }
 
     public function setCalendarioTab()
@@ -943,8 +904,8 @@ class EventCrudController extends CrudController
             'name' => 'tags',
             'label' => __('backend.events.tags'),
             'type' => 'select2_from_array',
-            'options' => $tagOptions,     // las opciones que conoce Select2
-            'value' => $currentTags,    // las que están “selected” al cargar
+            'options' => $tagOptions,
+            'value' => $currentTags,
             'allows_null' => true,
             'allows_multiple' => true,
             'attributes' => [
@@ -954,5 +915,4 @@ class EventCrudController extends CrudController
             'tab' => __('backend.events.tab_basic'),
         ]);
     }
-
 }

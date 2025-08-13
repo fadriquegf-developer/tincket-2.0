@@ -12,8 +12,12 @@ use Backpack\PageManager\app\Http\Requests\PageRequest;
 class PageCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { create as traitCreate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation {
+        create as traitCreate;
+    }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation {
+        edit as traitEdit;
+    }
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use PageTemplatesTrait, TMFTemplatesTrait;
     use CrudPermissionTrait;
@@ -21,7 +25,7 @@ class PageCrudController extends CrudController
     public function setup()
     {
         $this->crud->setModel(config('backpack.pagemanager.page_model_class', 'Backpack\PageManager\app\Models\Page'));
-        $this->crud->setRoute(config('backpack.base.route_prefix').'/page');
+        $this->crud->setRoute(config('backpack.base.route_prefix') . '/page');
         $this->crud->setEntityNameStrings(__('backend.menu.page'), __('backend.menu.pages'));
         $this->setAccessUsingPermissions();
     }
@@ -130,7 +134,7 @@ class PageCrudController extends CrudController
             'label' => 'Meta ' . __('backend.page.page_title'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6 required',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Meta'
         ]);
@@ -139,12 +143,10 @@ class PageCrudController extends CrudController
             'label' => 'Meta ' . __('backend.page.page_title'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6 required',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Meta'
         ]);
-
-
     }
 
     /**
@@ -175,16 +177,15 @@ class PageCrudController extends CrudController
         $templates_array = [];
 
         /* Si es Torello Mountain Film */
-        if(get_current_brand()->id == 1){
+        if (get_current_brand()->id == 1) {
             $templates_trait = new \ReflectionClass('App\Traits\TMFTemplatesTrait');
-        }else{
+        } else {
             $templates_trait = new \ReflectionClass('App\Traits\PageTemplatesTrait');
         }
-        
+
         $templates = $templates_trait->getMethods(\ReflectionMethod::IS_PRIVATE);
 
-        if (!count($templates))
-        {
+        if (!count($templates)) {
             abort(503, trans('backpack::pagemanager.template_not_found'));
         }
 

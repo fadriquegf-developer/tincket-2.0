@@ -39,8 +39,6 @@ class MailingMail extends Mailable implements ShouldQueue
             $this->bcc($this->bccAddresses);
         }
 
-        Log::info('[MailingMail] Enviando desde: ' . brand_setting('mail.from.address'));
-
         return $this->subject($this->mailing->subject)
             ->view(brand_setting('base.emails.basic-mailing-layout'), ['mailing' => $this->mailing])
             ->text(brand_setting('base.emails.basic-mailing-text'), ['mailing' => $this->mailing]);

@@ -27,8 +27,8 @@ class MailingObserver
         $mailing->content = request()->mailing_content;
 
         if (blank($mailing->content)) {
-        return;
-    }
+            return;
+        }
 
         if (!$mailing->is_sent && $mailing->isDirty(['content', 'slug'])) {
 
@@ -48,15 +48,22 @@ class MailingObserver
             $plainFilename = $brandPath . '/' . sprintf("%s.%s", $mailing->content_file_name, Mailing::PLAIN_EXTENSION);
 
             $disk->put($htmlFilename, $mailing->content);
-            $disk->put($plainFilename, strip_tags($mailing->content));
+            $disk->put($plainFilename, html_entity_decode(strip_tags($mailing->content), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
         }
     }
 
     public function retrieved(Mailing $mailing)
     {
         if ($mailing && $mailing->brand) {
-            // we retrieve HTML content from disk file                    
-            $mailing->setAttribute('content', file_get_contents(sprintf(storage_path('app/') . "mailing/%s/%s.%s", $mailing->brand->code_name, $mailing->content_file_name, Mailing::HTML_EXTENSION)));
+            $path = storage_path('app/') . "mailing/{$mailing->brand->code_name}/{$mailing->content_file_name}." . Mailing::HTML_EXTENSION;
+
+            if (file_exists($path)) {
+                $mailing->setAttribute('content', file_get_contents($path));
+            } else {
+                \Log::warning("Archivo HTML del mailing no encontrado: $path");
+            }
+
             $mailing->syncOriginal();
         }
     }

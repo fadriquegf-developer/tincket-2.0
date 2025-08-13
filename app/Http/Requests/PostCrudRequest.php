@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Backpack\Pro\Uploads\Validation\ValidDropzone;
 
 class PostCrudRequest extends FormRequest
 {
@@ -27,6 +28,8 @@ class PostCrudRequest extends FormRequest
         return [
             'name' => 'required',
             'slug' => 'alpha_dash',
+            'gallery' => ValidDropzone::field()
+                ->file(['dimensions:min_width=1200']),
         ];
     }
 
@@ -35,6 +38,7 @@ class PostCrudRequest extends FormRequest
         return [
             'name' => __('backend.post.posttitle'),
             'slug' => __('backend.post.slug'),
+            'gallery' => __('backend.post.gallery'),
         ];
     }
 

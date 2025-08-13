@@ -2,50 +2,81 @@
  *  Estadísticas de VENTAS  —  Backpack 6 · Vue 3 · Axios
  * ====================================================================== */
 document.addEventListener('DOMContentLoaded', () => {
-  mountResults();   // primero el listener
-  mountFilters();   // luego los filtros
+    mountResults(); // primero el listener
+    mountFilters(); // luego los filtros
 });
 
 /* ─ utilidades ─────────────────────────────────────────────────────────── */
 const money = v =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' })
-      .format(Number(v) || 0);
+    new Intl.NumberFormat('es-ES', {
+        style: 'currency',
+        currency: 'EUR'
+    })
+    .format(Number(v) || 0);
 
-function tLang(v){                         /* string | {es:'', ca:''} */
-  if(v==null) return '';
-  if(typeof v==='string') return v;
-  const lang = window.appLocale || 'es';
-  return v[lang] ?? Object.values(v)[0] ?? '';
+function tLang(v) {
+    /* string | {es:'', ca:''} */
+    if (v == null) return '';
+    if (typeof v === 'string') return v;
+    const lang = window.appLocale || 'es';
+    return v[lang] ?? Object.values(v)[0] ?? '';
 }
 
-function fmtDateTime(iso){                 /* «30/05/2025 20:00» */
-  if(!iso) return '';
-  return new Date(iso).toLocaleString('es-ES',{
-    day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'
-  }).replace(',','');
+function fmtDateTime(iso) {
+    if (!iso) return '';
+    const s = (typeof iso === 'string' && iso.includes(' ') && !iso.includes('T')) ?
+        iso.replace(' ', 'T') :
+        iso;
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return iso; // fallback
+    return d.toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).replace(',', '');
 }
+
 
 /* Quick helper para TicketOffice ---------------------------------------- */
-function ticketPaymentType(r){
-  if(r.cart?.confirmed_payment?.gateway !== 'TicketOffice') return '';
-  try{
-    const obj = JSON.parse(r.cart.confirmed_payment.gateway_response||'{}');
-    switch(obj.payment_type){
-      case 'card' : return tLang({es:'Tarjeta de crédito', ca:'Targeta de crèdit'});
-      case 'cash' : return tLang({es:'En efectivo',        ca:'En efectiu'});
-      default     : return obj.payment_type||'';
-    }
-  }catch{ return ''; }
+function ticketPaymentType(r) {
+    if (r.payment_method !== 'TicketOffice' &&
+        r.cart?.confirmed_payment?.gateway !== 'TicketOffice') return '';
+
+    // Preferimos el campo plano del backend; si no, intentamos parsear legacy
+    const type = r.ticket_payment_type || (() => {
+        try {
+            const obj = JSON.parse(r.cart?.confirmed_payment?.gateway_response || '{}');
+            return obj.payment_type || '';
+        } catch {
+            return '';
+        }
+    })();
+
+    if (type === 'cash') return tLang({
+        es: 'En efectivo',
+        ca: 'En efectiu'
+    });
+    if (type === 'card') return tLang({
+        es: 'Tarjeta de crédito',
+        ca: 'Targeta de crèdit'
+    });
+    return type || 'NA';
 }
 
-/* ─────────────────────────────── FILTROS ──────────────────────────────── */
-function mountFilters(){
-  const el=document.getElementById('sales-filters'); if(!el) return;
-  const { t }=JSON.parse(el.dataset.props||'{}');
-  const today=new Date().toISOString().slice(0,10);
 
-  const App={
-    template: /*html*/`
+/* ─────────────────────────────── FILTROS ──────────────────────────────── */
+function mountFilters() {
+    const el = document.getElementById('sales-filters');
+    if (!el) return;
+    const {
+        t
+    } = JSON.parse(el.dataset.props || '{}');
+    const today = new Date().toISOString().slice(0, 10);
+
+    const App = {
+        template: /*html*/ `
     <nav class="navbar navbar-expand-lg bp-filters-navbar p-0 rounded border-xs shadow-xs">
     <div class="container-fluid flex-wrap gap-3">
 
@@ -132,182 +163,374 @@ function mountFilters(){
   </div>
 </nav>`,
 
-    setup(){
-      const filters=Vue.reactive({
-        session_ids:[],sessions_from:null,sessions_to:null,
-        sales_from:today,sales_to:today,breakdown:'R',only_summary:false
-      });
-      const sessions=Vue.ref([]);
+        setup() {
+            const filters = Vue.reactive({
+                session_ids: [],
+                sessions_from: null,
+                sessions_to: null,
+                sales_from: today,
+                sales_to: today,
+                breakdown: 'R',
+                only_summary: false
+            });
+            const sessions = Vue.ref([]);
 
-      Vue.onMounted(async()=>{
-        const {data}=await axios.get('/api/session?with_sales=1&show_expired=1');
-        sessions.value=data.data??data.sessions??data;
-      });
+            Vue.onMounted(async () => {
+                const {
+                    data
+                } = await axios.get('/api/session?with_sales=1&show_expired=1');
+                sessions.value = data.data ?? data.sessions ?? data;
+            });
 
-      const filteredSessions=Vue.computed(()=>sessions.value.filter(s=>{
-        const d=s.starts_on.slice(0,10);
-        if(filters.sessions_from&&d<filters.sessions_from) return false;
-        if(filters.sessions_to  &&d>filters.sessions_to)   return false;
-        return true;}));
-      const selectAll=()=>{filters.session_ids=filteredSessions.value.map(s=>s.id);};
+            const filteredSessions = Vue.computed(() => sessions.value.filter(s => {
+                const d = s.starts_on.slice(0, 10);
+                if (filters.sessions_from && d < filters.sessions_from) return false;
+                if (filters.sessions_to && d > filters.sessions_to) return false;
+                return true;
+            }));
+            const selectAll = () => {
+                filters.session_ids = filteredSessions.value.map(s => s.id);
+            };
 
-      function buildUrl(){
-        const ids=filters.session_ids.join(',');
-        const range=`{"from":${new Date(filters.sales_from).getTime()},"to":${new Date(filters.sales_to).getTime()}}`;
-        return `/api/statistics/sales?session_id=${ids}`
-             + `&breakdown=${filters.breakdown}&summary=${filters.only_summary?1:0}`
-             + `&sales_range=${range}`;
-      }
-      const generate=()=>window.dispatchEvent(new CustomEvent('sales:generate',{
-        detail:{url:buildUrl(),summaryOnly:filters.only_summary,bk:filters.breakdown,t}
-      }));
+            function buildUrl() {
+                const ids = filters.session_ids.join(',');
+                const range = `{"from":${new Date(filters.sales_from).getTime()},"to":${new Date(filters.sales_to).getTime()}}`;
+                return `/api/statistics/sales?session_id=${ids}` +
+                    `&breakdown=${filters.breakdown}&summary=${filters.only_summary?1:0}` +
+                    `&sales_range=${range}`;
+            }
+            const generate = () => window.dispatchEvent(new CustomEvent('sales:generate', {
+                detail: {
+                    url: buildUrl(),
+                    summaryOnly: filters.only_summary,
+                    bk: filters.breakdown,
+                    t
+                }
+            }));
 
-      Vue.watch([()=>filters.sessions_from,()=>filters.sessions_to],
-        ()=>{filters.session_ids=filters.session_ids.filter(id=>filteredSessions.value.some(s=>s.id===id));});
-      return{filters,filteredSessions,selectAll,generate,t,tLang,fmtDateTime};
-    }
-  };
-  Vue.createApp(App).mount(el);
+            Vue.watch([() => filters.sessions_from, () => filters.sessions_to],
+                () => {
+                    filters.session_ids = filters.session_ids.filter(id => filteredSessions.value.some(s => s.id === id));
+                });
+            return {
+                filters,
+                filteredSessions,
+                selectAll,
+                generate,
+                t,
+                tLang,
+                fmtDateTime
+            };
+        }
+    };
+    Vue.createApp(App).mount(el);
 }
 
 /* ───────────────────────────── RESULTADOS ─────────────────────────────── */
-function mountResults(){
-  const el=document.getElementById('sales-results'); if(!el) return;
-  const {t}=JSON.parse(el.dataset.props||'{}');
+function mountResults() {
+    const el = document.getElementById('sales-results');
+    if (!el) return;
+    const {
+        t
+    } = JSON.parse(el.dataset.props || '{}');
 
-  const rows=Vue.ref([]);
-  const summary=Vue.ref([]);
-  const loading=Vue.ref(false);
-  const summaryOnly=Vue.ref(false);
-  const bkNow=Vue.ref('R');
+    const rows = Vue.ref([]);
+    const summary = Vue.ref([]);
+    const loading = Vue.ref(false);
+    const summaryOnly = Vue.ref(false);
+    const bkNow = Vue.ref('R');
 
-  /* columnas detalle (fijas) ----------------------------------------------*/
-  const colsDetail=[
-    {label:t.event  ,key:'ev',val:r=>tLang(r.session?.event?.name??r.event_name)},
-    {label:t.session,key:'se',val:r=>{
-      const n=tLang(r.session?.name??r.session_name);
-      const d=fmtDateTime(r.session?.starts_on??r.session_starts_on);
-      return n+(d?' ('+d+')':'');}},
-    {label:t.sold_at,key:'sa',val:r=>r.cart?.confirmed_payment?.paid_at??''},
-    {label:t.rate_pack,key:'rp',val:r=>{
-      if(r.rate?.name)             return tLang(r.rate.name);
-      if(r.rate_name)              return tLang(r.rate_name);
-      if(r.group_pack?.pack?.name) return tLang(r.group_pack.pack.name);
-      if(r.pack_name)              return tLang(r.pack_name);
-      return '';}},
-    {label:t.price_sold,key:'ps',val:r=>money(r.price_sold)},
-    {label:t.cart   ,key:'ca',val:r=>r.cart?.confirmation_code??''},
-    {label:t.client ,key:'cl',val:r=>r.cart?.client?.email??r.client_email??''},
-    {label:t.sold_by,key:'sb',val:r=>r.cart?.seller?.name??r.cart?.seller?.code_name??r.seller_name??''}
-  ];
-
-  /* construir resumen ------------------------------------------------------*/
-  function buildSummary(bk,arr){
-    /* --- Pago taquilla --- (una fila por tipo de pago dentro de TicketOffice) */
-    if(bk==='T'){
-      const map=new Map();
-      arr.filter(r=>r.cart?.confirmed_payment?.gateway==='TicketOffice')
-         .forEach(r=>{
-           const k=ticketPaymentType(r);
-           if(!map.has(k)) map.set(k,{name:k,count:0,amount:0});
-           const g=map.get(k); g.count++; g.amount+=Number(r.price_sold)||0;
-         });
-      return [...map.values()];
-    }
-
-    /* --- Usuario --- */
-    if(bk==='U'){
-      const map=new Map();
-      arr.forEach(r=>{
-        const n=r.cart?.seller?.name??r.cart?.seller?.code_name??r.seller_name??'';
-        if(!map.has(n)) map.set(n,{name:n,count:0,amount:0});
-        const g=map.get(n); g.count++; g.amount+=Number(r.price_sold)||0;
-      });
-      return [...map.values()];
-    }
-
-    /* --- Tarifa (R)   o   Método pago (P) ---  con hijos ------------------*/
-    const map=new Map();
-    const keyTop = bk==='P'
-      ? r=>r.payment_method??r.cart?.confirmed_payment?.gateway??'—'
-      : r=>tLang(r.rate?.name??r.rate_name??
-                 r.group_pack?.pack?.name??r.pack_name??'—');
-    const keyChild = bk==='P'
-      ? r=>tLang(r.rate?.name??r.rate_name??
-                 r.group_pack?.pack?.name??r.pack_name??'—')
-      : r=>r.payment_method??r.cart?.confirmed_payment?.gateway??'—';
-
-    arr.forEach(r=>{
-      const a=keyTop(r), b=keyChild(r);
-      if(!map.has(a)) map.set(a,{name:a,count:0,amount:0,children:new Map()});
-      const g=map.get(a); g.count++; g.amount+=Number(r.price_sold)||0;
-      if(!g.children.has(b)) g.children.set(b,{name:b,count:0,amount:0});
-      const c=g.children.get(b); c.count++; c.amount+=Number(r.price_sold)||0;
-    });
-
-    return [...map.values()].map(g=>({...g,children:[...g.children.values()]}));
-  }
-
-  /* columnas resumen según breakdown --------------------------------------*/
-  function colsSummary(bk){
-    const labelName = bk==='U' ? t.user
-                     : bk==='P' ? t.method
-                     : bk==='T' ? t.ticket_payment
-                     : t.rate_pack;
-    return [
-      {label:labelName        ,key:'n',val:g=>g.name},
-      {label:t.quantity  ,key:'q',val:g=>g.count},
-      {label:t.price_sold     ,key:'p',val:g=>money(g.amount)}
+    /* columnas detalle (fijas) ----------------------------------------------*/
+    const colsDetail = [{
+            label: t.event,
+            key: 'ev',
+            val: r => tLang(r.event_name ?? r.session?.event?.name)
+        },
+        {
+            label: t.session,
+            key: 'se',
+            val: r => {
+                const n = tLang(r.session?.name ?? r.session_name);
+                const d = fmtDateTime(r.session?.starts_on ?? r.session_starts_on);
+                return n + (d ? ' (' + d + ')' : '');
+            }
+        },
+        {
+            label: t.sold_at,
+            key: 'sa',
+            val: r => fmtDateTime(r.paid_at)
+        },
+        {
+            label: t.rate_pack,
+            key: 'rp',
+            val: r => {
+                if (r.rate?.name) return tLang(r.rate.name);
+                if (r.rate_name) return tLang(r.rate_name);
+                if (r.group_pack?.pack?.name) return tLang(r.group_pack.pack.name);
+                if (r.pack_name) return tLang(r.pack_name);
+                return '';
+            }
+        },
+        {
+            label: t.price_sold,
+            key: 'ps',
+            val: r => money(r.price_sold)
+        },
+        {
+            label: t.cart,
+            key: 'ca',
+            val: r => r.confirmation_code ?? ''
+        },
+        {
+            label: t.client,
+            key: 'cl',
+            val: r => r.cart?.client?.email ?? r.client_email ?? ''
+        },
+        {
+            label: t.sold_by,
+            key: 'sb',
+            val: r => r.cart?.seller?.name ?? r.cart?.seller?.code_name ?? r.seller_name ?? ''
+        }
     ];
-  }
 
-  /* fetch ------------------------------------------------------------------*/
-  async function fetchData({url,summaryOnly:so,bk}){
-    summaryOnly.value=so;
-    bkNow.value=bk;
-    loading.value=true; rows.value=[]; summary.value=[];
-    try{
-      const {data}=await axios.get(url);
-      rows.value=data.results??[];
-      summary.value=buildSummary(bk,rows.value);
-    }catch(e){console.error(e);}
-    finally{loading.value=false;}
-  }
+    /* construir resumen ------------------------------------------------------*/
+    function buildSummary(bk, arr) {
+        /* --- Pago taquilla (T) -------------------------------------------------*/
+        if (bk === 'T') {
+            const map = new Map();
+            arr.filter(r => (r.payment_method === 'TicketOffice') ||
+                    (r.cart?.confirmed_payment?.gateway === 'TicketOffice'))
+                .forEach(r => {
+                    const k = ticketPaymentType(r); // ya viene traducido con el helper
+                    if (!map.has(k)) map.set(k, {
+                        name: k,
+                        count: 0,
+                        amount: 0
+                    });
+                    const g = map.get(k);
+                    g.count++;
+                    g.amount += Number(r.price_sold) || 0;
+                });
+            return [...map.values()];
+        }
 
-  /* export helpers ---------------------------------------------------------*/
-  function dl(blob,name){
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=name;a.click();
-    URL.revokeObjectURL(a.href);}
+        /* --- Usuario --- */
+        if (bk === 'U') {
+            const map = new Map();
+            arr.forEach(r => {
+                const n = r.cart?.seller?.name ?? r.cart?.seller?.code_name ?? r.seller_name ?? '';
+                if (!map.has(n)) map.set(n, {
+                    name: n,
+                    count: 0,
+                    amount: 0
+                });
+                const g = map.get(n);
+                g.count++;
+                g.amount += Number(r.price_sold) || 0;
+            });
+            return [...map.values()];
+        }
 
-  function exportCsv(cols,data){
-    const csv=[cols.map(c=>c.label),...data.map(r=>cols.map(c=>c.val(r)))]
-      .map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
-    dl(new Blob([csv],{type:'text/csv'}),`sales_${Date.now()}.csv`);}
+        /* --- Tarifa (R)   o   Método pago (P) --- con hijos -------------------*/
+        if (bk === 'P') {
+            // Top: método de pago; Child: tarifa/pack
+            const map = new Map();
+            const keyTop = r => r.payment_method ?? r.cart?.confirmed_payment?.gateway ?? '—';
+            const keyChild = r => tLang(r.rate?.name ?? r.rate_name ?? r.group_pack?.pack?.name ?? r.pack_name ?? '—');
 
-  function exportPdf(cols,data){
-    const { jsPDF } = window.jspdf || {};
-    if(!jsPDF){ alert('jsPDF no cargado'); return; }
+            arr.forEach(r => {
+                const a = keyTop(r),
+                    b = keyChild(r);
+                if (!map.has(a)) map.set(a, {
+                    name: a,
+                    count: 0,
+                    amount: 0,
+                    children: new Map()
+                });
+                const g = map.get(a);
+                g.count++;
+                g.amount += Number(r.price_sold) || 0;
+                if (!g.children.has(b)) g.children.set(b, {
+                    name: b,
+                    count: 0,
+                    amount: 0
+                });
+                const c = g.children.get(b);
+                c.count++;
+                c.amount += Number(r.price_sold) || 0;
+            });
 
-    const doc = new jsPDF('p','pt');
-    doc.setFontSize(14);
-    doc.text('Estadísticas de ventas', 40, 40);
+            return [...map.values()].map(x => ({
+                ...x,
+                children: [...x.children.values()]
+            }));
+        }
 
-    /* construimos un array de arrays: [ [col1,col2,…], … ] */
-    const body = data.map(r => cols.map(c => String(c.val(r))));
-    doc.autoTable({
-      head:[cols.map(c=>c.label)],
-      body,
-      startY: 60,
-      styles:{fontSize:8,cellPadding:3}
-    });
+        // bk === 'R' → tarifas + fila especial “Packs”
+        {
+            const isPack = r => r.group_pack_id != null || !!r.pack_name;
+            const rateKey = r => tLang(r.rate?.name ?? r.rate_name ?? '—');
+            const packName = r => tLang(r.group_pack?.pack?.name ?? r.pack_name ?? '—');
+            const method = r => r.payment_method ?? r.cart?.confirmed_payment?.gateway ?? 'NA';
 
-    doc.save(`sales_${Date.now()}.pdf`);
-  }
+            // 1) TARIFAS (NO packs) → hijos por método de pago (Sermepa, TicketOffice, ...)
+            const mapRates = new Map();
+            arr.filter(r => !isPack(r)).forEach(r => {
+                const k = rateKey(r);
+                if (!mapRates.has(k)) mapRates.set(k, {
+                    name: k,
+                    count: 0,
+                    amount: 0,
+                    children: new Map()
+                });
+                const g = mapRates.get(k);
+                g.count++;
+                g.amount += Number(r.price_sold) || 0;
 
-  /* componente -------------------------------------------------------------*/
-  const App={
-    template:/*html*/`
+                const m = method(r);
+                if (!g.children.has(m)) g.children.set(m, {
+                    name: m,
+                    count: 0,
+                    amount: 0
+                });
+                const c = g.children.get(m);
+                c.count++;
+                c.amount += Number(r.price_sold) || 0;
+            });
+
+            const rateRows = [...mapRates.values()].map(x => ({
+                ...x,
+                children: [...x.children.values()]
+            }));
+
+            // 2) PACKS → igual que ya tienes: hijos por nombre de pack
+            const packsDetailMap = new Map();
+            let packsCount = 0,
+                packsAmount = 0;
+            arr.filter(isPack).forEach(r => {
+                const name = packName(r);
+                if (!packsDetailMap.has(name)) packsDetailMap.set(name, {
+                    name,
+                    count: 0,
+                    amount: 0,
+                    _set: new Set()
+                });
+                const d = packsDetailMap.get(name);
+                d.count++;
+                d.amount += Number(r.price_sold) || 0;
+                packsCount++;
+                packsAmount += Number(r.price_sold) || 0;
+                if (r.group_pack_id != null) d._set.add(r.group_pack_id);
+            });
+            const packChildren = [...packsDetailMap.values()].map(d => {
+                const n = d._set.size;
+                delete d._set;
+                return {
+                    ...d,
+                    nPacks: n
+                };
+            });
+            const nPacksTotal = packChildren.reduce((a, b) => a + (b.nPacks || 0), 0);
+            const packsRow = {
+                name: 'Packs',
+                count: packsCount,
+                amount: packsAmount,
+                nPacks: nPacksTotal,
+                children: packChildren
+            };
+
+            return [...rateRows, packsRow];
+        }
+
+    }
+
+    /* columnas resumen según breakdown --------------------------------------*/
+    function colsSummary(bk) {
+        const labelName = bk === 'U' ? t.user :
+            bk === 'P' ? t.method :
+            bk === 'T' ? t.ticket_payment :
+            t.rate_pack;
+        return [{
+                label: labelName,
+                key: 'n',
+                val: g => g.name
+            },
+            {
+                label: t.quantity,
+                key: 'q',
+                val: g => g.count
+            },
+            {
+                label: t.price_sold,
+                key: 'p',
+                val: g => money(g.amount)
+            }
+        ];
+    }
+
+    /* fetch ------------------------------------------------------------------*/
+    async function fetchData({
+        url,
+        summaryOnly: so,
+        bk
+    }) {
+        summaryOnly.value = so;
+        bkNow.value = bk;
+        loading.value = true;
+        rows.value = [];
+        summary.value = [];
+        try {
+            const {
+                data
+            } = await axios.get(url);
+            rows.value = data.results ?? [];
+            if (Array.isArray(data.summary) && data.summary.length) {
+                summary.value = (bk === 'T') ?
+                    data.summary.map(x => ({
+                        ...x,
+                        name: x.name === 'cash' ?
+                            tLang({
+                                es: 'En efectivo',
+                                ca: 'En efectiu'
+                            }) :
+                            x.name === 'card' ?
+                            tLang({
+                                es: 'Tarjeta de crédito',
+                                ca: 'Targeta de crèdit'
+                            }) :
+                            x.name || 'NA'
+                    })) :
+                    data.summary;
+            } else {
+                summary.value = buildSummary(bk, rows.value);
+            }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    /* export helpers ---------------------------------------------------------*/
+    function dl(blob, name) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    function exportCsv(cols, data) {
+        const csv = [cols.map(c => c.label), ...data.map(r => cols.map(c => c.val(r)))]
+            .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
+        dl(new Blob([csv], {
+            type: 'text/csv'
+        }), `sales_${Date.now()}.csv`);
+    }
+
+    /* componente -------------------------------------------------------------*/
+    const App = {
+        template: /*html*/ `
 <div class="card rounded border-xs shadow-xs">
  <div class="card-header py-3 d-flex justify-content-between align-items-center">
    <h3 class="card-title mb-0">{{ t.results }}</h3>
@@ -315,9 +538,6 @@ function mountResults(){
      <button class="btn btn-outline-secondary btn-sm me-2"
              @click="exportCsv(colsExp, summaryOnly?summaryFlat:rows)"
              :disabled="!summary.length && !rows.length">{{ t.csv }}</button>
-     <button class="btn btn-outline-secondary btn-sm"
-             @click="exportPdf(colsExp , summaryOnly?summaryFlat:rows)"
-             :disabled="!summary.length && !rows.length">PDF</button>
    </div>
  </div>
 
@@ -340,9 +560,9 @@ function mountResults(){
          </tr>
        </template>
        <tr class="table-active fw-bold">
-         <td>All</td><td>{{ rows.length }}</td>
-         <td>{{ money(rows.reduce((s,r)=>s+Number(r.price_sold||0),0)) }}</td>
-       </tr>
+        <td>All</td><td>{{ allTotals.count }}</td>
+        <td>{{ money(allTotals.amount) }}</td>
+      </tr>
      </tbody>
    </table>
 
@@ -350,30 +570,79 @@ function mountResults(){
    <div v-if="!summaryOnly" class="table-responsive">
      <table v-if="rows.length" class="table table-striped mb-0">
        <thead><tr><th v-for="c in colsDetail" :key="c.key">{{ c.label }}</th></tr></thead>
-       <tbody><tr v-for="(r,i) in rows" :key="i">
-         <td v-for="c in colsDetail" :key="c.key">{{ c.val(r) }}</td>
-       </tr></tbody>
+       <tbody>
+        <tr v-for="(r,i) in rows" :key="i">
+          <td v-for="c in colsDetail" :key="c.key">
+            <template v-if="c.key==='ca'">
+              <a :href="'/cart/' + r.cart_id + '/show'" target="_blank">{{ r.confirmation_code }}</a>
+            </template>
+            <template v-else>
+              {{ c.val(r) }}
+            </template>
+          </td>
+        </tr>
+      </tbody>
      </table>
      <p v-else class="text-muted text-center small mb-0 ">{{ t.no_data }}</p>
    </div>
-
  </div>
 </div>`,
 
-    setup(){
-      const summaryFlat=Vue.computed(()=> bkNow.value==='U'
-           ? summary.value
-           : summary.value.flatMap(g=>[g,...(g.children||[])]));
-      const colsSum=Vue.computed(()=>colsSummary(bkNow.value));
-      const colsExp=Vue.computed(()=> summaryOnly.value ? colsSum.value : colsDetail);
-      return{
-        t, rows, summary, loading, summaryOnly, money,
-        colsDetail, colsSum, colsExp, summaryFlat,
-        exportCsv, exportPdf
-      };
-    }
-  };
+        setup() {
+            const summaryFlat = Vue.computed(() => bkNow.value === 'U' ?
+                summary.value :
+                summary.value.flatMap(g => [g, ...(g.children || [])]));
+            const colsSum = Vue.computed(() => colsSummary(bkNow.value));
+            const colsExp = Vue.computed(() => summaryOnly.value ? colsSum.value : colsDetail);
 
-  Vue.createApp(App).mount(el);
-  window.addEventListener('sales:generate', e=>fetchData(e.detail));
+            const allTotals = Vue.computed(() => {
+                // si estamos mostrando solo resumen, siempre sumar summary
+                if (summaryOnly.value) {
+                    const cnt = summary.value.reduce((a, g) => a + (g.count || 0), 0);
+                    const amt = summary.value.reduce((a, g) => a + (Number(g.amount) || 0), 0);
+                    return {
+                        count: cnt,
+                        amount: amt
+                    };
+                }
+
+                // desglose TicketOffice (T): sumar sólo lo del summary (ticket office)
+                if (bkNow.value === 'T') {
+                    const cnt = summary.value.reduce((a, g) => a + (g.count || 0), 0);
+                    const amt = summary.value.reduce((a, g) => a + (Number(g.amount) || 0), 0);
+                    return {
+                        count: cnt,
+                        amount: amt
+                    };
+                }
+
+                // resto de desgloses: todo lo que hay en rows
+                const cnt = rows.value.length;
+                const amt = rows.value.reduce((s, r) => s + (Number(r.price_sold) || 0), 0);
+                return {
+                    count: cnt,
+                    amount: amt
+                };
+            });
+
+
+            return {
+                t,
+                rows,
+                summary,
+                loading,
+                summaryOnly,
+                money,
+                colsDetail,
+                colsSum,
+                colsExp,
+                summaryFlat,
+                exportCsv,
+                allTotals
+            };
+        }
+    };
+
+    Vue.createApp(App).mount(el);
+    window.addEventListener('sales:generate', e => fetchData(e.detail));
 }

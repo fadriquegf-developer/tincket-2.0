@@ -129,6 +129,7 @@ return [
         'password' => 'Contrasinal',
         'password_confirmation' => 'Confirmar contrasinal',
         'brand' => 'Cliente',
+        'info_password' => 'O contrasinal debe ter polo menos 8 caracteres, incluír unha letra maiúscula, unha minúscula, un número e un símbolo, e coincidir coa confirmación.'
     ],
 
     'capability' => [
@@ -489,6 +490,7 @@ return [
         'remove_filters' => 'Eliminar filtros',
         'filters' => 'Filtros',
         'banner_info' => "A anchura do banner debe ser de polo menos 1200px para unha visualización correcta",
+        'image' => "A anchura do Imaxe promocional principal debe ser de polo menos 1200px para unha visualización correcta",
         'enable_gift_cards' => 'Tarxetas regalo',
         'price_gift_card' => 'Prezo das tarxetas regalo',
         'gift_card_text' => 'Texto das tarxetas regalo',
@@ -524,6 +526,8 @@ return [
         'created_at' => 'Creado o',
         'updated_at' => 'Actualizado o',
         'deleted_at' => 'Eliminado o',
+        'minWidth' => 'A largura mínima de cada imaxe debe ser de 1200 px.',
+        'gallery' => 'Galería',
     ],
 
     'session' => [
@@ -612,6 +616,11 @@ return [
         'ends_on' => 'Data e hora de finalización',
         'inscription_starts_on' => 'Data e hora de inicio da inscrición',
         'inscription_ends_on' => 'Data e hora de finalización da inscrición',
+        'listPDF' => 'Lista de inscripciones sin PDF generado',
+        'minWidth' => 'A largura mínima del Logotipo debe ser de 120px.',
+        'marked_as_liquidated' => 'Marcada como liquidada correctamente',
+        'marked_as_unliquidated' => 'Marcada como non liquidada correctamente',
+
     ],
 
     'cart' => [
@@ -631,6 +640,11 @@ return [
         'regenerate_send_tickets' => 'Rexenera e envía tickets',
         'send_mail_payment' => 'Enviar correo electrónico para facer o pago',
         'payment_ticket_office' => 'Realiza o pago en taquilla',
+        'card' => 'Tarxeta de crédito',
+        'cash' => 'Efectivo',
+        'select_gateway' => 'Seleccionar plataforma de pago',
+        'close' => 'Pechar',
+        'change' => 'Cambiar',
         'inc' => [
             'inscriptionsset' => 'Conxunto de inscricións',
             'search' => 'Buscar',
@@ -651,6 +665,8 @@ return [
             'place' => 'Asento',
             'options' => 'Opcións',
             'preview' => 'Previsualizar',
+            'gateway_response' => 'Respuesta TPV',
+            'show_detail' => 'Veure detalls'
         ],
         'error' => [
             'msg_pdf_not_rendered' => 'O PDF aínda non se imprimiu, téntao de novo dentro dun tempo',
@@ -855,6 +871,7 @@ return [
         'configuration' => 'Configuración',
         'minpercart' => 'Mínimo por cesta',
         'maxpercart' => 'Máximo por cesta',
+        'rules' => 'Reglas',
         'discounts' => 'Descontos',
         'discount' => 'Desconto',
         'sessionamounts' => 'Número de sesións',
@@ -863,11 +880,11 @@ return [
         'extra' => 'Extra',
         'config' =>
             [
-                'round-alert' => '<div class="text-danger"> <strong> Funcionalidade de proba </strong> <p> Redondeará o prezo dos paquetes en % ao euro ou cincuenta céntimos máis próximo </p> </div>',
+                'round-alert' => '<div class="text-info"> <strong> Funcionalidade de proba </strong> <p> Redondeará o prezo dos paquetes en % ao euro ou cincuenta céntimos máis próximo </p> </div>',
                 'round-nearest' => 'Activar factor de redondeo para paquetes con %.',
-                'one-session-alert' => '<div class="text-danger"> <strong> Funcionalidade de proba </strong> <p> </p> </div>',
+                'one-session-alert' => '<div class="text-info"> <strong> Funcionalidade de proba </strong> <p> </p> </div>',
                 'one-session-x-event' => 'Activar para permitir só unha sesión para o evento',
-                'cart_rounded-alert' => '<div class="text-danger"> <strong> Funcionalidad en pruebas </strong> <p>Redondeará el precio total de todos los packs que se compren en el Euro más cercano</p> </div>',
+                'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalidad en pruebas </strong> <p>Redondeará el precio total de todos los packs que se compren en el Euro más cercano</p> </div>',
                 'cart_rounded' => 'Activar redondear el precio total del pack o packs',
             ]
     ],

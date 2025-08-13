@@ -94,6 +94,15 @@ class Client extends BaseModel
         return '<a class="btn btn-primary" href="' . route('crud.client.deleted-list') . '"><i class="fa fa-trash"></i> Clients eliminats</a>';
     }
 
+    public function newsletterButton($crud = false)
+    {
+        $url = route('mailing.create');
+
+        return '<a href="' . $url . '" class="btn btn-primary" title="Enviar newsletter">
+                <i class="la la-envelope me-1"></i>Enviar newsletter 
+            </a>';
+    }
+
     public function getNumSessionAttribute()
     {
         $sessions = [];
@@ -162,8 +171,8 @@ class Client extends BaseModel
         $fields = FormField::ownedByBrand()->whereNull('is_editable')->where('config', 'like', '%required%')->get();
         $answers = $this->answers()->whereIn('field_id', $fields->pluck('id'))->get();
 
-        foreach($fields as $field){
-            if($answers->where('field_id', $field->id)->first() === null){
+        foreach ($fields as $field) {
+            if ($answers->where('field_id', $field->id)->first() === null) {
                 $result = false;
             }
         }
@@ -171,8 +180,8 @@ class Client extends BaseModel
         // new system stored in clients table
         $register_inputs = request()->get('brand')->register_inputs;
 
-        foreach($register_inputs as $input){
-            if($input->pivot->required && empty($this->{$input->name_form})){
+        foreach ($register_inputs as $input) {
+            if ($input->pivot->required && empty($this->{$input->name_form})) {
                 $result = false;
             }
         }

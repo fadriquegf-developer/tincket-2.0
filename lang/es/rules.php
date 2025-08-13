@@ -2,7 +2,7 @@
 
 return [
     'sessions'          => 'Sessiones',
-    'discount_percent'  => '% Descouento',
+    'discount_percent'  => '% Descuento',
     'price'             => 'Precio',
     'actions'           => 'Acciones',
     'all_remaining'     => 'Todas las sesiones restantes',

@@ -25,12 +25,13 @@ use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 class PackCrudController extends CrudController
 {
     use ListOperation;
-    use CreateOperation { store as traitStore;
+    use CreateOperation {
+        store as traitStore;
     }
-    use UpdateOperation { update as traitUpdate;
+    use UpdateOperation {
+        update as traitUpdate;
     }
     use DeleteOperation;
-    use CrudPermissionTrait;
     use CrudPermissionTrait;
 
     public function setup()
@@ -41,47 +42,10 @@ class PackCrudController extends CrudController
         $this->setAccessUsingPermissions();
     }
 
-    public function store(PackCrudRequest $request)
-    {
-        // Quitamos reglas y sesiones del payload que Backpack va a guardar
-        $cleanInput = Arr::except($request->all(), ['rules', 'sessions']);
-
-        // Creamos el pack manualmente; guardamos entry para el resto del flujo
-        $entry = $this->crud->create($cleanInput);
-        $this->crud->setSaveAction();          // conserva redirecciones de Backpack
-        $this->crud->entry = $entry;
-
-        // Ahora procesamos relaciones
-        $this->updatePackRules($request);
-        $this->updatePackSessions($request);
-
-        return $this->crud->performSaveAction($entry->getKey());
-    }
-
-    public function update(PackCrudRequest $request)
-    {
-        // 1. Campos "limpios" (sin rules ni sessions) para la tabla packs
-        $cleanInput = Arr::except($request->all(), ['rules', 'sessions']);
-
-        // 2. ID del modelo que se está editando (Backpack siempre pasa "id")
-        $id = $request->route('id');          // ← aquí ya no llamamos a getRouteName
-
-        // 3. Backpack actualiza y devuelve la instancia
-        $entry = $this->crud->update($id, $cleanInput);
-        $this->crud->entry = $entry;          // por si lo usan métodos auxiliares
-
-        // 4. Sincronizar relaciones
-        $this->updatePackRules($request);
-        $this->updatePackSessions($request);
-
-        // 5. Redirección estándar de Backpack
-        return $this->crud->performSaveAction($entry->getKey());
-    }
-
     protected function setupListOperation()
     {
+        CRUD::orderBy('created_at', 'desc');
         CRUD::enableExportButtons();
-
 
         CRUD::addColumn([
             'name' => 'name',
@@ -117,13 +81,12 @@ class PackCrudController extends CrudController
             },
             'escaped' => false,
         ]);
-
-
     }
 
     protected function setupCreateOperation()
     {
         CRUD::setValidation(PackCrudRequest::class);
+
         $this->setBasicTab();
         $this->setConfigurationTab();
         $this->setExtraTab();
@@ -132,7 +95,6 @@ class PackCrudController extends CrudController
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
-
     }
 
 
@@ -141,8 +103,9 @@ class PackCrudController extends CrudController
         CRUD::addField([
             'name' => 'name',
             'label' => __('backend.pack.packname'),
+            'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6 required',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic'
         ]);
@@ -150,8 +113,10 @@ class PackCrudController extends CrudController
         CRUD::addField([
             'name' => 'slug',
             'label' => __('backend.pack.slug'),
+            'type' => 'slug',
+            'target' => 'name',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic'
         ]);
@@ -165,7 +130,7 @@ class PackCrudController extends CrudController
                 'language' => 'ca'
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6 required',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic'
         ]);
@@ -180,7 +145,7 @@ class PackCrudController extends CrudController
                 'weekStart' => 4
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-6',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => 'Basic'
         ]);
@@ -200,17 +165,27 @@ class PackCrudController extends CrudController
         CRUD::addField([
             'name' => 'min_per_cart',
             'label' => __('backend.pack.minpercart'),
-            'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-4 required',
+            'type' => 'number',
+            'attributes' => [
+                'min' => 1,
+                'step' => 1,
             ],
-            'tab' => __('backend.pack.configuration')
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-6',
+            ],
+            'tab' => __('backend.pack.configuration'),
         ]);
 
         CRUD::addField([
             'name' => 'max_per_cart',
             'label' => __('backend.pack.maxpercart'),
+            'type' => 'number',
+            'attributes' => [
+                'min' => 1,
+                'step' => 1,
+            ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-4 required',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.pack.configuration')
         ]);
@@ -227,7 +202,7 @@ class PackCrudController extends CrudController
             'label' => __('backend.pack.config.cart_rounded'),
             'type' => 'switch',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-7',
+                'class' => 'form-group col-sm-7',
             ],
             'tab' => __('backend.pack.configuration'),
         ]);
@@ -237,7 +212,7 @@ class PackCrudController extends CrudController
             'type' => 'custom_html',
             'value' => __('backend.pack.config.cart_rounded-alert'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-5',
+                'class' => 'form-group col-sm-5',
             ],
             'tab' => __('backend.pack.configuration')
         ]);
@@ -247,7 +222,7 @@ class PackCrudController extends CrudController
             'label' => __('backend.pack.config.round-nearest'),
             'type' => 'switch',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-7',
+                'class' => 'form-group col-md-7',
             ],
             'tab' => __('backend.pack.configuration'),
         ]);
@@ -257,7 +232,7 @@ class PackCrudController extends CrudController
             'type' => 'custom_html',
             'value' => __('backend.pack.config.round-alert'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-5',
+                'class' => 'form-group col-md-5',
             ],
             'tab' => __('backend.pack.configuration')
         ]);
@@ -267,7 +242,7 @@ class PackCrudController extends CrudController
             'label' => __('backend.pack.config.one-session-x-event'),
             'type' => 'switch',
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-7',
+                'class' => 'form-group col-md-7',
             ],
             'tab' => __('backend.pack.configuration'),
         ]);
@@ -281,7 +256,7 @@ class PackCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'rules',
-            'type' => 'rules',
+            'type' => 'rules_packs',
             'tab' => __('backend.pack.configuration'),
         ]);
 
@@ -295,7 +270,7 @@ class PackCrudController extends CrudController
         CRUD::addField([
             'name' => 'sessions',
             'type' => 'view',
-            'view' => 'vendor.backpack.crud.fields.sessions',
+            'view' => 'core.pack.fields.sessions',
             'sessions' => Session::where('ends_on', '>', \Carbon\Carbon::now())->orderBy('starts_on', 'ASC')->get(),
             'tab' => __('backend.pack.configuration'),
         ]);
@@ -312,13 +287,9 @@ class PackCrudController extends CrudController
             'withFiles' => [
                 'disk' => 'public',
                 'uploader' => WebpImageUploader::class,
-                'path' => 'uploads/' . get_current_brand()->code_name . '/post',
+                'path' => 'uploads/' . get_current_brand()->code_name . '/pack',
                 'resize' => [
-                    'max' => 1200,
-                ],
-                'conversions' => [
-                    'md' => 800,
-                    'sm' => 400,
+                    'max' => 200,
                 ],
             ],
             'tab' => 'Ticket',
@@ -329,7 +300,7 @@ class PackCrudController extends CrudController
             'type' => 'color',
             'label' => __('backend.session.session_color'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-3',
+                'class' => 'form-group col-lg-3',
             ],
             'tab' => 'Ticket',
         ]);
@@ -339,7 +310,7 @@ class PackCrudController extends CrudController
             'type' => 'color',
             'label' => __('backend.session.session_bg_color'),
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-lg-3',
+                'class' => 'form-group col-lg-3',
             ],
             'tab' => 'Ticket',
         ]);
@@ -357,13 +328,46 @@ class PackCrudController extends CrudController
                 'resize' => [
                     'max' => 1200,
                 ],
-                'conversions' => [
-                    'md' => 800,
-                    'sm' => 400,
-                ],
             ],
             'tab' => 'Ticket'
         ]);
+    }
+
+    public function store(PackCrudRequest $request)
+    {
+        // Quitamos reglas y sesiones del payload que Backpack va a guardar
+        $cleanInput = Arr::except($request->all(), ['rules', 'sessions']);
+
+        // Creamos el pack manualmente; guardamos entry para el resto del flujo
+        $entry = $this->crud->create($cleanInput);
+        $this->crud->setSaveAction();
+        $this->crud->entry = $entry;
+
+        // Ahora procesamos relaciones
+        $this->updatePackRules($request);
+        $this->updatePackSessions($request);
+
+        return $this->crud->performSaveAction($entry->getKey());
+    }
+
+    public function update(PackCrudRequest $request)
+    {
+        // 1. Campos "limpios" (sin rules ni sessions) para la tabla packs
+        $cleanInput = Arr::except($request->all(), ['rules', 'sessions']);
+
+        // 2. ID del modelo que se está editando (Backpack siempre pasa "id")
+        $id = $request->route('id');          // ← aquí ya no llamamos a getRouteName
+
+        // 3. Backpack actualiza y devuelve la instancia
+        $entry = $this->crud->update($id, $cleanInput);
+        $this->crud->entry = $entry;          // por si lo usan métodos auxiliares
+
+        // 4. Sincronizar relaciones
+        $this->updatePackRules($request);
+        $this->updatePackSessions($request);
+
+        // 5. Redirección estándar de Backpack
+        return $this->crud->performSaveAction($entry->getKey());
     }
 
     /**
@@ -421,7 +425,7 @@ class PackCrudController extends CrudController
                 }
 
                 // Asegurarse de que realmente pertenece a este Pack
-                if ($entry->rules->contains('id', $rule['id'])) {
+                if ($entry->rules()->where('id', $rule['id'])->exists()) {
                     $entry->rules()->updateOrCreate(['id' => $rule['id']], $rule);
                 }
 

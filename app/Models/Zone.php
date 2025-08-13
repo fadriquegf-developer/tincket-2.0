@@ -32,10 +32,19 @@ class Zone extends BaseModel
 
     public function rates()
     {
-        if (!isset($this->pivot_session_id)) {
-            // Si prefieres no lanzar excepción:
-            return $this->morphToMany(Rate::class, 'assignated_rate', 'assignated_rates', 'assignated_rate_id', 'rate_id')
-                ->whereRaw('1=0');
+        if (!isset($this->pivot_session_id) || !$this->pivot_session_id) {
+            \Log::debug("Zone rates() called without pivot_session_id", [
+                'zone_id' => $this->id
+            ]);
+
+            // Retornar una relación vacía
+            return $this->morphToMany(
+                Rate::class,
+                'assignated_rate',
+                'assignated_rates',
+                'assignated_rate_id',
+                'rate_id'
+            )->whereRaw('1=0');
         }
 
         return $this->morphToMany(

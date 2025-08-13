@@ -3,23 +3,22 @@
 namespace App\Models;
 
 use Carbon\Carbon;
-use App\Traits\HasImages;
 use App\Scopes\BrandScope;
 use Illuminate\Support\Str;
 use App\Traits\LogsActivity;
 use App\Traits\IsClassifiable;
+use App\Traits\HasTranslations;
 use App\Traits\OwnedModelTrait;
 use App\Observers\EventObserver;
 use App\Traits\SetsUserOnCreate;
 use App\Traits\SetsBrandOnCreate;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\Builder;
 use Intervention\Image\Encoders\WebpEncoder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Intervention\Image\Laravel\Facades\Image;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
-use App\Traits\HasTranslations;
+
 class Event extends BaseModel
 {
 
@@ -96,6 +95,10 @@ class Event extends BaseModel
         if (get_brand_capability() !== 'engine') {
             static::addGlobalScope(new BrandScope());
         }
+
+        static::saved(function (self $event) {
+            $event->relocateTempUploads();
+        });
     }
 
     /* public function __construct(array $attributes = [])
@@ -257,192 +260,6 @@ class Event extends BaseModel
             </a>';
     }
 
-
-    public function setImageAttribute($value)
-    {
-        if (!$value || $value === $this->getOriginal('image')) {
-            return;
-        }
-
-        if (!$value || !is_string($value) || !Storage::disk('public')->exists($value)) {
-            $this->attributes['image'] = $value;
-            return;
-        }
-
-        try {
-            $brand = get_current_brand()->code_name;
-            $eventId = $this->attributes['id'] ?? Str::uuid();
-            $basePath = "uploads/{$brand}/event/{$eventId}/";
-
-            $img = Image::read(Storage::disk('public')->path($value));
-            $fileName = 'logo-' . Str::uuid() . '.webp';
-
-            $maxWidth = 1200;
-            if ($img->width() > $maxWidth) {
-                $img = $img->scale(width: $maxWidth);
-            }
-
-            // Guardar principal
-            Storage::disk('public')->put($basePath . $fileName, $img->encode(new WebpEncoder(quality: 80)));
-
-            // Versiones
-            $md = (clone $img)->scale(width: 800);
-            $sm = (clone $img)->scale(width: 300);
-            Storage::disk('public')->put($basePath . 'md-' . $fileName, $md->encode(new WebpEncoder(quality: 80)));
-            Storage::disk('public')->put($basePath . 'sm-' . $fileName, $sm->encode(new WebpEncoder(quality: 80)));
-
-            // Borrar original temporal
-            Storage::disk('public')->delete($value);
-
-            $this->attributes['image'] = $basePath . $fileName;
-        } catch (\Throwable $e) {
-            // Fallback por si algo sale mal
-            $this->attributes['image'] = $value;
-        }
-    }
-
-
-    public function setImagesAttribute($value)
-    {
-        // Si llega null, lo dejamos como array vacío
-        if (is_null($value)) {
-            $this->attributes['images'] = json_encode([]);
-            return;
-        }
-
-        // --- 1) Si llega string, intentamos decodificarlo como JSON ---
-        if (is_string($value)) {
-            $decoded = json_decode($value, true);
-            if (is_array($decoded)) {
-                $value = $decoded;
-            } else {
-                // No era JSON válido → dejamos $value como array vacío
-                $value = [];
-            }
-        }
-
-        // --- 2) Si llega stdClass (o cualquier objeto), convertimos a array ---
-        if ($value instanceof \stdClass) {
-            // Convertimos recursivamente a array; en este caso es un objeto con keys "1","2",…
-            $value = (array) $value;
-        }
-
-        // --- 3) Finalmente, aseguramos que sea array indexado numéricamente ---
-        if (is_array($value)) {
-            // Si vinieran claves no numéricas, hacemos array_values()
-            $arrayOnly = array_values($value);
-            $this->attributes['images'] = json_encode($arrayOnly);
-            return;
-        }
-
-        // Si nada de lo anterior, guardamos array vacío
-        $this->attributes['images'] = json_encode([]);
-    }
-
-
-    public function setCustomLogoAttribute($value)
-    {
-        if (!$value || $value === $this->getOriginal('custom_logo')) {
-            return;
-        }
-
-        // Si ya está en formato final y sin path, lo ignoramos
-        if (Str::startsWith($value, 'custom-logo-') && Str::endsWith($value, '.webp') && !Str::contains($value, '/')) {
-            return;
-        }
-
-        try {
-            $brand = get_current_brand()->code_name;
-            $eventId = $this->attributes['id'] ?? Str::uuid();
-            $basePath = "uploads/{$brand}/event/{$eventId}/";
-            $fileName = 'custom-logo-' . Str::uuid() . '.webp';
-            $finalPath = $basePath . $fileName;
-
-            // Procesar sólo si el valor es un path existente en disco o un objeto de imagen
-            $isDiskFile = is_string($value) && Storage::disk('public')->exists($value);
-            $isUpload = is_object($value) || (is_string($value) && file_exists($value));
-
-            if (!$isDiskFile && !$isUpload) {
-                // No es una imagen válida para procesar
-                $this->attributes['custom_logo'] = $value;
-                return;
-            }
-
-            // Leer imagen desde el path
-            $image = $isDiskFile
-                ? Image::read(Storage::disk('public')->path($value))
-                : Image::read($value);
-
-            // Redimensionar si hace falta
-            if ($image->width() > 1200) {
-                $image = $image->scale(width: 1200);
-            }
-            
-
-            Storage::disk('public')->put($finalPath, $image->encode(new WebpEncoder(quality: 80)));
-
-            $this->attributes['custom_logo'] = $finalPath;
-
-            // Eliminar imagen temporal original si es de disco
-            if ($isDiskFile) {
-                Storage::disk('public')->delete($value);
-            }
-
-        } catch (\Throwable $e) {
-            \Log::error("Error al procesar custom_logo: " . $e->getMessage());
-            $this->attributes['custom_logo'] = $value;
-        }
-    }
-
-    public function setBannerAttribute($value)
-    {
-        if (!$value || $value === $this->getOriginal('banner')) {
-            return;
-        }
-
-        // Si ya está en formato final y sin path, lo ignoramos
-        if (Str::startsWith($value, 'banner-') && Str::endsWith($value, '.webp') && !Str::contains($value, '/')) {
-            return;
-        }
-
-        try {
-            $brand = get_current_brand()->code_name;
-            $eventId = $this->attributes['id'] ?? Str::uuid();
-            $basePath = "uploads/{$brand}/event/{$eventId}/";
-            $fileName = 'banner-' . Str::uuid() . '.webp';
-            $finalPath = $basePath . $fileName;
-
-            // Procesar sólo si el valor es un path existente en disco o un objeto de imagen
-            $isDiskFile = is_string($value) && Storage::disk('public')->exists($value);
-            $isUpload = is_object($value) || (is_string($value) && file_exists($value));
-
-            if (!$isDiskFile && !$isUpload) {
-                // No es una imagen válida para procesar
-                $this->attributes['banner'] = $value;
-                return;
-            }
-
-            // Leer imagen desde el path
-            $image = $isDiskFile
-                ? Image::read(Storage::disk('public')->path($value))
-                : Image::read($value);
-
-
-            Storage::disk('public')->put($finalPath, $image->encode(new WebpEncoder(quality: 80)));
-
-            $this->attributes['banner'] = $finalPath;
-
-            // Eliminar imagen temporal original si es de disco
-            if ($isDiskFile) {
-                Storage::disk('public')->delete($value);
-            }
-
-        } catch (\Throwable $e) {
-            \Log::error("Error al procesar banner: " . $e->getMessage());
-            $this->attributes['banner'] = $value;
-        }
-    }
-
     public function getFirstSessionAttribute()
     {
         return $this->sessions()->where('visibility', 1)->orderBy('starts_on', 'ASC')->first();
@@ -461,6 +278,72 @@ class Event extends BaseModel
     public function getSessionNoFinishedAttribute()
     {
         return $this->next_sessions()->with(['space.location'])->first();
+    }
+
+    protected function relocateTempUploads(): void
+    {
+        $singleImageFields = ['image', 'custom_logo', 'banner'];
+
+        $brand = get_current_brand()->code_name;
+        $baseDir = "uploads/{$brand}/event/{$this->id}";     // destino final
+        $disk = Storage::disk('public');
+
+        $dirty = false;
+        $tempDirsUsed = [];
+
+        /* ---------- mover cada campo monovalor ---------- */
+        foreach ($singleImageFields as $attr) {
+
+            // normaliza separadores «\» → «/»
+            $path = str_replace('\\', '/', $this->{$attr});
+
+            // comprueba «/__temp__/» en minúsculas
+            if (!$path || !Str::contains(Str::lower($path), '/temp/')) {
+                continue; // ya está donde toca o está vacío
+            }
+
+            // mueve archivos y obtenemos la carpeta temporal usada
+            [$finalPath, $tmpDir] = $this->moveToFinalDir($path, $baseDir, $disk);
+
+            $this->{$attr} = $finalPath;
+            $tempDirsUsed[] = str_replace('\\', '/', $tmpDir);  // ⭐
+            $dirty = true;
+        }
+
+        if ($dirty) {
+            $this->saveQuietly();   // evita eventos/updated_at innecesarios
+        }
+    }
+
+    /**
+     * Mueve un archivo (y sus variantes md-/sm-) al directorio final.
+     *
+     * @return array{0:string,1:string}  [ruta_final, carpeta_temp_origen]
+     */
+    private function moveToFinalDir(string $original, string $baseDir, $disk): array
+    {
+        // normaliza separadores para trabajar siempre con «/»
+        $original = str_replace('\\', '/', $original);
+
+        if (!$disk->exists($original)) {
+            return [$original, dirname($original)];
+        }
+
+        $filename = basename($original);
+        $dest = "{$baseDir}/{$filename}";
+
+        $disk->makeDirectory($baseDir);
+        $disk->move($original, $dest);
+
+        // mover variantes prefijadas (md-, sm-)
+        foreach (['md-', 'sm-'] as $pre) {
+            $src = dirname($original) . "/{$pre}{$filename}";
+            if ($disk->exists($src)) {
+                $disk->move($src, "{$baseDir}/{$pre}{$filename}");
+            }
+        }
+
+        return [$dest, dirname($original)];
     }
 
 }

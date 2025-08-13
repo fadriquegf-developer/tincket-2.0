@@ -4,8 +4,8 @@
     $statusColors = __('backend.svg_layout.seat_status_colors');
 @endphp
 
-<div id="svg-layout" {{-- wrapper con position:relative --}} data-svg-url="{{ $svgUrl }}"
-    data-slots='@json($slots_map ?? [])' data-zones='@json($zones_map)' data-zoom-enabled="{{ $entry->zoom ? 1 : 0 }}">
+<div id="svg-layout" {{-- wrapper con position:relative --}} data-svg-url="{{ $svgUrl }}" data-slots='@json($slots_map ?? [])'
+    data-zones='@json($zones_map)' data-zoom-enabled="{{ $entry->zoom ? 1 : 0 }}">
 
     {{-- ① Div que Vue controlará (solo el plano) --}}
     <div id="svg-canvas"></div>
@@ -15,7 +15,7 @@
 
     {{-- ③ Botones --}}
     <div class="btn-map-wrap">
-        @if($entry->zoom)
+        @if ($entry->zoom)
             <button type="button" class="btn btn-primary btn-zoom-in" title="Acercar">
                 <i class="la la-search-plus"></i>
             </button>
@@ -37,7 +37,7 @@
 
 {{-- ---------- Leyenda ---------- --}}
 @include('core.ticket-office.space_layout_legend')
-@include('crud::fields.inc.wrapper_end')
+
 
 {{-- ---------- Modal ---------- --}}
 @push('after_scripts')
@@ -62,11 +62,8 @@
 
         .btn-map-wrap {
             position: absolute;
-            top: 0px;
-            left: -65px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+            top: 10px;
+            left: 10px;
             z-index: 20;
         }
 

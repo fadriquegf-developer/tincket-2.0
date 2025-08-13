@@ -4,7 +4,7 @@
 @endphp
 
 @section('content')
-    <h3>Benvolgut/da {{ $cart->client->name or '{name}' }},</h3>
+    <h3>Benvolgut/da {{ $cart->client->name ?? '{name}' }},</h3>
     <p>
         Lamentem informar-vos que hem trobat una incidència durant el processament de compra de les seves entrades({{ $cart->id }}).
         @if ($payment->created_at->diffInMinutes($payment->updated_at) > 15)

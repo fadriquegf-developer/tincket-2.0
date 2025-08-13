@@ -58,11 +58,8 @@
 
         .btn-map-wrap {
             position: absolute;
-            top: 0px;
-            left: -65px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
+            top: 10px;
+            left: 10px;
             z-index: 20;
         }
 

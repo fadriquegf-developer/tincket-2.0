@@ -1,7 +1,7 @@
 @extends('brands.cirvianum.emails.layout')
 @section('content')
 <p>
-    Benvolgut/da {{ $client->name or '{name}' }},<br>
+    Benvolgut/da {{ $client->name ?? '{name}' }},<br>
     <br>
     T'enviem aquest email ja que ens has sol·licitat un canvi de password.<br/>
     <br>

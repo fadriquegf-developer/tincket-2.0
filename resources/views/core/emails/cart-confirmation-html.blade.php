@@ -6,15 +6,15 @@
 @endphp
 @section('content')
     <p style="font-size: 16px; line-height: 1.5em; margin-top: 0; text-align: left;">
-        Hola {{ $cart->client->name or '{name}' }},<br>
+        Hola {{ $cart->client->name ?? '{name}' }},<br>
         Aquí tens el detall de la teva compra:<br>
         <br>
         <b>Data d'operació</b>: {{ $cart->updated_at->format('d/m/Y') }}
         <span class="text-nowrap" style="white-space: nowrap;">{{ $cart->updated_at->format('h:m') }} h.</span><br>
-        <b>Codi de confirmació</b>: <span class="text-nowrap" style="white-space: nowrap;">{{ $cart->confirmation_code or '{code}' }}</span><br>
+        <b>Codi de confirmació</b>: <span class="text-nowrap" style="white-space: nowrap;">{{ $cart->confirmation_code ?? '{code}' }}</span><br>
         <b>Import total de l'operació</b>:
         <span class="text-nowrap" style="white-space: nowrap;">{{ sprintf('%s €', number_format($cart->priceSold, 2)) }}</span><br>
-        <b>Client</b>: {{ $cart->client->name or '{name}' }} {{ $cart->client->surname or '' }}<br>
+        <b>Client</b>: {{ $cart->client->name ?? '{name}' }} {{ $cart->client->surname ?? '' }}<br>
     </p>
 
     @foreach ($cart->inscriptions->groupBy('session_id') as $set)

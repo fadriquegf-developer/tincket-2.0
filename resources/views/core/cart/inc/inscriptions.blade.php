@@ -98,62 +98,74 @@
                                     @endcan
 
                                     {{-- Dropdown acciones --}}
-                                    <div class="dropdown">
-                                        @can('carts.index')
-                                            <button class="btn btn-sm btn-outline-primary dropdown-toggle pe-2" type="button"
-                                                id="dropdownActions{{ $inscription->id }}" data-bs-toggle="dropdown"
-                                                data-bs-auto-close="outside" aria-expanded="false"><i class="la la-download me-1"></i>
-                                                {{ __('backend.cart.download') }}
-                                            </button>
-                                        @endcan
+                                    @if($entry->confirmation_code)
+                                        <div class="dropdown">
+                                            @can('carts.index')
+                                                <button class="btn btn-sm btn-outline-primary dropdown-toggle pe-2" type="button"
+                                                    id="dropdownActions{{ $inscription->id }}" data-bs-toggle="dropdown"
+                                                    data-bs-auto-close="outside" aria-expanded="false"><i class="la la-download me-1"></i>
+                                                    {{ __('backend.cart.download') }}
+                                                </button>
+                                            @endcan
 
-                                        <ul class="dropdown-menu" aria-labelledby="dropdownActions{{ $inscription->id }}">
-                                            @if(Route::has('inscription.generate'))
-                                                <li>
-                                                    <a class="dropdown-item"
-                                                        href="{{ route('inscription.generate', ['inscription' => $inscription->id, 'web' => 1]) }}"
-                                                        target="_blank">
-                                                        <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.download') }}
-                                                    </a>
-                                                </li>
-                                                <li>
-                                                    <a class="dropdown-item"
-                                                        href="{{ route('inscription.generate', ['inscription' => $inscription->id, 'ticket-office' => 1]) }}"
-                                                        target="_blank">
-                                                        <i class="la la-file-pdf-o me-1"></i>
-                                                        {{ __('backend.cart.inc.download_ticket_office') }}
-                                                    </a>
-                                                </li>
-                                            @endif
+                                            <ul class="dropdown-menu" aria-labelledby="dropdownActions{{ $inscription->id }}">
+                                                @if(Route::has('inscription.generate'))
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                            href="{{ route('inscription.generate', ['inscription' => $inscription->id, 'web' => 1]) }}"
+                                                            target="_blank">
+                                                            <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.download') }}
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                            href="{{ route('inscription.generate', ['inscription' => $inscription->id, 'ticket-office' => 1]) }}"
+                                                            target="_blank">
+                                                            <i class="la la-file-pdf-o me-1"></i>
+                                                            {{ __('backend.cart.inc.download_ticket_office') }}
+                                                        </a>
+                                                    </li>
+                                                @endif
 
-                                            @if(auth()->check() && auth()->user()->isSuperuser())
-                                                <li>
-                                                    <a class="dropdown-item"
-                                                        href="{{ route('open.inscription.pdf', ['inscription' => $inscription->id]) }}?token={{ $entry->token }}"
-                                                        target="_blank">
-                                                        <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.preview') }}
-                                                    </a>
-                                                </li>
-                                            @endif
-                                        </ul>
-                                    </div>
+                                                @if(auth()->check() && auth()->user()->isSuperuser())
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                            href="{{ route('open.inscription.pdf', ['inscription' => $inscription->id]) }}?token={{ $entry->token }}"
+                                                            target="_blank">
+                                                            <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.preview') }}
+                                                        </a>
+                                                    </li>
+                                                @endif
+                                            </ul>
+                                        </div>
+                                    @endif
 
                                     {{-- Botón Eliminar --}}
                                     @can('carts.delete')
-                                        <a href="{{ route('inscription.destroy', $inscription->id) }}"
-                                            class="btn btn-sm btn-outline-danger pe-2" data-button-type="delete"
-                                            onclick="event.preventDefault(); if(confirm('{{ trans('backpack::crud.delete_confirm') }}')) { document.getElementById('delete-insc-{{ $inscription->id }}').submit(); }">
+                                    <a href="{{ route('inscription.destroy', $inscription->id) }}"
+                                        class="btn btn-sm btn-outline-danger pe-2"
+                                        onclick="
+                                            event.preventDefault();
+                                            if (!confirm('{{ trans('backpack::crud.delete_confirm') }}')) return;
+
+                                            fetch(this.href, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                                    'X-Requested-With': 'XMLHttpRequest'
+                                                },
+                                                body: new URLSearchParams({ _method: 'DELETE' })
+                                            })
+                                            .then(response => {
+                                                if (!response.ok) throw new Error('Error ' + response.status);
+                                                window.location.href = '{{ route('cart.show', $entry->id) }}';   // ← redirección
+                                            })
+                                            .catch(err => {
+                                                alert('No se pudo eliminar: ' + err.message);
+                                            });">
                                             <i class="la la-trash me-1"></i> {{ __('backend.cart.inc.delete') }}
-                                        </a>
+                                    </a>
                                     @endcan
-
-                                    <form id="delete-insc-{{ $inscription->id }}"
-                                        action="{{ route('inscription.destroy', $inscription->id) }}" method="POST"
-                                        style="display: none;">
-                                        @csrf
-                                        @method('DELETE')
-                                    </form>
-
                                 </td>
                             </tr>
                         @endforeach

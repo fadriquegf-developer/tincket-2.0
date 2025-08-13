@@ -3,7 +3,7 @@
 
 @section('content')
 <p>
-    Benvolgut {{ $client->name or '{name}' }},<br>
+    Benvolgut {{ $client->name ?? '{name}' }},<br>
     <br>
     T'enviem aquest email ja que ens has sol·licitat un canvi de password.<br/>
     <br>

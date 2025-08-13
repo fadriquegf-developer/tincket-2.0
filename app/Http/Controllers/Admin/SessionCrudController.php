@@ -422,7 +422,7 @@ class SessionCrudController extends CrudController
                 'data-token-separators' => '[","," "]',
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-xs-12 col-sm-12',
+                'class' => 'form-group col-md-12',
             ],
             'tab' => 'Basic',
         ]);
@@ -612,7 +612,7 @@ class SessionCrudController extends CrudController
         Alert::success(
             $session->liquidation
             ? __('backend.session.marked_as_liquidated')
-            : __('backend.session.unmarked_as_liquidated')
+            : __('backend.session.marked_as_unliquidated')
         )->flash();
 
         return redirect()->back();

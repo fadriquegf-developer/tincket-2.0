@@ -75,7 +75,7 @@ class PackCrudRequest extends FormRequest
             'min_per_cart'  => __('backend.pack.minpercart'),
             'max_per_cart'  => __('backend.pack.maxpercart'),
             'rules'         => __('backend.pack.rules'),
-            'sessions'      => 'list of sessions',
+            'sessions'      => __('backend.pack.sessionamounts'),
         ];
     }
 }
