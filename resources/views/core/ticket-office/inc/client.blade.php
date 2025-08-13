@@ -1,69 +1,39 @@
+{{-- resources/views/core/ticket-office/inc/client.blade.php --}}
 <div class="box">
     <div class="box-header">
-        <h3 class="box-title">
-            {{ __('ticket-office.client') }}
-        </h3>
+        <h4 class="box-title">{{ __('ticket-office.client') }}</h4>
     </div>
     <div class="box-body">
-        <div class="row mb-3">
-            <label for="client_email" class="col-sm-3 col-form-label">
-                {{ __('ticket-office.email') }}
-            </label>
-            <div class="col-sm-9">
-                <input type="email" 
-                       class="form-control" 
-                       name="client[email]" 
-                       id="client_email" 
-                       ng-model="client.email"
-                       autocomplete="email" />
-            </div>
+        <div class="mb-3">
+            <label for="client_email" class="form-label">{{ __('ticket-office.email') }}</label>
+            <input id="client_email" type="email" name="client[email]" class="form-control" value="{{ old('client.email', $old_data['client']['email'] ?? '') }}">
         </div>
-        <div class="row mb-3">
-            <label for="client_firstname" class="col-sm-3 col-form-label">
-                {{ __('ticket-office.firstname') }}
-            </label>
-            <div class="col-sm-9">
-                <input type="text" 
-                       class="form-control" 
-                       name="client[firstname]" 
-                       id="client_firstname"
-                       ng-model="client.firstname"
-                       autocomplete="given-name" />
-            </div>
+        <div class="mb-3">
+            <label for="client_firstname" class="form-label">{{ __('ticket-office.firstname') }}</label>
+            <input id="client_firstname" type="text" name="client[firstname]" class="form-control" value="{{ old('client.firstname', $old_data['client']['firstname'] ?? '') }}">
         </div>
-        <div class="row mb-3">
-            <label for="client_lastname" class="col-sm-3 col-form-label">
-                {{ __('ticket-office.lastname') }}
-            </label>
-            <div class="col-sm-9">
-                <input type="text" 
-                       class="form-control" 
-                       name="client[lastname]" 
-                       id="client_lastname"
-                       ng-model="client.lastname"
-                       autocomplete="family-name" />
-            </div>
+        <div class="mb-3">
+            <label for="client_lastname" class="form-label">{{ __('ticket-office.lastname') }}</label>
+            <input id="client_lastname" type="text" name="client[lastname]" class="form-control" value="{{ old('client.lastname', $old_data['client']['lastname'] ?? '') }}">
         </div>
     </div>
 </div>
 
 @push('after_scripts')
-<meta name="csrf-token" content="{{ csrf_token() }}">
 <script>
-    // Setup CSRF for jQuery
+    // Configuración de AJAX y autocompletado
     $.ajaxSetup({
         headers: {
             'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
         }
     });
 
-    // Autocomplete functionality
     $(function () {
         $('#client_email').autocomplete({
             source: function (request, response) {
-                $.post("{{ url('client/autocomplete') }}", { 
+                $.post("{{ url('client/autocomplete') }}", {
                     email: request.term,
-                    autocomplete: 1 
+                    autocomplete: 1
                 })
                 .done(function (data) {
                     response($.map(data.data, function (item) {
@@ -75,23 +45,24 @@
                         };
                     }));
                 })
-                .fail(function (xhr) {
-                    console.error("Error searching:", xhr.responseText);
+                .fail(function () {
                     response([]);
                 });
             },
             minLength: 3,
             select: function (event, ui) {
+                $('#client_email').val(ui.item.value);
                 $('#client_firstname').val(ui.item.name);
                 $('#client_lastname').val(ui.item.surname);
-                
-                // Update Angular model
-                var scope = angular.element($('#client_email')).scope();
-                scope.$apply(function() {
-                    scope.client.email = ui.item.value;
-                    scope.client.firstname = ui.item.name;
-                    scope.client.lastname = ui.item.surname;
-                });
+
+                // Si deseas actualizar datos en Vue, puedes emitir un evento personalizado:
+                document.dispatchEvent(new CustomEvent('client-selected', {
+                    detail: {
+                        email: ui.item.value,
+                        firstname: ui.item.name,
+                        lastname: ui.item.surname
+                    }
+                }));
             }
         });
     });
