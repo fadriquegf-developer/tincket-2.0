@@ -15,8 +15,10 @@ use App\Traits\CrudPermissionTrait;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Services\Payment\PaymentServiceFactory;
+use App\Services\Payment\RedsysRefundService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+
 
 /**
  * Class CartCrudController
@@ -583,59 +585,264 @@ class CartCrudController extends CrudController
     }
 
     /**
-     * Marcar un pago como reembolsado manualmente
+     * Marcar reembolso como completado (manual)
+     * 
+     * Cuando el reembolso se hace manualmente desde el panel de Redsys,
+     * usar este método para registrarlo y eliminar el carrito.
      */
     public function markRefunded(Request $request, $id)
     {
         $cart = Cart::withoutGlobalScope(BrandScope::class)->findOrFail($id);
 
         // Verificar permisos
-        if (!auth()->check() || !auth()->user()->isSuperuser()) {
-            Alert::error(__('refund.no_permission') ?? 'No tienes permisos para esta acción')->flash();
+        if (!$this->canManageRefunds()) {
+            Alert::error(__('refund.no_permission'))->flash();
             return redirect()->back();
         }
 
-        // Verificar que el pago existe y necesita reembolso
-        if (!$cart->payment || !$cart->payment->needs_refund) {
-            Alert::error(__('refund.not_pending') ?? 'Este pago no está marcado para reembolso')->flash();
+        // Verificar que el pago existe
+        $payment = $cart->payment;
+        if (!$payment) {
+            Alert::error(__('refund.not_paid'))->flash();
             return redirect()->back();
         }
 
-        if ($cart->payment->refunded_at) {
-            Alert::warning(__('refund.already_refunded') ?? 'Este pago ya fue marcado como reembolsado')->flash();
+        // Verificar que no está ya reembolsado
+        if ($payment->isRefunded()) {
+            Alert::warning(__('refund.already_refunded'))->flash();
             return redirect()->back();
         }
 
         // Validar
         $validated = $request->validate([
             'refund_reference' => 'required|string|max:100',
-            'refund_notes' => 'nullable|string|max:500'
+            'refund_notes' => 'nullable|string|max:500',
         ]);
 
-        // Actualizar el pago
-        $cart->payment->update([
-            'refunded_at' => now(),
-            'refund_reference' => $validated['refund_reference']
-        ]);
-
-        // Añadir nota al comentario si se proporcionó
-        if (!empty($validated['refund_notes'])) {
-            $cart->comment = trim($cart->comment . "\n\n[REEMBOLSO " . now()->format('d/m/Y H:i') . "]\n" . $validated['refund_notes']);
-            $cart->save();
+        // Si no estaba marcado para reembolso, marcarlo ahora
+        if (!$payment->requires_refund) {
+            $payment->requires_refund = true;
+            $payment->refund_reason = 'admin_manual';
         }
 
-        // Log
-        \Log::info('Payment marked as refunded', [
+        // Marcar como reembolsado
+        $payment->markAsRefunded($validated['refund_reference']);
+
+        // Añadir comentario al carrito ANTES de eliminarlo
+        $refundComment = "\n\n[REEMBOLSO MANUAL " . now()->format('d/m/Y H:i') . "]\nRef: {$validated['refund_reference']}";
+        if (!empty($validated['refund_notes'])) {
+            $refundComment .= "\nNotas: " . $validated['refund_notes'];
+        }
+        $refundComment .= "\nProcesado por: " . auth()->user()->email;
+
+        $cart->comment = trim($cart->comment . $refundComment);
+        $cart->save();
+
+        // Log antes de eliminar
+        \Log::info('Payment marked as refunded, deleting cart to free slots', [
             'cart_id' => $cart->id,
-            'payment_id' => $cart->payment->id,
+            'payment_id' => $payment->id,
             'refund_reference' => $validated['refund_reference'],
-            'amount' => $cart->payment->amount ?? $cart->priceSold,
+            'amount' => $cart->priceSold,
             'user_id' => auth()->id(),
-            'user_email' => auth()->user()->email
+            'user_email' => auth()->user()->email,
         ]);
 
-        Alert::success(__('refund.success') ?? 'Pago marcado como reembolsado correctamente')->flash();
+        // ═══════════════════════════════════════════════════════════════
+        // ELIMINAR CARRITO PARA LIBERAR BUTACAS
+        // El CartObserver se encarga de:
+        // - Liberar slots en Redis
+        // - Soft delete de inscripciones
+        // - Limpiar SessionTempSlots
+        // ═══════════════════════════════════════════════════════════════
+        $cart->delete();
+
+        Alert::success(__('refund.mark_success') ?? 'Reembolso registrado correctamente. Carrito eliminado y butacas liberadas.')->flash();
+
+        // Redirigir a la lista de carritos eliminados
+        return redirect()->to(url($this->crud->route . '/view/trash-carts'));
+    }
+
+    /**
+     * Solicitar reembolso para un carrito (marcar como pendiente)
+     * 
+     * Este método marca el pago para reembolso cuando un cliente llama
+     * solicitando una devolución. Después, se puede procesar manualmente
+     * o automáticamente con Redsys.
+     */
+    public function requestRefund(Request $request, $id)
+    {
+        $cart = Cart::withoutGlobalScope(BrandScope::class)->findOrFail($id);
+
+        // Verificar permisos
+        if (!$this->canManageRefunds()) {
+            Alert::error(__('refund.no_permission'))->flash();
+            return redirect()->back();
+        }
+
+        // Verificar que tiene pago confirmado
+        $payment = $cart->payment;
+        if (!$payment || !$payment->paid_at) {
+            Alert::error(__('refund.not_paid'))->flash();
+            return redirect()->back();
+        }
+
+        // Verificar que no está ya marcado/reembolsado
+        if ($payment->isRefunded()) {
+            Alert::warning(__('refund.already_refunded'))->flash();
+            return redirect()->back();
+        }
+
+        // Validar
+        $validated = $request->validate([
+            'refund_reason' => 'required|string|in:customer_request,event_cancelled,duplicate_payment,admin_manual,other',
+            'refund_notes' => 'nullable|string|max:500',
+        ]);
+
+        // Marcar para reembolso
+        $payment->markForRefund($validated['refund_reason'], [
+            'requested_by' => auth()->user()->email,
+            'requested_at' => now()->toIso8601String(),
+            'notes' => $validated['refund_notes'] ?? null,
+            'cart_total' => $cart->priceSold,
+            'client_email' => $cart->client->email ?? null,
+        ]);
+
+        // Añadir comentario al carrito
+        $reasonText = __('refund.reasons.' . $validated['refund_reason']);
+        $cart->comment = trim($cart->comment . "\n\n[DEVOLUCIÓN SOLICITADA " . now()->format('d/m/Y H:i') . "]\nMotivo: {$reasonText}\n" . ($validated['refund_notes'] ?? ''));
+        $cart->save();
+
+        // Log
+        \Log::info('Refund requested', [
+            'cart_id' => $cart->id,
+            'payment_id' => $payment->id,
+            'reason' => $validated['refund_reason'],
+            'user_id' => auth()->id(),
+            'user_email' => auth()->user()->email,
+        ]);
+
+        Alert::success(__('refund.request_success'))->flash();
 
         return redirect()->back();
+    }
+
+    /**
+     * Procesar reembolso automático con Redsys
+     * 
+     * Este método intenta hacer la devolución automáticamente a través
+     * de la API de Redsys. Si tiene éxito, elimina el carrito para
+     * liberar las butacas.
+     */
+    public function processRefund(Request $request, $id)
+    {
+        $cart = Cart::withoutGlobalScope(BrandScope::class)->findOrFail($id);
+
+        // Verificar permisos (solo superadmin puede procesar automáticamente)
+        if (!auth()->user()->isSuperuser()) {
+            Alert::error(__('refund.no_permission_auto'))->flash();
+            return redirect()->back();
+        }
+
+        // Verificar que tiene pago
+        $payment = $cart->payment;
+        if (!$payment || !$payment->paid_at) {
+            Alert::error(__('refund.not_paid'))->flash();
+            return redirect()->back();
+        }
+
+        // Verificar que no está ya reembolsado
+        if ($payment->isRefunded()) {
+            Alert::warning(__('refund.already_refunded'))->flash();
+            return redirect()->back();
+        }
+
+        // Validar importe (opcional, por defecto total)
+        $validated = $request->validate([
+            'refund_amount' => 'nullable|numeric|min:0.01',
+        ]);
+
+        $amountCents = null;
+        if (!empty($validated['refund_amount'])) {
+            $amountCents = (int) round($validated['refund_amount'] * 100);
+        }
+
+        // Obtener motivo (si no está marcado, usar admin_manual)
+        $reason = $payment->refund_reason ?? 'admin_manual';
+
+        // Procesar con Redsys
+        $refundService = new RedsysRefundService();
+        $result = $refundService->processRefund($payment, $amountCents, $reason);
+
+        if ($result['success']) {
+            // Añadir comentario al carrito ANTES de eliminarlo
+            $cart->comment = trim($cart->comment . "\n\n[REEMBOLSO AUTOMÁTICO " . now()->format('d/m/Y H:i') . "]\nRef: {$result['refund_reference']}\nImporte: " . number_format(($result['amount_cents'] / 100), 2) . " €\nProcesado por: " . auth()->user()->email);
+            $cart->save();
+
+            // Log antes de eliminar
+            \Log::info('Auto refund successful, deleting cart to free slots', [
+                'cart_id' => $cart->id,
+                'payment_id' => $payment->id,
+                'refund_reference' => $result['refund_reference'],
+                'amount_cents' => $result['amount_cents'],
+                'user_id' => auth()->id(),
+            ]);
+
+            // ═══════════════════════════════════════════════════════════════
+            // ELIMINAR CARRITO PARA LIBERAR BUTACAS
+            // El CartObserver se encarga de:
+            // - Liberar slots en Redis
+            // - Soft delete de inscripciones
+            // - Limpiar SessionTempSlots
+            // ═══════════════════════════════════════════════════════════════
+            $cart->delete();
+
+            Alert::success(__('refund.auto_success', [
+                'reference' => $result['refund_reference'],
+                'amount' => number_format(($result['amount_cents'] / 100), 2),
+            ]))->flash();
+
+            // Redirigir a la lista de carritos eliminados
+            return redirect()->to(url($this->crud->route . '/view/trash-carts'));
+        } else {
+            // Error - mostrar mensaje
+            Alert::error(__('refund.auto_error', [
+                'message' => $result['message'],
+            ]))->flash();
+
+            // Log del error
+            \Log::error('Auto refund failed', [
+                'cart_id' => $cart->id,
+                'payment_id' => $payment->id,
+                'error_code' => $result['error_code'] ?? null,
+                'message' => $result['message'],
+            ]);
+        }
+
+        return redirect()->back();
+    }
+
+    /**
+     * Verificar si el usuario puede gestionar reembolsos
+     */
+    private function canManageRefunds(): bool
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return false;
+        }
+
+        // Superadmin siempre puede
+        if ($user->isSuperuser()) {
+            return true;
+        }
+
+        // Verificar permiso específico si existe
+        if (method_exists($user, 'hasPermissionTo')) {
+            return $user->hasPermissionTo('manage refunds');
+        }
+
+        return false;
     }
 }
