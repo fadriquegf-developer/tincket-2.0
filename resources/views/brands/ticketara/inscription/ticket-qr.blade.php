@@ -297,14 +297,25 @@
         <div class="row">
             <div class="col-4">
                 @if ($inscription->session->event->brand->logo)
-                    <img style="max-width: 100%;" src="{{ $inscription->session->event->brand->logo }}" />
+                    @php
+                        $logoUrl = $inscription->session->event->brand->logo;
+                        // Convertir a URL absoluta si es ruta relativa
+                        if (!filter_var($logoUrl, FILTER_VALIDATE_URL)) {
+                            if (!str_starts_with($logoUrl, 'storage/') && !str_starts_with($logoUrl, '/storage/')) {
+                                $logoUrl = '/storage/' . ltrim($logoUrl, '/');
+                            }
+                            $logoUrl = url($logoUrl);
+                        }
+                    @endphp
+                    <img style="max-width: 100%;" src="{{ $logoUrl }}" />
                 @endif
             </div>
             <div class="col-4">
                 <p></p>
             </div>
             <div class="col-4">
-                <img style="width: 100%;" src="https://ticketara.yesweticket.com/storage/uploads/ticketara/media/logo-ticketara.png" />
+                <img style="width: 100%;"
+                    src="https://ticketara.yesweticket.com/storage/uploads/ticketara/media/logo-ticketara.png" />
             </div>
         </div>
         <div class="row" style="padding: 20px 0px;">
@@ -316,7 +327,7 @@
                     setlocale(LC_TIME, 'es_ES.utf8');
                 @endphp
                 <h4 style="font-weight:400; margin-top: 16px; margin-bottom: 0px;">
-                    {{ $inscription->session->starts_on->formatLocalized('%d de %b de %Y') }}
+                    {{ $inscription->session->starts_on->translatedFormat('d \d\e M \d\e Y') }}
                     -
                     {{ $inscription->session->space->name }}
                 </h4>
@@ -340,9 +351,9 @@
                 <div
                     style="border-top: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
                     @if($inscription->session->name)
-                    {{ $inscription->session->name }}<br>
-                    @endif 
-                    HORA: {{ $inscription->session->starts_on->formatLocalized('%H:%M') }}
+                        {{ $inscription->session->name }}<br>
+                    @endif
+                    HORA: {{ $inscription->session->starts_on->translatedFormat('H:i') }}
                 </div>
                 <div style="border-top: 2px solid black; padding: 10px 0px; font-size: 18px;">
                     @if (isset($inscription->cart->client->name) && isset($inscription->cart->client->surname))
@@ -357,7 +368,7 @@
                         {{ $inscription->slot->name }}
                     </div>
                 @endif
-                @php($metadata = json_decode($inscription->metadata))
+                @php($metadata = is_array($inscription->metadata) ? $inscription->metadata : (json_decode($inscription->metadata, true) ?? []))
                 @if (!empty($metadata))
                     <div class="small" style="border-top: 2px solid black; padding: 10px 0px; font-size: 14px;">
                         @foreach ($metadata as $property => $value)
@@ -375,11 +386,13 @@
             <div class="col-3">
                 <div class="row py" style="margin-left: 0px; padding-top: 0px;">
                     <div class="col-12" style="padding-left: 40px;background-color:white;">
-                        <img class="img-qr" style="border: 1px solid white;" src="data:image/png;base64,{!! DNS2D::getBarcodePNG($inscription->barcode, 'QRCODE', 5, 5) !!}" />
+                        <img class="img-qr" style="border: 1px solid white;"
+                            src="data:image/png;base64,{!! DNS2D::getBarcodePNG($inscription->barcode, 'QRCODE', 5, 5) !!}" />
                     </div>
                     <div class="col-12" style="padding-top: 22px; padding-left: 40px;">
                         <p class="m-0 small" style="padding-top: 4px; text-align: center;">
-                            {{ strtoupper($inscription->barcode) }}</p>
+                            {{ strtoupper($inscription->barcode) }}
+                        </p>
                     </div>
                 </div>
             </div>

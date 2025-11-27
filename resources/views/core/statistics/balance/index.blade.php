@@ -25,7 +25,7 @@
 
 @section('content')
     <div class="row g-3">
-        {{-- ▸ FILTROS--}}
+        {{-- ▸ FILTROS --}}
         <div id="balance-filters" data-props='@json($propsFilters, JSON_HEX_APOS)'></div>
 
         {{-- ▸ RESULTADOS --}}
@@ -36,6 +36,10 @@
 @push('after_scripts')
     <script src="https://unpkg.com/vue@3.4.21/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios@1.7.2/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
-    <script src="{{ asset('js/vue/statistics/balance.js') }}?v={{ filemtime(public_path('js/vue/statistics/balance.js')) }}"></script>
+    <script
+        src="{{ asset('js/vue/statistics/balance.js') }}?v={{ filemtime(public_path('js/vue/statistics/balance.js')) }}">
+    </script>
 @endpush

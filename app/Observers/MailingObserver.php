@@ -30,42 +30,40 @@ class MailingObserver
             return;
         }
 
-        if (!$mailing->is_sent && $mailing->isDirty(['content', 'slug'])) {
+        if (!in_array($mailing->status, ['sent', 'processing']) && !blank(request()->mailing_content)) {
 
-            $brandPath = $mailing->brand->code_name;
             $disk = Storage::disk('mailings');
 
-            // Borrar archivos antiguos del mismo mailing ID dentro del directorio de la marca
-            $files = $disk->files($brandPath);
+            // Borrar archivos antiguos del mailing (sin subdirectorio)
+            $files = $disk->files('');
             foreach ($files as $file) {
                 if (str_starts_with(basename($file), "{$mailing->id}-")) {
                     $disk->delete($file);
                 }
             }
 
-            // Guardar nuevo contenido
-            $htmlFilename = $brandPath . '/' . sprintf("%s.%s", $mailing->content_file_name, Mailing::HTML_EXTENSION);
-            $plainFilename = $brandPath . '/' . sprintf("%s.%s", $mailing->content_file_name, Mailing::PLAIN_EXTENSION);
+            // Guardar SIN brandPath (el disco ya lo tiene)
+            $htmlFilename = sprintf("%s.%s", $mailing->content_file_name, Mailing::HTML_EXTENSION);
+            $plainFilename = sprintf("%s.%s", $mailing->content_file_name, Mailing::PLAIN_EXTENSION);
 
             $disk->put($htmlFilename, $mailing->content);
             $disk->put($plainFilename, html_entity_decode(strip_tags($mailing->content), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-
         }
     }
 
     public function retrieved(Mailing $mailing)
     {
         if ($mailing && $mailing->brand) {
-            $path = storage_path('app/') . "mailing/{$mailing->brand->code_name}/{$mailing->content_file_name}." . Mailing::HTML_EXTENSION;
+            $disk = Storage::disk('mailings');
+            $htmlFilename = $mailing->content_file_name . '.' . Mailing::HTML_EXTENSION;
 
-            if (file_exists($path)) {
-                $mailing->setAttribute('content', file_get_contents($path));
+            if ($disk->exists($htmlFilename)) {
+                $mailing->setAttribute('content', $disk->get($htmlFilename));
             } else {
-                \Log::warning("Archivo HTML del mailing no encontrado: $path");
+                \Log::warning("Archivo HTML del mailing no encontrado: $htmlFilename");
             }
 
             $mailing->syncOriginal();
         }
     }
-
 }

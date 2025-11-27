@@ -230,7 +230,7 @@ p {
     <div class="container">
         <div class="row border-bottom">
             <div class="col-2">
-              <img class="img-fluid" alt="{{ $inscription->cart->brand->name }}" src="{{ $inscription->cart->brand->logo }}"/>
+              <img class="img-fluid" alt="{{ $inscription->cart->brand->name }}" src="{{ $inscription->getLogo() }}"/>
             </div>
             <div class="col-10">
               <div class="pl">
@@ -253,7 +253,7 @@ p {
                                   @php
                                   setlocale(LC_TIME, "gl_ES.utf8");
                                   @endphp
-                                  {{ $inscription->session->starts_on->formatLocalized('%d/%m %H:%M') }}
+                                  {{ $inscription->session->starts_on->translatedFormat('d/m H:i') }}
                               <div class="spacer "></div>
                                       <span class="text-muted">
                                       {{ sprintf("Prezo: %s €", number_format($inscription->price_sold, 2)) }}
@@ -283,7 +283,7 @@ p {
     @endif
 
     <div class="col-10 text-extra-small" style="position: absolute; bottom: 10px; left: 0px;">
-      {{ __('tincket/tickets.footer-text') }}
+      {{ __('tickets.footer-text') }}
     </div>
 
 </body>

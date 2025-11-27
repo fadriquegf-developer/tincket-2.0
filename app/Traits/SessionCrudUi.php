@@ -10,6 +10,7 @@ use App\Models\Session;
 use App\Models\Inscription;
 use App\Models\SessionSlot;
 use App\Models\SessionTempSlot;
+use App\Scopes\BrandScope;
 use Illuminate\Support\Facades\DB;
 use App\Uploaders\WebpImageUploader;
 use App\Http\Requests\SessionRequest;
@@ -30,6 +31,7 @@ trait SessionCrudUi
             'name' => 'name',
             'label' => __('backend.session.title'),
             'type' => 'text',
+            'limit' => 255,
         ]);
 
         CRUD::addColumn([
@@ -39,6 +41,7 @@ trait SessionCrudUi
             'entity' => 'event',
             'attribute' => 'name',
             'model' => Event::class,
+            'limit' => 255,
         ]);
 
         CRUD::addColumn([
@@ -99,6 +102,7 @@ trait SessionCrudUi
             'name' => 'slug',
             'label' => __('backend.session.slug'),
             'type' => 'text',
+            'limit' => 255,
         ]);
 
         CRUD::addColumn([
@@ -210,40 +214,112 @@ trait SessionCrudUi
 
     protected function setupListOperation()
     {
+        CRUD::enableExportButtons();
         CRUD::addColumn([
             'name' => 'visibility',
             'label' => '',
             'type' => 'closure',
             'function' => function ($entry) {
                 if ($entry->visibility == 1) {
-                    return '<i class="la la-circle" title="' . __('backend.session.visibility') . '" aria-hidden="true" style="color:green;"></i>';
+                    return '<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:green;" title="' . __('backend.session.visibility') . '"></span>';
                 } else {
-                    return '<i class="la la-circle" title="' . __('backend.session.no-visibility') . '" aria-hidden="true" style="color:red;"></i>';
+                    return '<span style="display:inline-block; width:12px; height:12px; border-radius:50%; background-color:red;" title="' . __('backend.session.no-visibility') . '"></span>';
                 }
             },
             'escaped' => false,
         ]);
 
-        CRUD::addColumn([
-            'name' => 'name',
-            'label' => __('backend.session.sessionname'),
-            'searchLogic' => function ($query, $column, $searchTerm) {
-                $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
-            }
+        if ($this->isSuperuser()) {
+            CRUD::addColumn([
+                'name' => 'liquidation',
+                'label' => '<i class="la la-euro" title="' . __('backend.session.liquidation') . '"></i>',
+                'type' => 'closure',
+                'function' => function ($entry) {
+                    if ($entry->liquidation) {
+                        return '<i class="la la-check-circle text-success" style="font-size: 22px;" title="Liquidada"></i>';
+                    } else {
+                        return '<i class="la la-times-circle text-danger" style="font-size: 22px;" title="No liquidada"></i>';
+                    }
+                },
+                'escaped' => false,
+                'orderable' => true,
+                'orderLogic' => function ($query, $column, $columnDirection) {
+                    return $query->orderBy('liquidation', $columnDirection);
+                },
+                'wrapper' => [
+                    'class' => 'text-center',
+                ],
+            ]);
+        }
+
+        CRUD::addcolumns([
+            [
+                'label' => __('backend.session.sessionname'),
+                'name'  => 'name',
+                'type'  => 'text',
+                'limit' => 30,
+                'visibleInTable'  => true,
+                'visibleInModal'  => false,
+                'searchLogic' => function ($query, $column, $searchTerm) {
+                    $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
+                },
+                'wrapper' => [
+                    'element' => 'span',
+                    'title' => function ($crud, $column, $entry, $related_key) {
+                        return $entry->name;
+                    },
+                ]
+            ],
+            [
+                'name' => 'name',
+                'key'   => 'fullname',
+                'label' => __('backend.session.sessionfullname'),
+                'limit'  => 255,
+                'searchLogic' => false,
+                'orderable' => false,
+                'visibleInTable'  => false,
+                'visibleInModal'  => true,
+                'searchLogic' => function ($query, $column, $searchTerm) {
+                    $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
+                }
+            ]
         ]);
 
-        CRUD::addColumn([
-            'label' => __('backend.session.event'),
-            'type' => 'select',
-            'name' => 'event_id',
-            'entity' => 'event',
-            'attribute' => 'name',
-            'model' => Event::class,
-            'searchLogic' => function ($query, $column, $searchTerm) {
-                $query->orWhereHas('event', function ($q) use ($column, $searchTerm) {
-                    $q->where(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
-                });
-            }
+        CRUD::addcolumns([
+            [
+                'name' => 'event_id',
+                'label' => __('backend.session.event'),
+                'type'  => 'select',
+                'attribute' => 'name',
+                'limit' => 30,
+                'visibleInTable'  => true,
+                'visibleInModal'  => false,
+                'model' => Event::class,
+                'searchLogic' => function ($query, $column, $searchTerm) {
+                    $query->orWhereHas('event', function ($q) use ($column, $searchTerm) {
+                        $q->where(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
+                    });
+                },
+                'wrapper' => [
+                    'element' => 'span',
+                    'title' => function ($crud, $column, $entry, $related_key) {
+                        return $entry->event->name;
+                    },
+                ]
+            ],
+            [
+                'name' => 'event_id',
+                'key'   => 'event_fullname',
+                'label' => __('backend.session.event_fullname'),
+                'type'  => 'select',
+                'attribute' => 'name',
+                'limit'  => 255,
+                'searchLogic' => false,
+                'orderable' => false,
+                'visibleInTable'  => false,
+                'visibleInModal'  => true,
+                'model' => Event::class,
+            ]
         ]);
 
         CRUD::addColumn([
@@ -253,6 +329,7 @@ trait SessionCrudUi
             'entity' => 'space',
             'attribute' => 'name',
             'model' => Space::class,
+            'limit' => 15,
             'searchLogic' => function ($query, $column, $searchTerm) {
                 $query->orWhereHas('space', function ($q) use ($column, $searchTerm) {
                     $q->where(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
@@ -292,6 +369,19 @@ trait SessionCrudUi
         Widget::add()->to('after_content')->type('view')->view('core.session.add-sessions-modal');
         CRUD::setOperationSetting('lineButtonsAsDropdown', true);
         CRUD::addButtonFromView('top', 'multi_create', 'buttons.multi_create', 'end');
+
+        // ✅ Orden correcto según parámetro show_incoming_sessions
+        $showIncoming = request()->get('show_incoming_sessions', false);
+
+        if ($showIncoming == 'true' || $showIncoming === true || $showIncoming === '1') {
+            // Sesiones futuras ordenadas ASC (próximas primero)
+            $this->crud->query
+                ->where('starts_on', '>', now())
+                ->orderBy('starts_on', 'ASC');
+        } else {
+            // Todas las sesiones ordenadas DESC (recientes primero)  
+            $this->crud->query->orderBy('starts_on', 'DESC');
+        }
     }
 
     /**
@@ -340,108 +430,117 @@ trait SessionCrudUi
 
     private function setLayoutTab($space, $session_id)
     {
-        // 1. Obtener TODOS los slots del espacio con sus propiedades completas
+        // 1. Obtener todos los slots del espacio
         $spaceSlots = $space->slots->keyBy('id');
 
-        // 2. Crear el mapa base con los estados heredados del espacio
-        $slots_map = $spaceSlots->map(function ($slot) {
-            return [
-                'id' => $slot->id,
+        // 2. Obtener TODOS los SessionSlots de esta sesión
+        $sessionSlots = SessionSlot::where('session_id', $session_id)->get()->keyBy('slot_id');
+
+        // 3. Obtener autolocks
+        $autolocks = SessionTempSlot::whereNull('expires_on')
+            ->where('session_id', $session_id)
+            ->get()
+            ->keyBy('slot_id');
+
+        // 4. Obtener vendidas
+        $soldSlotsData = Inscription::withoutGlobalScope(BrandScope::class)->paid()
+            ->where('session_id', $session_id)
+            ->whereNotNull('slot_id')
+            ->with([
+                'cart' => function ($q) {
+                    $q->withoutGlobalScope(BrandScope::class);
+                },
+            ])
+            ->get()
+            ->mapWithKeys(function ($inscription) {
+                return [$inscription->slot_id => $inscription];
+            });
+
+        // 5. Crear el mapa con prioridad correcta
+        $slots_map = $spaceSlots->map(function ($slot) use ($sessionSlots, $autolocks, $soldSlotsData) {
+            $slotId = $slot->id;
+
+            // PRIORIDAD 1: Vendida (siempre gana)
+            if ($soldSlotsData->has($slotId)) {
+                $inscription = $soldSlotsData[$slotId];
+                $result = [
+                    'id' => $slotId,
+                    'name' => $slot->name,
+                    'status_id' => 2,
+                    'comment' => null,
+                    'x' => $slot->x,
+                    'y' => $slot->y,
+                    'zone_id' => $slot->zone_id,
+                    'type' => 'Sold',
+                    'cart_id' => $inscription->cart_id,
+                    'confirmation_code' => $inscription->cart?->confirmation_code,
+                ];
+
+                return $result;
+            }
+
+            // 🔥 PRIORIDAD 2: Autolock
+            if ($autolocks->has($slotId)) {
+                $autolock = $autolocks[$slotId];
+                $result = [
+                    'id' => $slotId,
+                    'name' => $slot->name,
+                    'status_id' => $autolock->status_id,
+                    'comment' => trans('backend.session.autolock_type'),
+                    'x' => $slot->x,
+                    'y' => $slot->y,
+                    'zone_id' => $slot->zone_id,
+                    'type' => 'Autolock',
+                ];
+
+                return $result;
+            }
+
+            // PRIORIDAD 3: SessionSlot (INCLUSO SI ES NULL)
+            if ($sessionSlots->has($slotId)) {
+                $sessionSlot = $sessionSlots[$slotId];
+                $result = [
+                    'id' => $slotId,
+                    'name' => $slot->name,
+                    'status_id' => $sessionSlot->status_id, // ← Puede ser null
+                    'comment' => $sessionSlot->comment,
+                    'x' => $slot->x,
+                    'y' => $slot->y,
+                    'zone_id' => $slot->zone_id,
+                    'type' => 'SessionSlot',
+                ];
+
+                return $result;
+            }
+
+            //  PRIORIDAD 4: Space (solo si no hay SessionSlot)
+            $result = [
+                'id' => $slotId,
                 'name' => $slot->name,
-                'status_id' => $slot->status_id, // ← IMPORTANTE: heredar el status del espacio
-                'comment' => $slot->comment,     // ← También heredar el comentario
+                'status_id' => $slot->status_id,
+                'comment' => $slot->comment,
                 'x' => $slot->x,
                 'y' => $slot->y,
                 'zone_id' => $slot->zone_id,
+                'type' => 'Space',
             ];
+
+            return $result;
         });
 
-        // 3. Sobrescribir con los slots bloqueados manualmente en la sesión (SessionSlot)
-        $sessionSlots = SessionSlot::where('session_id', $session_id)->get();
 
-        if ($sessionSlots->count() > 0) {
-            foreach ($sessionSlots as $sessionSlot) {
-                // Si existe un SessionSlot, sobrescribe los valores del slot del espacio
-                if ($slots_map->has($sessionSlot->slot_id)) {
-                    $slots_map[$sessionSlot->slot_id] = array_merge(
-                        $slots_map[$sessionSlot->slot_id],
-                        [
-                            'status_id' => $sessionSlot->status_id,
-                            'comment' => $sessionSlot->comment,
-                            'type' => 'SessionSlot', // Para identificar que viene de la sesión
-                        ]
-                    );
-                }
-            }
-        }
-
-        // 4. Sobrescribir con los slots bloqueados automáticamente (autolocks confirmados)
-        $autolocks = SessionTempSlot::whereNull('expires_on')
-            ->where('session_id', $session_id)
-            ->get();
-
-        if ($autolocks->count() > 0) {
-            foreach ($autolocks as $autolock) {
-                if ($slots_map->has($autolock->slot_id)) {
-                    $slots_map[$autolock->slot_id] = array_merge(
-                        $slots_map[$autolock->slot_id],
-                        [
-                            'status_id' => $autolock->status_id,
-                            'comment' => trans('backend.session.autolock_type'),
-                            'type' => 'Autolock',
-                        ]
-                    );
-                }
-            }
-        }
-
-        // 5. Marcar los slots vendidos (tienen prioridad máxima)
-        $soldSlots = Inscription::paid()
-            ->where('session_id', $session_id)
-            ->whereNotNull('slot_id')
-            ->get();
-
-        if ($soldSlots->count() > 0) {
-            foreach ($soldSlots as $inscription) {
-                if ($slots_map->has($inscription->slot_id)) {
-                    $slots_map[$inscription->slot_id] = array_merge(
-                        $slots_map[$inscription->slot_id],
-                        [
-                            'status_id' => 2, // ID de estado "vendido"
-                            'comment' => null, // Las vendidas no suelen tener comentario
-                            'type' => 'Sold',
-                        ]
-                    );
-                }
-            }
-        }
-
-        // 6. Preparar las variables para la vista
         $this->data['slots_map'] = $slots_map->values()->all();
-
-        // 7. Las zonas siempre vienen del espacio (con sus colores)
         $this->data['zones_map'] = $space->zones->map(function ($zone) {
             return [
                 'id' => $zone->id,
                 'name' => $zone->name,
-                'color' => $zone->color, // ← IMPORTANTE: incluir el color de la zona
+                'color' => $zone->color,
             ];
         })->values()->all();
 
-        // 8. Log para debugging
-        \Log::info("[SessionCrudUi] Preparando mapa para sesión {$session_id}", [
-            'total_slots' => $slots_map->count(),
-            'session_slots' => $sessionSlots->count(),
-            'autolocks' => $autolocks->count(),
-            'sold' => $soldSlots->count(),
-            'zones' => $space->zones->count(),
-        ]);
-
-        // 9. Compartir con el blade
         \View::share('slots_map', $this->data['slots_map']);
         \View::share('zones_map', $this->data['zones_map']);
 
-        // 10. Añadir el campo personalizado al formulario
         $this->crud->addField([
             'name' => 'svg_path',
             'label' => '',
@@ -486,6 +585,19 @@ trait SessionCrudUi
         }, function ($value) {
             CRUD::addClause('where', 'event_id', $value);
         });
+
+        if ($this->isSuperuser()) {
+            CRUD::addFilter([
+                'name' => 'liquidation',
+                'type' => 'dropdown',
+                'label' => __('backend.session.liquidation')
+            ], [
+                1 => 'Liquidadas',
+                0 => 'No liquidadas',
+            ], function ($value) {
+                $this->crud->addClause('where', 'liquidation', $value);
+            });
+        }
     }
 
     private function setBasicTab()
@@ -522,18 +634,36 @@ trait SessionCrudUi
             'tab' => 'Basic',
         ]);
 
-        CRUD::addField([   // date_range
-            'name' => 'starts_on,ends_on', // db columns for start_date & end_date
-            'label' => __('backend.session.sessiondaterange'),
-            'type' => 'date_range',
-            'default' => [Carbon::now(), Carbon::now()],
-            'date_range_options' => [
-                'drops' => 'down',
-                'timePicker' => true,
-                'locale' => ['format' => 'DD/MM/YYYY HH:mm']
+        CRUD::addField([
+            'name' => 'starts_on',
+            'label' => __('backend.session.startson'),
+            'type' => 'datetime_picker',
+            'datetime_picker_options' => [
+                'format' => 'DD/MM/YYYY HH:mm',
+                'language' => app()->getLocale(),
+                'stepping' => 5, // incrementos de 5 min
+                'sideBySide' => true, // calendario y reloj lado a lado
             ],
+            'allows_null' => false,
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6',
+                'class' => 'form-group col-md-3',
+            ],
+            'tab' => 'Basic',
+        ]);
+
+        CRUD::addField([
+            'name' => 'ends_on',
+            'label' => __('backend.session.endson'),
+            'type' => 'datetime_picker',
+            'datetime_picker_options' => [
+                'format' => 'DD/MM/YYYY HH:mm',
+                'language' => app()->getLocale(),
+                'stepping' => 5,
+                'sideBySide' => true,
+            ],
+            'allows_null' => false,
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-3',
             ],
             'tab' => 'Basic',
         ]);
@@ -546,6 +676,7 @@ trait SessionCrudUi
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
             ],
+            'hint' => __('backend.session.hint_no_space') . '<a href="' . route('space.create') . '"> Crear aquí</a>',
             'tab' => 'Basic',
         ]);
 
@@ -571,7 +702,7 @@ trait SessionCrudUi
 
         CRUD::addField([
             'name' => 'private',
-            'type' => 'switch',
+            'type' => 'session_private',
             'label' => __('backend.session.private'),
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
@@ -595,7 +726,7 @@ trait SessionCrudUi
             'name' => 'metadata',
             'label' => __('backend.session.sessionmetadata'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            ////'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [],
             'tab' => 'Basic',
         ]);
@@ -604,7 +735,7 @@ trait SessionCrudUi
             'name' => 'description',
             'label' => __('backend.session.description'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            ////'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [],
             'tab' => 'Basic',
         ]);
@@ -623,18 +754,36 @@ trait SessionCrudUi
 
     private function setInscriptionsTab()
     {
-        CRUD::addField([   // date_range
-            'name' => 'inscription_starts_on,inscription_ends_on',
-            'label' => __('backend.session.inscriptionsdaterange'),
-            'type' => 'date_range',
-            'default' => [Carbon::now(), Carbon::now()],
-            'date_range_options' => [
-                'drops' => 'down',
-                'timePicker' => true,
-                'locale' => ['format' => 'DD/MM/YYYY HH:mm']
+        CRUD::addField([
+            'name' => 'inscription_starts_on',
+            'label' => __('backend.session.inscriptionstarts'),
+            'type' => 'datetime_picker',
+            'datetime_picker_options' => [
+                'format' => 'DD/MM/YYYY HH:mm',
+                'language' => app()->getLocale(),
+                'stepping' => 5,
+                'sideBySide' => true,
             ],
+            'allows_null' => false,
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6',
+                'class' => 'form-group col-md-3',
+            ],
+            'tab' => __('backend.session.inscriptions'),
+        ]);
+
+        CRUD::addField([
+            'name' => 'inscription_ends_on',
+            'label' => __('backend.session.inscriptionends'),
+            'type' => 'datetime_picker',
+            'datetime_picker_options' => [
+                'format' => 'DD/MM/YYYY HH:mm',
+                'language' => app()->getLocale(),
+                'stepping' => 5,
+                'sideBySide' => true,
+            ],
+            'allows_null' => false,
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-3',
             ],
             'tab' => __('backend.session.inscriptions'),
         ]);
@@ -681,7 +830,7 @@ trait SessionCrudUi
                 0 => __('backend.session.nonumbered'),
                 1 => __('backend.session.numbered')
             ],
-            'default' => 0,
+            'default' => null,
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-12',
             ],
@@ -771,7 +920,7 @@ trait SessionCrudUi
             'type' => 'relationship', // pinta un select2 con búsqueda
             'attribute' => 'name',        // columna visible en la lista
             'allows_null' => true,
-            'tab' => __('backend.menu.rates'),
+            'tab' => __('menu.rates'),
         ]);
 
         if ($this->crud->getCurrentOperation() === 'update') {
@@ -779,14 +928,14 @@ trait SessionCrudUi
                 'name' => 'rates',
                 'label' => __('backend.rate.rates'),
                 'type' => 'rates_vue',
-                'tab' => __('backend.menu.rates'),
+                'tab' => __('menu.rates'),
             ]);
         } else {       // en create: sólo mensaje
             CRUD::addField([
                 'name' => 'rates_info',
                 'type' => 'custom_html',
                 'value' => '<p class="alert alert-info">' . __('backend.rate.msg_session_rate') . '</p>',
-                'tab' => __('backend.menu.rates'),
+                'tab' => __('menu.rates'),
             ]);
         }
     }
@@ -818,15 +967,13 @@ trait SessionCrudUi
             'label' => __('backend.session.custom_logo'),
             'type' => 'image',
             'crop' => true,
-            //'aspect_ratio' => 1.78,
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'custom-logo',
                 'resize' => [
-                    'max' => 120
+                    'max' => 1200
                 ]
             ],
             'hint' => __('backend.session.minWidth'),
@@ -841,11 +988,9 @@ trait SessionCrudUi
             'label' => __('backend.session.banner'),
             'type' => 'image',
             'crop' => true,
-            //'aspect_ratio' => 1.78,
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'banner',
                 'resize' => [
@@ -872,6 +1017,7 @@ trait SessionCrudUi
                 'census' => __('backend.session.code_type_census'),
                 'user' => __('backend.session.code_type_user'),
             ],
+            'default' => 'null',
             'allows_null' => false,
             'wrapperAttributes' => [
                 'class' => 'form-group',

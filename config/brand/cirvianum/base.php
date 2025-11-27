@@ -3,7 +3,7 @@
 return [
     'inscription' => [
         'view' => [
-            'ticket' => 'brands.cirvianum.inscription.ticket'
+            'ticket' => 'brands.cirvianum.inscription.ticket-qr'
         ],
         'ticket-office-params' => [
             'ph' => 80,

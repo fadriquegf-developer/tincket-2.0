@@ -3,11 +3,11 @@
 @section('header')
 <section class="content-header">
     <h1>
-        {{ trans('tincket/backend.inscription.preview') }}
+        {{ trans('backend.inscription.preview') }}
     </h1>
     <ol class="breadcrumb">
         <li><a href="{{ url(config('backpack.base.route_prefix'), 'dashboard') }}">{{ trans('backpack::crud.admin') }}</a></li>
-        <li><a href="{{ url('/inscription') }}" class="text-capitalize">{{ trans('tincket/backend.inscription.inscriptions') }}</a></li>
+        <li><a href="{{ url('/inscription') }}" class="text-capitalize">{{ trans('backend.inscription.inscriptions') }}</a></li>
         <li class="active">{{ trans('backpack::crud.preview') }}</li>
     </ol>
 </section>

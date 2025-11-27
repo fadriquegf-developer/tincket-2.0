@@ -17,12 +17,15 @@ class UserService extends AbstractService
      * @param Request $request
      * @return User $user
      */
-    public function createPromotorUser(Request $request)
+    public function createPromotorUser(Request $request, int $brandId)
     {
         // Validar que los datos necesarios estén presentes
         if (!$request->filled(['email', 'password', 'name', 'code_name'])) {
             throw new \InvalidArgumentException("Datos de usuario incompletos.");
         }
+
+        $brand = \App\Models\Brand::findOrFail($brandId);
+        request()->merge(['brand' => $brand]);
 
         // Usar transacciones para evitar un estado inconsistente
         return DB::transaction(function () use ($request) {

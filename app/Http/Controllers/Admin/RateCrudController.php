@@ -7,6 +7,7 @@ use DB;
 use App\Models\Form;
 use App\Models\Rate;
 use App\Traits\CrudPermissionTrait;
+use Backpack\CRUD\app\Library\Widget;
 use App\Http\Requests\RateCrudRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
@@ -25,7 +26,7 @@ class RateCrudController extends CrudController
     {
         CRUD::setModel(Rate::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/rate');
-        CRUD::setEntityNameStrings(__('backend.menu.rate'), __('backend.menu.rates'));
+        CRUD::setEntityNameStrings(__('menu.rate'), __('menu.rates'));
 
 
         CRUD::orderBy('lft');
@@ -57,11 +58,12 @@ class RateCrudController extends CrudController
     {
 
         CRUD::setValidation(RateCrudRequest::class);
+        Widget::add()->type('script')->content(asset('js/rate-toggle.js'));
 
         CRUD::addField([
             'name' => 'name',
             'type' => 'text',
-            'label' => __('backend.menu.rate'),
+            'label' => __('menu.rate'),
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6'
             ],
@@ -79,20 +81,22 @@ class RateCrudController extends CrudController
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
             ],
+            'hint' => __('backend.rate.form_hint'),
         ]);
+
         CRUD::addField([
             'name' => 'has_rule',
             'label' => __('backend.rate.has_rule'),
             'type' => 'switch',
-            'wrapperAttributes' => [
-                'class' => 'col-lg-6 form-group form-inline'
-            ]
+            'wrapperAttributes' => ['class' => 'form-group col-md-6'],
+            'hint' => __('backend.rate.has_rule_hint'),
         ]);
 
         CRUD::addField([
             'name' => 'needs_code',
             'type' => 'switch',
             'label' => __('backend.rate.needs_code'),
+            'hint' => __('backend.rate.needs_code_hint'),
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6'
             ]
@@ -101,12 +105,14 @@ class RateCrudController extends CrudController
         CRUD::addField([
             'name' => 'rule_parameters',
             'label' => __('backend.rate.rule_parameters'),
+            'type' => 'text',
+            'attributes' => ['placeholder' => 'need:4'],
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6'
-            ]
+                'class' => 'form-group col-md-6',            ],
+            'hint' => __('backend.rate.rule_parameters_hint'),
         ]);
 
-        CRUD::addField([
+        /* CRUD::addField([
             'name' => 'validator_class',
             'type' => 'select_from_array',
             'options' => Rate::VALIDATOR_CLASSES,
@@ -114,14 +120,13 @@ class RateCrudController extends CrudController
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6'
             ]
-        ]);
-       
+        ]); */
     }
 
     protected function setupUpdateOperation()
     {
         $this->setupCreateOperation();
-        
+
     }
 
 }

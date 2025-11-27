@@ -7,9 +7,9 @@ export default defineConfig({
     plugins: [
         laravel({
             input: [
-                'resources/css/app.css',
+                'resources/css/app.css', 
                 'resources/js/app.js',
-                'resources/js/ticket-office/ticket-office.js',
+                'resources/js/ticket-office/main.js'
             ],
             refresh: true,
         }),

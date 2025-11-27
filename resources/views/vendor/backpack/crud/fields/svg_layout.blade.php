@@ -36,7 +36,7 @@
 </div>
 
 {{-- ---------- Leyenda ---------- --}}
-@include('core.ticket-office.space_layout_legend')
+@include('core.partials.space_layout_legend')
 
 
 {{-- ---------- Modal ---------- --}}
@@ -120,7 +120,7 @@
 
         /* ---------- Resaltado de selección ---------- */
         .slot.selected {
-            stroke-width: 3 !important;
+            stroke-width: 2 !important;
             stroke: #000 !important
         }
     </style>

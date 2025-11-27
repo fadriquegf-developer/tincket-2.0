@@ -29,7 +29,7 @@ class CapabilityCrudController extends CrudController
 
         CRUD::setModel(\App\Models\Capability::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/capability');
-        CRUD::setEntityNameStrings(__('backend.menu.capability'), __('backend.menu.capabilities'));
+        CRUD::setEntityNameStrings(__('menu.capability'), __('menu.capabilities'));
         $this->crud->denyAccess(['create', 'update', 'delete']);
     }
 

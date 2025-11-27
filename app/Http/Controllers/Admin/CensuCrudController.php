@@ -23,7 +23,7 @@ class CensuCrudController extends CrudController
     {
         CRUD::setModel(Censu::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/censu');
-        CRUD::setEntityNameStrings(__('backend.menu.censu'), __('backend.menu.census'));
+        CRUD::setEntityNameStrings(__('menu.censu'), __('menu.census'));
 
         CRUD::orderBy('name');
         CRUD::enableReorder('name', 1);

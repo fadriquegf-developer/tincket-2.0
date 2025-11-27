@@ -48,9 +48,19 @@
 @push('after_scripts')
   <script src="https://cdn.ckeditor.com/4.16.2/full-all/ckeditor.js"></script>
   <script>
-    // desactiva el aviso de versión
     CKEDITOR.config.versionCheck = false;
-    CKEDITOR.config.height = 100;
-
+    
+    CKEDITOR.replace('{{ $id }}', {
+      height: 200,
+      
+      // 🔥 Usar elFinder (ya instalado por tu compañero)
+      filebrowserBrowseUrl: '{{ backpack_url('elfinder/ckeditor') }}',
+      filebrowserImageBrowseUrl: '{{ backpack_url('elfinder/ckeditor') }}',
+      
+      // Soportar plugins extra si se definen en el field
+      @if(isset($field['extraPlugins']))
+      extraPlugins: '{{ implode(',', (array)$field['extraPlugins']) }}',
+      @endif
+    });
   </script>
 @endpush

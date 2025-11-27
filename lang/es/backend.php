@@ -1,115 +1,17 @@
 <?php
 
 return [
-
-    "menu" => [
-        "brand" => "Cliente",
-        "brands" => "Clientes",
-        "brand_settings" => "Conf. personalizada",
-        "brands_settings" => "Conf. personalizadas",
-
-        "setting_advanced" => "Conf. avanzada",
-        "settings_advanced" => "Conf. avanzadas",
-
-        "setting_tpv" => "Conf. TPV",
-        "settings_tpv" => "Conf. TPVs",
-
-        "user" => "Usuario",
-        "users" => "Usuarios",
-
-        "capability" => "Tipo de Cliente",
-        "capabilities" => "Tipos de Clientes",
-
-        'advanced' => 'Avanzado',
-        'administration' => 'Administración',
-        'engine' => 'Motor',
-        'box_office' => 'Taquilla',
-        'statistics' => 'Estadísticas',
-
-        'application' => 'Clave Aplicación',
-        'applications' => 'Clave Aplicaciones',
-
-        'update_notification' => 'Notificación de actualización',
-        'update_notifications' => 'Notificación de actualizaciones',
-
-        'job' => 'Tarea',
-        'jobs' => 'Tareas',
-
-        'failed_job' => 'Tarea fallida',
-        'failed_jobs' => 'Tareas fallidas',
-
-        'client' => 'Cliente',
-        'clients' => 'Clientes',
-
-        'form' => 'Formulario',
-        'forms' => 'Formularios',
-
-        'form_field' => 'Campo de formulario',
-        'form_fields' => 'Campos de formulario',
-
-        'post' => 'Publicación',
-        'posts' => 'Publicaciones',
-
-        'page' => 'Página',
-        'pages' => 'Páginas',
-
-        'menu_item' => 'Menú',
-        'menu_items' => 'Menús',
-
-        'taxonomy' => 'Clasificación',
-        'taxonomies' => 'Clasificaciones',
-
-        'location' => 'Localización',
-        'locations' => 'Localizaciones',
-
-        'space' => 'Espacio',
-        'spaces' => 'Espacios',
-
-        'rates' => 'Tarifas',
-        'rate' => 'Tarifa',
-
-        'zone' => 'Zona',
-        'zones' => 'Zonas',
-
-        'events' => 'Eventos',
-        'event' => 'Evento',
-
-        'session' => 'Sesión',
-        'sessions' => 'Sesiones',
-
-        'inscription' => 'Inscripción',
-        'inscriptions' => 'Inscripciones',
-
-        'cart' => 'Carrito',
-        'carts' => 'Carritos',
-
-        'gift_card' => 'Tarjeta Regalo',
-        'gift_cards' => 'Tarjetas Regalo',
-
-        'censu' => 'Empadronamiento',
-        'census' => 'Empadronamientos',
-
-        'mail' => 'Envio',
-        'mails' => 'Envios',
-
-        'validation' => 'Validación',
-        'validations' => 'Validaciones',
-
-        'client_sale' => 'Ventas de Cliente',
-        'client_sales' => 'Ventas de Clientes',
-
-        'balance' => 'Resumen Caja',
-        'sales' => 'Ventas',
-
-        'codes' => 'Códigos Promotores',
-
-        'input' => 'Registro Campo',
-        'inputs' => 'Registros Campos',
-    ],
-
     "create_at" => "Creado el",
     "updated_at" => "Actualizado el",
     "deleted_at" => "Eliminado el",
+    "deleted_by" => "Eliminado por",
+    'yes' => 'Sí',
+    'no' => 'No',
+    'edit' => 'Editar',
+    'view' => 'Ver',
+    'actions' => 'Acciones',
+    'created_at' => 'Creado',
+    'showing_first_n' => 'Mostrando los primeros :n de',
 
     "dashboard" => [
         "basic_statics" => "Estadísticas básicas",
@@ -124,7 +26,17 @@ return [
         "mark_all_show" => "Marcar todo como leído",
         "mark_show" => "Marcar como leído",
         "history_update" => "Historial de actualizaciones",
-
+        "client_vs_sales" => "Clientes vs Ventas (últimos 12 meses)",
+        "client" => "Cliente",
+        "sales" => "Ventas",
+        "total_clients" => "Total Clientes",
+        "total_sales" => "Ventas último año",
+        "historic" => "Acumulado histórico",
+        "confirmed" => "confirmadas en 12 meses",
+        'box_office' => "Venta de Entradas",
+        'events' => 'Lista Eventos',
+        'sessions' => 'Proximas Sesiones',
+        'carts' => 'Cestas vendidas'
     ],
 
     'user' => [
@@ -133,7 +45,38 @@ return [
         'password' => 'Contraseña',
         'password_confirmation' => 'Confirmar contraseña',
         'brand' => 'Cliente',
-        'info_password' => 'La contraseña debe tener al menos 8 caracteres, incluir una letra mayúscula, una minúscula, un número y un símbolo, y coincidir con la confirmación.'
+        'info_password' => 'La contraseña debe tener al menos 8 caracteres, incluir una letra mayúscula, una minúscula, un número y un símbolo, y coincidir con la confirmación.',
+        'validation' => [
+            // Nombre
+            'name_required' => 'El nombre es obligatorio.',
+            'name_invalid' => 'El nombre solo puede contener letras, espacios, guiones y puntos.',
+            'name_min' => 'El nombre debe tener al menos :min caracteres.',
+            'name_max' => 'El nombre no puede tener más de :max caracteres.',
+
+            // Email
+            'email_required' => 'El correo electrónico es obligatorio.',
+            'email_invalid' => 'El correo electrónico debe ser una dirección válida y existente.',
+            'email_unique' => 'Este correo electrónico ya está registrado.',
+
+            // Contraseña
+            'password_required' => 'La contraseña es obligatoria.',
+            'password_min' => 'La contraseña debe tener al menos :min caracteres.',
+            'password_mixed_case' => 'La contraseña debe contener mayúsculas y minúsculas.',
+            'password_numbers' => 'La contraseña debe contener al menos un número.',
+            'password_symbols' => 'La contraseña debe contener al menos un símbolo especial.',
+            'password_compromised' => 'Esta contraseña ha sido comprometida en filtraciones de datos conocidas. Por favor, elige otra.',
+            'password_confirmed' => 'La confirmación de la contraseña no coincide.',
+            'password_no_spaces' => 'La contraseña no puede contener espacios.',
+            'password_contains_email' => 'La contraseña no puede contener parte de tu correo electrónico.',
+            'password_contains_name' => 'La contraseña no puede contener tu nombre.',
+            'password_common_pattern' => 'La contraseña contiene un patrón demasiado común.',
+            'password_keyboard_pattern' => 'La contraseña contiene secuencias de teclado predecibles.',
+
+            // IPs
+            'invalid_ip_format' => 'Formato de IP inválido. Use formato: 192.168.1.1 o 192.168.1.0/24',
+        ],
+        'password_hint_update' => 'Dejar en blanco para mantener la contraseña actual',
+        'newsletter_hint' => 'El cliente recibirá comunicaciones promocionales y novedades',
     ],
 
     'capability' => [
@@ -146,13 +89,16 @@ return [
         "allowed_host" => "Dominio Cliente",
         "parent_id" => "Cliente padre (solo para promotores)",
         'capability' => 'Tipo de cliente',
-        'parent_id_list' => 'Cliente padre'
+        'parent_id_list' => 'Cliente padre',
+        'code_name_hint' => 'Identificador único sin espacios ni caracteres especiales (ej: mi_marca)',
+        'enable_tpv' => 'Activar TPV (Terminal Punto de Venta)',
     ],
 
     "brand_settings" => [
         // BrandTab
         "logo" => "Logotipo",
         "banner" => "Banner Publicitario",
+        'banner_hint' => 'Este banner aparecerá en la entrada de todos los eventos, únicamente para clientes cuya plantilla lo soporte.',
         "color" => "Color",
         "description" => "Descripción",
         "footer" => "Pie de página",
@@ -187,6 +133,10 @@ return [
         "cartTTL" => "Minutos iniciales para finalizar la cesta",
         "maxCartTTL" => "Minutos máximos para finalizar la cesta",
 
+        //Registro Tab
+        'active' => 'Activo',
+        'required' => 'Requerido',
+
         // LegalTab
         "legal_notice" => "Aviso Legal",
         "privacy_policy" => "Política de privacidad",
@@ -197,20 +147,82 @@ return [
         "responsable_tratamiento" => "Responsable de tratamiento",
         "delegado_proteccion" => "Delegado de protección de datos",
 
+        // Sección Categorías
+        'main_category' => 'Categoría principal',
+        'main_category_hint' => 'Categoría base para clasificar los eventos. Se mostrarán las subcategorías.',
+
+        'news_category' => 'Categoría de noticias',
+        'news_category_hint' => 'Categoría que se utilizará para clasificar posts y noticias.',
+
+        'hidden_categories' => 'Categorías ocultas',
+        'hidden_categories_hint' => 'Selecciona qué categorías NO se mostrarán en el frontend.',
+
+        // Sección Temporadas
+        'seasons_category' => 'Categoría de temporadas',
+        'seasons_category_hint' => 'Categoría que contiene las temporadas para agrupar eventos por períodos.',
+
+        'enable_seasons_grouping' => 'Activar agrupación por temporadas',
+        'enable_seasons_grouping_hint' => 'Muestra los eventos agrupados por temporadas en el frontend.',
+
         "tabs" => [
             "brand" => "Cliente",
             "alert" => "Alerta",
-            "taxonomies" => "Calssificaciones",
+            "taxonomies" => "Clasificaciones",
             "tpv" => "TPV",
             "cart" => "Carrito",
             "register" => "Registro",
             "legal" => "Páginas legales",
+            'categories' => 'Categorías',
+            'seasons' => 'Temporadas',
         ],
+        'validation' => [
+            'logo_max' => 'El logotipo no puede superar los 2MB',
+            'banner_max' => 'El banner no puede superar los 5MB',
+            'brand_color_regex' => 'El color debe ser un código hexadecimal válido (ej: #FF0000)',
+            'link_politica_privacidad_url' => 'El enlace debe ser una URL válida',
+            'custom_script_prohibited' => 'No tienes permisos para modificar scripts personalizados',
+            'aux_code_prohibited' => 'No tienes permisos para modificar código auxiliar',
+            'cart_ttl_min' => 'El TTL del carrito debe ser al menos 1 minuto',
+            'cart_ttl_max' => 'El TTL del carrito no puede superar 24 horas (1440 minutos)',
+            'max_cart_ttl_min' => 'El TTL máximo del carrito debe ser al menos 1 minuto',
+            'max_cart_ttl_max' => 'El TTL máximo del carrito no puede superar 48 horas (2880 minutos)',
+            'main_taxonomy_exists' => 'La categoría seleccionada no existe o no pertenece a esta marca',
+            'posting_taxonomy_exists' => 'La categoría de noticias seleccionada no existe o no pertenece a esta marca',
+            'seasons_taxonomy_exists' => 'La categoría de temporadas seleccionada no existe o no pertenece a esta marca',
+            'default_tpv_exists' => 'El TPV seleccionado no existe o no pertenece a esta marca',
+            'hidden_taxonomies_exists' => 'Algunas de las categorías seleccionadas no existen o no pertenecen a esta marca',
+        ],
+        'custom_script_placeholder' => '<!-- Solo código JavaScript/HTML verificado -->',
+        'custom_script_warning' => '<div class="alert alert-danger"><i class="la la-exclamation-triangle"></i> <strong>ATENCIÓN:</strong> Este campo permite código JavaScript sin restricciones. Solo usar código verificado y de fuentes confiables.</div>',
+        'aux_code_warning' => '<div class="alert alert-warning"><i class="la la-info-circle"></i> Campo para código auxiliar. Usar con precaución.</div>',
+        'mantenimiento_warning' => '⚠️ Activar el modo mantenimiento bloqueará el acceso público al sitio',
+        'no_tpvs_available' => 'No hay TPVs configurados para esta marca. Por favor, crea uno primero.',
+        'cartTTL_hint' => 'Tiempo en minutos (1-1440)',
+        'maxCartTTL_hint' => 'Tiempo máximo en minutos (1-2880)',
+
+        'errors' => [
+            'access_denied' => 'Acceso denegado. Solo superusuarios pueden acceder.',
+            'brand_not_found' => 'No se encontró una marca para el dominio actual.',
+            'unauthorized_brand_edit' => 'No autorizado para editar esta marca',
+        ],
+
+        'messages' => [
+            'update_success' => 'Configuración actualizada correctamente',
+            'update_error' => 'Error al guardar: :error',
+        ],
+        'no_categories_available' => 'No hay categorías disponibles para esta marca.',
+        'select_all' => 'Seleccionar todo',
+        'deselect_all' => 'Deseleccionar todo',
     ],
 
     "settings_advanced" => [
         "key" => "Clave",
         "value" => "Valor",
+        'single' => 'Opción avanzada',
+        'plural' => 'Opciones avanzadas',
+        'key_hint' => 'Identificador único para esta configuración. Usa el formato snake_case (ejemplo: api_timeout, max_upload_size)',
+        'value_hint' => 'Valor de la configuración. Puede ser texto, número, JSON o cualquier formato necesario para la aplicación',
+
     ],
 
     "settings_tpv" => [
@@ -220,6 +232,12 @@ return [
         "key" => "Clave",
         "value" => "Valor",
         "new_item_label" => "Añadir parámetro",
+        'key_regex' => 'La clave solo puede contener letras, números, puntos y guiones bajos',
+        'key_unique' => 'Esta clave ya existe para tu marca',
+        'key_required' => 'La clave es obligatoria',
+        'key_max' => 'La clave no puede superar los :max caracteres',
+        'value_max' => 'El valor no puede superar los :max caracteres',
+        'category_max' => 'La categoría no puede superar los :max caracteres',
     ],
 
     "job" => [
@@ -278,7 +296,13 @@ return [
         'newsletter' => 'Boletín',
         'ca' => 'Catalán',
         'es' => 'Castellano',
-        'gl' => 'Gallego'
+        'gl' => 'Gallego',
+        'info' => 'Información del Cliente',
+        'custom_fields' => 'Campos Adicionales',
+        'carts' => 'Carritos',
+        'no_carts' => 'Este cliente no tiene carritos.',
+        'inscriptions' => 'Inscripciones',
+        'no_inscriptions' => 'Este cliente no tiene inscripciones confirmadas.',
     ],
 
     "modal" => [
@@ -341,6 +365,8 @@ return [
         'meta_title' => 'Meta título de la página',
         'meta_description' => 'Meta descripción de la página',
         'page_slug_hint' => 'Será generado automáticamente desde el título, si se deja vacío.',
+        'title' => 'Importante: Tiempo de publicación',
+        'intro' => 'Los cambios que hagas aquí se publicarán automáticamente en un máximo de 60 minutos. Este pequeño retardo permite que la web cargue mucho más rápido para tus usuarios.'
     ],
 
 
@@ -353,7 +379,7 @@ return [
     'taxonomy' => [
         'name' => 'Nombre',
         'slug_or_name' => 'Texto URL para SEO',
-        'active' => 'Sesión activa/visible',
+        'active' => 'Clasificación activa/visible',
     ],
 
     'location' => [
@@ -375,7 +401,7 @@ return [
         'iframe_gmaps_info' => 'Para introducir el mapa iframe en el evento, deberas coger la url que aparece dentro del atributo "src" y introducirla. Ejemplo: <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1..." width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe> Solo coger lo que hay dentro de "src".'
     ],
 
-    'space' => [
+    'spaces' => [
         'spacename' => 'Nombre del espacio',
         'location' => 'Localización',
         'spacecapacity' => 'Capacidad del espacio',
@@ -383,10 +409,42 @@ return [
         'space_description' => 'Descripción del espacio',
         'created-by' => 'Creado por',
         'hide' => 'Ocultar',
-        'zoom' => 'Habilitar zoom'
+        'zoom' => 'Habilitar zoom',
+        'zones_info' => [
+            'label' => 'Zonas configuradas',
+            'none' => 'Sin zonas',
+            'zones' => 'zona(s)',
+            'slots' => 'butacas',
+        ],
+        'layout_instructions' => [
+            'title' => 'Configuración del Mapa de Butacas',
+            'how' => [
+                'title' => '¿Cómo funciona?',
+                'step1' => '<strong>Selección:</strong> Haz clic en las butacas para seleccionarlas',
+                'step2' => '<strong>Selección múltiple:</strong> Mantén Ctrl/Cmd y clic, o arrastra para seleccionar varias',
+                'step3' => '<strong>Edición:</strong> Usa el botón de lápiz para modificar las butacas seleccionadas',
+                'step4' => '<strong>Zonas:</strong> Asigna cada butaca a una zona para organizar precios y colores',
+            ],
+            'states' => [
+                'title' => 'Estados de butacas:',
+                'available' => 'Disponible',
+                'sold' => 'Vendida',
+                'reserved' => 'Reservada',
+                'blocked' => 'Bloqueada',
+            ],
+            'help' => [
+                'title' => '¿Necesitas ayuda?',
+                'intro' => 'Si es la primera vez configurando el espacio:',
+                'step1' => 'Crea primero las zonas en <a href=":url" target="_blank">CRM > Zonas</a>',
+                'step2' => 'Regresa aquí para asignar butacas a cada zona',
+                'step3' => 'Configura precios por zona en las sesiones',
+            ],
+        ],
     ],
 
     'rate' => [
+        'rates' => 'Tarifas',
+        'rate' => 'Tarifa',
         'msg_session_rate' => 'Se requiere guardar la sessión antes de configurar las tarifas',
         'totalavailablity' => 'Disponibilidad Total',
         'availabilityperinscription' => 'Disponibilidad por Inscripción',
@@ -405,9 +463,16 @@ return [
         'validator_class' => 'Validator class code',
         'name' => 'Nombre',
         'form' => 'Form',
-        'has_rule' => 'Tiene regla?',
-        'rule_parameters' => 'Parametros de la regla',
-        'code' => 'Limitaciones de compra'
+        'has_rule' => 'Vender en pack',
+        'rule_parameters' => 'Tamaño del pack',
+        'code' => 'Limitaciones de compra',
+        'discount_code' => 'Codigo de descuento',
+        'max_per_user' => 'Máx. por usuario',
+        'needs_code_hint' => 'Si está activado, esta tarifa solo se puede utilizar introduciendo un código válido.',
+        'form_hint' => 'Si se selecciona un formulario, el cliente deberá rellenarlo durante el proceso de compra.',
+        'has_rule_hint' => 'Agrupa esta tarifa en packs de X unidades. Al borrar una entrada se borra todo el pack.',
+        'rule_parameters_hint' => 'Escribe need:X (ej.: need:4). Usa un entero mayor a 1.',
+
     ],
 
     'svg_layout' => [
@@ -437,10 +502,31 @@ return [
         ],
     ],
 
-    'zone' => [
+    'zones' => [
         'name' => 'Nombre',
         'color' => 'Color',
         'space' => 'Espacio',
+        'title' => '¿Qué son las Zonas?',
+        'intro' => 'Las <strong>zonas</strong> dividen tu espacio en áreas diferenciadas (ej: Platea, Anfiteatro, Palcos). Cada zona puede tener:',
+        'list' => [
+            'color' => '<strong>Color distintivo:</strong> Para identificar visualmente las butacas en el mapa',
+            'prices' => '<strong>Precios diferentes:</strong> Cada zona puede tener tarifas específicas',
+            'config' => '<strong>Configuraciones especiales:</strong> Restricciones o características únicas',
+        ],
+        'tip' => '💡 <strong>Tip:</strong> Crea primero todas las zonas antes de configurar las butacas en el espacio.',
+    ],
+
+    'zone_explanation' => [
+        'title' => 'Guía rápida:',
+        'steps' => [
+            'space' => '<strong>Espacio:</strong> Selecciona el teatro/sala donde está esta zona',
+            'name' => '<strong>Nombre:</strong> Ej: "Platea", "Anfiteatro", "Palco VIP"',
+            'color' => '<strong>Color:</strong> Aparecerá en el mapa de butacas para identificar la zona',
+        ],
+        'next' => [
+            'title' => 'Próximo paso:',
+            'text' => 'Tras crear las zonas, ve al espacio para asignar butacas a cada zona.',
+        ],
     ],
 
     'events' => [
@@ -461,7 +547,9 @@ return [
         'events' => 'Eventos',
         'event' => 'Evento',
         'published' => 'Publicado',
+        'is_active' => 'Evento activo',
         'eventname' => 'Nombre del evento',
+        'is_active_hint' => 'Si está desactivado, el evento no será visible en el front y devolverá 404',
         'publish_on' => 'Fecha de publicación',
         'firstsession' => 'Primera sesión',
         'lastsession' => 'Última Sesión',
@@ -484,15 +572,15 @@ return [
         'name' => 'Nombre',
         'link' => 'Enlace',
         'help-taxonomies-select' => 'Escoja tantas categorías como desee para este evento',
-        'banner' => 'Banner publicitario inscripción',
+        'banner' => 'Banner publicitario (ticket)',
         'show-incoming-events' => 'Próximos eventos',
         'show-incoming-sessions' => 'Próximas sesiones',
-        'custom_logo' => 'Logotipo personalizado(entrada)',
-        'custom_text' => 'Texto personalizado(entrada)',
+        'custom_logo' => 'Logotipo personalizado (ticket)',
+        'custom_text' => 'Texto personalizado (ticket)',
         'remove_filters' => 'Eliminar filtros',
         'filters' => 'Filtros',
-        'banner_info' => 'La anchura del banner debe ser mínimo de 1200px de anchura para una correcta visualización',
-        'image' => 'La anchura de la Imagen promocional principal debe ser mínimo de 1200px de anchura para una correcta visualización',
+        'banner_info' => 'La anchura del banner debe ser mínimo de 1400px de anchura para una correcta visualización',
+        'image' => 'La anchura de la Imagen promocional principal debe ser mínimo de 1400px de anchura para una correcta visualización',
         'enable_gift_cards' => 'Tarjetas regalo',
         'price_gift_card' => 'Precio tarjetas regalo',
         'gift_card_text' => 'Texto tarjetas regalo',
@@ -508,7 +596,7 @@ return [
         'tab_ticket' => 'Entrada',
         'tab_gift' => 'Tarjeta Regalo',
         'tab_calendar' => 'Calendario',
-        'tab_inscriptions' => 'Inscripciones',
+        'tab_validation' => 'Validaciones',
         'validate_all_event' => 'Validación de cualquier sessión',
         'validate_all_event_hint' => "<p><strong>Explicación del funcionamiento de esta opción:</strong></p>
             <p>Al marcar esta opción, cualquier sesión derivada de este evento podrá validar inscripciones de otras sesiones asociadas al mismo evento.</p>
@@ -524,20 +612,20 @@ return [
         'sales' => 'Ventas',
         'sessions' => 'Sesiones',
         'cart' => 'Carrito',
-        'start_on' => 'Fecha Inicio',
+        'start_on' => 'Fecha inicio',
         'created_at' => 'Creado el',
         'updated_at' => 'Actualizado el',
         'deleted_at' => 'Eliminado el',
-        'minWidth' => 'El ancho mínimo de cada imagen debe ser de 1200px.',
+        'minWidth' => 'El ancho mínimo de cada imagen debe ser de 1400px.',
         'gallery' => 'Galería',
-
+        'save_and_create_session' => 'Guardar y crear sesión',
     ],
 
     'session' => [
         'session_color' => 'Color sesión',
-        'session_bg_color' => 'Color fondo (entrada)',
-        'custom_logo' => 'Logotipo personalizado (entrada)',
-        'banner' => 'Banner publicitario (entrada)',
+        'session_bg_color' => 'Color fondo (ticket)',
+        'custom_logo' => 'Logotipo personalizado (ticket)',
+        'banner' => 'Banner publicitario (ticket)',
         'session' => 'Sesión',
         'sessions' => 'Sesiones',
         'sessions_temporada' => 'Sesiones diarias de temporada',
@@ -555,14 +643,16 @@ return [
         'weekday_5' => 'Viernes',
         'weekday_6' => 'Sabado',
         'weekday_0' => 'Domingo',
-        'sessionname' => 'Nombre de la sesión',
+        'sessionname' => 'Nombre sesión (resumen)',
+        'sessionfullname' => 'Nombre sessión (completo)',
         'inscriptions' => 'Inscripciones',
         'liquidation' => 'Liquidación',
         'confirm_unliquidate' => '¿Seguro que quiere desliquidar esta sesión?',
         'confirm_liquidate' => '¿Seguro que quiere liquidar esta sesión?',
         'regenerate' => 'Regenerate cache de slots',
         'confirm_regenerate' => '¿Seguro que quiere regenerar la cache de slots de esta sesión?',
-        'event' => 'Evento',
+        'event' => 'Evento (resumen)',
+        'event_fullname' => 'Evento (completo)',
         'space' => 'Espacio',
         'visibility' => 'Sesión activa/visible',
         'no-visibility' => 'Sessió desactivada/escondida',
@@ -571,6 +661,12 @@ return [
         'startson' => 'Empieza',
         'endson' => 'Acaba',
         'inscriptionstarts' => 'Inicio de inscripciones',
+        'sessionendson' => 'Fin de la sesión',
+        'inscriptionstartson' => 'Inicio de inscripciones',
+        'inscriptionendson' => 'Fin de inscripciones',
+        'clone_multiple_sessions' => 'Clonar múltiples sesiones',
+        'number_clone' => 'Número de sesiones a clonar',
+        'clone_sessions' => 'Clonar sesiones',
         'inscriptionend' => 'Fin de inscripciones',
         'createdby' => 'Creado por',
         'startsfrom' => 'Comienza desde',
@@ -623,6 +719,9 @@ return [
         'minWidth' => 'El ancho mínimo del Logotipo debe ser de 120px.',
         'marked_as_liquidated' => 'Marcada como liquidada correctamente',
         'marked_as_unliquidated' => 'Marcada como no liquidada correctamente',
+        'hint_no_space' => '¿No tienes un espacio creado?',
+        'private_url' => 'Acceso privado via URL',
+        'session_info' => 'Información de la sesión',
     ],
 
     'cart' => [
@@ -643,6 +742,7 @@ return [
         'send_mail_payment' => 'Enviar email para realizar Pago',
         'payment_ticket_office' => 'Realizar pago en taquilla',
         'card' => 'Tarjeta de crédito',
+        'card_simple' => 'Tarjeta',
         'cash' => 'Efectivo',
         'select_gateway' => 'Seleccionar plataforma de pago',
         'close' => 'Cerrar',
@@ -684,6 +784,11 @@ return [
         'edit' => 'Modificar tarifa y precio',
         'price' => 'Precio',
         'rate' => 'Tarifa',
+        'gift_card' => 'Regalo',
+        'status' => 'Estado',
+        'total' => 'Total',
+        'pending' => 'Pendiente',
+        'deleted' => 'Eliminado',
     ],
 
     'ticket' => [
@@ -754,6 +859,7 @@ return [
         'session' => 'Sessión',
         'sold_ticket_office' => 'Vendido por taquilla',
         'list_title' => 'Listado de Registros de Entradas',
+        'date_range' => 'Rango de fechas'
     ],
 
     'statistics' => [
@@ -816,6 +922,7 @@ return [
         'validated' => 'Validadas',
         'space' => 'Espacio',
         'starts_on' => 'Fecha inicio',
+        'ends_on' => 'Fecha fin',
         'validate' => 'Validar',
         'out' => 'Salida recinto',
         'validated_in' => 'Total Validades Entrada',
@@ -862,10 +969,19 @@ return [
         'title' => 'Título',
         'start_time' => 'Hora inicio',
         'end_time' => 'Hora fin',
-        'create_multiple' => 'Crear Sesiones por Temporada',
+        'create_multiple' => 'Crear Sesiones Multiples',
         'msg_end_after_start' => 'La hora fin debe ser posterior a la hora inicio.',
         'alert_inscription_before' => 'La fecha de inicio de venta debe ser el mismo día o anterior al inicio de la temporada.',
-        'add_season' => 'Añadir por Temporada',
+        'add_season' => 'Añadir Multiples Sesiones',
+        'creation_mode' => 'Modo de creación',
+        'mode_season' => 'Temporada',
+        'mode_season_desc' => 'Rango de fechas + días de la semana',
+        'mode_specific' => 'Fechas específicas',
+        'mode_specific_desc' => 'Seleccionar días concretos individuales',
+        'season_config' => 'Configuración de temporada',
+        'specific_dates_title' => 'Sesiones individuales',
+        'date' => 'Fecha',
+        'session_name' => 'Nombre de la sesión',
 
     ],
     'pack' => [
@@ -895,7 +1011,16 @@ return [
                 'one-session-x-event' => 'Activar para permitir sólo una sesión para evento',
                 'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalidad en pruebas </strong> <p>Redondeará el precio total de todos los packs que se compren en el Euro más cercano</p> </div>',
                 'cart_rounded' => 'Activar redondear el precio total del pack o packs',
-            ]
+            ],
+        'available_sessions' => 'Sesiones disponibles',
+        'no_available' => 'No hay sesiones disponibles',
+        'add_to_pack' => 'Añadir al pack',
+        'add_all' => 'Añadir todas',
+        'drag_or_buttons' => 'Arrastra o usa<br>los botones',
+        'selected_sessions' => 'Sesiones en el pack',
+        'no_selected' => 'No hay sesiones seleccionadas',
+        'remove_from_pack' => 'Quitar del pack',
+        'remove_all' => 'Quitar todas',
     ],
 
     'gift_card' => [
@@ -924,10 +1049,15 @@ return [
         'extra_content' => 'Contenido adicional',
         'status' => 'Estado',
         'is_sent' => 'Enviado',
-        'test_it' => 'Envia una prueba a (CSV)',
+        'test_it' => 'Envia una prueba',
         'interests' => 'Intereses',
         'show_emails' => 'Mostrar correos electrónicos',
         'send' => 'Enviar',
+        'type' => 'Tipo',
+        'entity' => 'Entidad',
+        'recipients' => 'Destinatarios',
+        'sent_at' => 'Enviado el',
+        'confirm_send' => '¿Seguro que quieres enviar este correo?',
     ],
 
     'code' => [
@@ -943,5 +1073,9 @@ return [
         'title' => 'Titulo',
         'name_form' => 'Name Input',
         'type' => 'Tipo'
+    ],
+
+    'partner' => [
+        'created_successfully' => 'Promotor creado correctamente',
     ],
 ];

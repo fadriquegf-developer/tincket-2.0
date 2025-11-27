@@ -30,7 +30,7 @@ class ZoneCrudController extends CrudController
     {
         CRUD::setModel(\App\Models\Zone::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/zone');
-        CRUD::setEntityNameStrings(__('backend.menu.zone'), __('backend.menu.zones'));
+        CRUD::setEntityNameStrings(__('menu.zone'), __('menu.zones'));
         $this->setAccessUsingPermissions();
     }
 
@@ -50,7 +50,7 @@ class ZoneCrudController extends CrudController
 
         CRUD::addColumn([
             'name' => 'space',
-            'label' => __('backend.zone.space'),
+            'label' => __('backend.zones.space'),
             'type' => 'relationship',
             'attribute' => 'name',
             'model' => Space::class,
@@ -58,13 +58,13 @@ class ZoneCrudController extends CrudController
 
         CRUD::addColumn([
             'name' => 'name',
-            'label' => __('backend.zone.name'),
+            'label' => __('backend.zones.name'),
             'type' => 'text',
         ]);
 
         CRUD::addColumn([
             'name' => 'color',
-            'label' => __('backend.zone.color'),
+            'label' => __('backend.zones.color'),
             'type' => 'custom_html',
             'value' => function ($entry) {
                 $c = e($entry->color);
@@ -78,6 +78,8 @@ class ZoneCrudController extends CrudController
                 \"></span>";
             },
         ]);
+
+        CRUD::addButtonFromView('top', 'zone_help', 'zone_help', 'end');
     }
 
     /**
@@ -91,7 +93,7 @@ class ZoneCrudController extends CrudController
         CRUD::setValidation(ZoneRequest::class);
 
         CRUD::addField([
-            'label' => __('backend.zone.space'),
+            'label' => __('backend.zones.space'),
             'type' => 'select2',
             'name' => 'space_id',
             'entity' => 'space',
@@ -102,7 +104,7 @@ class ZoneCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'name',
-            'label' => __('backend.zone.name'),
+            'label' => __('backend.zones.name'),
             'type' => 'text',
             'translatable' => true,
             'wrapper' => ['class' => 'form-group col-md-4 required'],
@@ -110,11 +112,32 @@ class ZoneCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'color',
-            'label' => __('backend.zone.color'),
+            'label' => __('backend.zones.color'),
             'type' => 'color',
             'wrapper' => ['class' => 'form-group col-md-4 required'],
         ]);
 
+        CRUD::addField([
+            'name'  => 'zone_explanation',
+            'type'  => 'custom_html',
+            'value' => '
+                <div class="card bg-light mt-3">
+                    <div class="card-body">
+                        <h6><i class="la la-lightbulb"></i>'. __("backend.zone_explanation.title").'</h6>
+                        <ol class="mb-0 small">
+                            <li>'. __("backend.zone_explanation.steps.space") .'</li>
+                            <li>'. __("backend.zone_explanation.steps.name") .'</li>
+                            <li>'. __("backend.zone_explanation.steps.color") .'</li>
+                        </ol>
+                        <hr class="my-2">
+                        <p class="mb-0 small text-muted">
+                            <strong>'. __("backend.zone_explanation.next.title") .'</strong>
+                            '. __("backend.zone_explanation.next.text") .'
+                        </p>
+                    </div>
+                </div>
+            ',
+        ]);
     }
 
     /**

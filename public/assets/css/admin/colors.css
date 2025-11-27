@@ -1,0 +1,170 @@
+/**
+    Custom branding colors for Backpack Tabler
+    Primary color adapted to corporate red (#d81921).
+*/
+
+@charset "UTF-8";
+
+:root,
+[data-bs-theme=light],
+[data-menu-theme=light] {
+    --tblr-gray: #4c496c;
+    --tblr-gray-dark: #211d3b;
+    --tblr-gray-100: #f1f5f9;
+    --tblr-gray-200: #e2e8f0;
+    --tblr-gray-300: #c8d3e1;
+    --tblr-gray-400: #c9c1d6;
+    --tblr-gray-500: #736c91;
+    --tblr-gray-600: #4c496c;
+    --tblr-gray-700: #333152;
+    --tblr-gray-800: #211d3b;
+    --tblr-gray-900: #1a0f2a;
+
+    /* === Primary corporate color === */
+    --tblr-primary: #d81921;
+    --tblr-tabler: #d81921;
+    --tblr-primary-rgb: 216, 25, 33;
+    --tblr-tabler-rgb: 216, 25, 33;
+
+    /* Text emphasis for primary */
+    --tblr-primary-text-emphasis: #7c0f14;
+
+    /* Background & borders for primary */
+    --tblr-primary-bg-subtle: #f8d6d8;
+    --tblr-primary-border-subtle: #f1adb0;
+
+    /* Links (use primary) */
+    --tblr-link-color: #d81921;
+    --tblr-link-color-rgb: 216, 25, 33;
+    --tblr-link-hover-color: #a51319;
+    --tblr-link-hover-color-rgb: 165, 19, 25;
+
+    /* Focus ring */
+    --tblr-focus-ring-color: rgba(216, 25, 33, .25);
+
+    /* Other defaults */
+    --tblr-secondary: #66626c;
+    --tblr-success: #42ba96;
+    --tblr-info: #467fd0;
+    --tblr-warning: #ffc107;
+    --tblr-danger: #df4759;
+    --tblr-light: #f8fafc;
+    --tblr-dark: #241f2d;
+    --tblr-muted: #66626c;
+
+    --tblr-secondary-rgb: 102, 98, 108;
+    --tblr-success-rgb: 66, 186, 150;
+    --tblr-info-rgb: 70, 127, 208;
+    --tblr-warning-rgb: 255, 193, 7;
+    --tblr-danger-rgb: 223, 71, 89;
+    --tblr-light-rgb: 248, 250, 252;
+    --tblr-dark-rgb: 36, 31, 45;
+    --tblr-muted-rgb: 102, 98, 108;
+
+    --tblr-secondary-text-emphasis: #42444b;
+    --tblr-success-text-emphasis: #1a4a3c;
+    --tblr-info-text-emphasis: #1c3353;
+    --tblr-warning-text-emphasis: #664d03;
+    --tblr-danger-text-emphasis: #591c24;
+    --tblr-light-text-emphasis: #333152;
+    --tblr-dark-text-emphasis: #333152;
+
+    --tblr-secondary-bg-subtle: #edeef1;
+    --tblr-success-bg-subtle: #d9f1ea;
+    --tblr-info-bg-subtle: #dae5f6;
+    --tblr-warning-bg-subtle: #fff3cd;
+    --tblr-danger-bg-subtle: #f9dade;
+    --tblr-light-bg-subtle: #f8fafc;
+    --tblr-dark-bg-subtle: #a09bbe;
+
+    --tblr-secondary-border-subtle: #dbdde4;
+    --tblr-success-border-subtle: #b3e3d5;
+    --tblr-info-border-subtle: #b5ccec;
+    --tblr-warning-border-subtle: #ffe69c;
+    --tblr-danger-border-subtle: #f2b5bd;
+    --tblr-light-border-subtle: #e2e8f0;
+    --tblr-dark-border-subtle: #736c91;
+
+    --tblr-body-font-size: 0.875rem;
+    --tblr-body-font-weight: 400;
+    --tblr-body-line-height: 1.4285714286;
+    --tblr-body-color: #241f2d;
+    --tblr-body-color-rgb: 36, 31, 45;
+    --tblr-body-bg: #f1f5f9;
+    --tblr-body-bg-rgb: 241, 245, 249;
+
+    --tblr-emphasis-color: #000;
+    --tblr-emphasis-color-rgb: 0, 0, 0;
+    --tblr-secondary-color: rgba(36, 31, 45, .75);
+    --tblr-secondary-bg: #e2e8f0;
+    --tblr-tertiary-color: rgba(36, 31, 45, .5);
+    --tblr-tertiary-bg: #f1f5f9;
+
+    --tblr-border-color: #e7e6e7;
+    --tblr-border-color-translucent: rgba(102, 98, 108, .16);
+    --tblr-box-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, .075);
+    --tblr-focus-ring-width: 0.25rem;
+    --tblr-focus-ring-opacity: 0.25;
+
+    --tblr-form-valid-color: #42ba96;
+    --tblr-form-valid-border-color: #42ba96;
+    --tblr-form-invalid-color: #df4759;
+    --tblr-form-invalid-border-color: #df4759;
+
+    --tblr-danger-text: var(--tblr-danger);
+    --tblr-navbar-border-color: transparent;
+    --bg-switch-checked-color: var(--tblr-primary);
+}
+
+/* DARK THEME OVERRIDES */
+[data-bs-theme=dark],
+[data-menu-theme=dark] {
+    --tblr-body-color: var(--tblr-gray-400);
+    --tblr-body-color-rgb: 160, 155, 190;
+    --tblr-body-bg: #181818;
+    --tblr-body-bg-rgb: 24, 24, 24;
+    --tblr-emphasis-color: #fff;
+    --tblr-emphasis-color-rgb: 255, 255, 255;
+
+    --tblr-secondary-color: rgba(160, 155, 190, .75);
+    --tblr-secondary-bg: #211d3b;
+    --tblr-tertiary-color: rgba(160, 155, 190, .5);
+    --tblr-tertiary-bg: #1e1633;
+
+    /* Primary adaptations for dark */
+    --tblr-primary: #d81921;
+    --tblr-tabler: #d81921;
+    --tblr-primary-rgb: 216, 25, 33;
+    --tblr-tabler-rgb: 216, 25, 33;
+
+    --tblr-primary-text-emphasis: #f1959a;
+    --tblr-primary-bg-subtle: #33080a;
+    --tblr-primary-border-subtle: #661014;
+
+    --tblr-link-color: #f1959a;
+    --tblr-link-hover-color: #ffb3b8;
+    --tblr-link-color-rgb: 241, 149, 154;
+    --tblr-link-hover-color-rgb: 255, 179, 184;
+    --tblr-code-color: #f1959a;
+
+    --tblr-border-color: #20202b;
+    --tblr-border-color-translucent: var(--tblr-border-color);
+
+    --tblr-form-valid-color: #93c29a;
+    --tblr-form-valid-border-color: #93c29a;
+    --tblr-form-invalid-color: #d69090;
+    --tblr-form-invalid-border-color: #d69090;
+
+    --tblr-bg-surface: #221e26;
+    --tblr-navbar-bg: var(--tblr-bg-surface);
+    --tblr-dark-mode-border-color: #302b33;
+    --tblr-bg-main-color: #181818;
+    --tblr-bg-forms: var(--tblr-dark-mode-border-color);
+
+    --tblr-danger-text: var(--tblr-danger);
+    --tblr-danger: #E25A6A;
+    --tblr-danger-rgb: 226, 90, 106;
+    --tblr-navbar-color: rgba(255, 255, 255, 0.7);
+    --tblr-bg-surface-tertiary: #ffffff02;
+    --tblr-navbar-border-color: transparent;
+}

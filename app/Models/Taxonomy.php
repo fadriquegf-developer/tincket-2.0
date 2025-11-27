@@ -56,11 +56,18 @@ class Taxonomy extends BaseModel
     {
         $brand = get_current_brand() ? get_current_brand() : request()->get('brand');
 
-        // check return self events or allowed partners events
         $partners = $brand->partnershipedChildBrands->pluck('id')->toArray();
+        $hasPartners = !empty($partners);
         $partners[] = $brand->id;
 
-        return $this->morphedByMany(Event::class, 'classifiable')->whereIn('events.brand_id', $partners);
+        $query = $this->morphedByMany(Event::class, 'classifiable');
+
+        // Solo remover el BrandScope si hay partners
+        if ($hasPartners) {
+            $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+        }
+
+        return $query->whereIn('events.brand_id', $partners);
     }
 
     /**
@@ -88,13 +95,46 @@ class Taxonomy extends BaseModel
 
     public function next_events()
     {
-        return $this->events()
+        $brand = get_current_brand() ?: request()->get('brand');
+
+        // Obtener partners
+        $partners = $brand->partnershipedChildBrands->pluck('id')->toArray();
+        $hasPartners = !empty($partners);
+        $partners[] = $brand->id;
+
+        // Iniciar la query
+        $query = $this->events();
+
+        // Solo remover el BrandScope si hay partners
+        if ($hasPartners) {
+            $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+        }
+
+        $result = $query
+            ->whereIn('events.brand_id', $partners)
             ->where('events.publish_on', '<', \Carbon\Carbon::now())
-            ->whereHas('sessions', function ($session) {
-                $session
+            ->whereExists(function ($query) {
+                $query->select(\DB::raw(1))
+                    ->from('sessions')
+                    ->whereColumn('sessions.event_id', 'events.id')
+                    ->where('sessions.ends_on', '>', \Carbon\Carbon::now())
+                    ->where('sessions.visibility', 1)
+                    ->limit(1);
+            })
+            ->with(['sessions' => function ($query) {
+                $query->select('id', 'event_id', 'starts_on', 'ends_on')
+                    ->where('visibility', 1)
+                    ->where('private', 0)
                     ->where('ends_on', '>', \Carbon\Carbon::now())
-                    ->where('visibility', 1);
-            });
+                    ->orderBy('starts_on')
+                    ->limit(5);
+            }])
+            ->limit(20)
+            ->orderBy('events.publish_on', 'desc');
+
+        $events = $result->get();
+
+        return $result;
     }
 
     public function posts()

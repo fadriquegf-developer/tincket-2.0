@@ -2,61 +2,90 @@
 
 namespace App\Http\Controllers\Api\v1;
 
-use App\Models\Cart as Cart;
+use App\Models\Cart;
 use App\Models\GroupPack;
 use App\Models\Session;
 use App\Models\Inscription;
 use App\Services\Api\CartService;
+use App\Services\InscriptionService;
 use App\Services\Payment\PaymentServiceFactory;
+use App\Exceptions\SlotNotAvailableException;
+use App\Exceptions\SessionFullException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use \Carbon\Carbon as Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class CartApiController extends \App\Http\Controllers\Api\ApiController
 {
-
-    /** @var CartService */
-    private $service;
-    private $paymentServiceFactory;
+    private CartService $service;
+    private PaymentServiceFactory $paymentServiceFactory;
+    private InscriptionService $inscriptionService;
 
     public function __construct()
     {
-        $this->service = new CartService;
-        $this->paymentServiceFactory = new PaymentServiceFactory;
+        $this->service = new CartService();
+        $this->paymentServiceFactory = new PaymentServiceFactory();
+        $this->inscriptionService = new InscriptionService();
 
-        // Checks if Cart is expired and updates the expires_on date        
-        $this->middleware(\App\Http\Middleware\Api\v1\CartExpiration::class)->only(['update', 'destroy', 'extendTime']);
-        // Checks if Cart is confirmed before interacting with it
-        $this->middleware(\App\Http\Middleware\Api\v1\CartConfirmation::class)->only(['update', 'destroy', 'extendTime']);
+        // Middleware para verificar expiración y confirmación
+        $this->middleware(\App\Http\Middleware\Api\v1\CartExpiration::class)
+            ->only(['update', 'destroy', 'extendTime']);
+        $this->middleware(\App\Http\Middleware\Api\v1\CartConfirmation::class)
+            ->only(['update', 'destroy', 'extendTime']);
     }
 
+    /**
+     * Mostrar carrito con todas sus relaciones
+     * ✅ DESHABILITAR BrandScope en relaciones de brands hijos
+     */
     public function show($id)
     {
-
-        $cart = $this->getCartBuilder($id)->with(
-            'inscriptions.slot',
-            'inscriptions.session.event',
-            'inscriptions.session.space.location',
-            'inscriptions.rate',
-            'groupPacks.pack',
-            'groupPacks.inscriptions.session.event',
-            'groupPacks.inscriptions.session.space.location',
-            'groupPacks.inscriptions.slot',
-            'gift_cards.event'
-        )
+        $cart = $this->getCartBuilder($id)
+            ->with([
+                'inscriptions.slot',
+                // ✅ DESHABILITAR BrandScope en session
+                'inscriptions.session' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                // ✅ DESHABILITAR BrandScope en event
+                'inscriptions.session.event' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                'inscriptions.session.space.location',
+                // ✅ DESHABILITAR BrandScope en rate
+                'inscriptions.rate' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                // ✅ Para packs también
+                'groupPacks.pack' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                'groupPacks.inscriptions.session' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                'groupPacks.inscriptions.session.event' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                'groupPacks.inscriptions.session.space.location',
+                'groupPacks.inscriptions.slot',
+                'groupPacks.inscriptions.rate' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                },
+                // ✅ Gift cards
+                'gift_cards.event' => function ($query) {
+                    $query->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                }
+            ])
             ->firstOrFail();
 
-        // we manage data to a more readable way
-        $cart->setAttribute('packs', $cart->groupPacks->map(function ($c) {
-            // we clone it since $c->pack may refer to 
-            // same object and cart_pack_id is unique 
-            // in each row            
-            $p = clone $c->pack;
-
-            $p->setAttribute('cart_pack_id', $c->id);
-            $p->setAttribute('inscriptions', $c->inscriptions);
-
-            return $p;
+        // Reorganizar datos para mejor legibilidad
+        $cart->setAttribute('packs', $cart->groupPacks->map(function ($gp) {
+            $pack = clone $gp->pack;
+            $pack->setAttribute('cart_pack_id', $gp->id);
+            $pack->setAttribute('inscriptions', $gp->inscriptions);
+            return $pack;
         }));
 
         unset($cart->groupPacks);
@@ -64,101 +93,271 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
         return $this->json($cart);
     }
 
+    /**
+     * Crear nuevo carrito
+     */
     public function store(Request $request)
     {
         try {
             $cart = $this->service->createCart($request);
             return $this->show($cart->id);
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], 500);
+            Log::error('Error creando carrito', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return $this->json([
+                'error' => 'No se pudo crear el carrito: ' . $e->getMessage()
+            ], 500);
         }
     }
 
-
+    /**
+     * Actualizar sección del carrito
+     */
     public function update(Cart $cart, $section, Request $request)
     {
-        if (method_exists($this->service, 'set' . Str::studly($section))) {
-            $data = $this->service->{'set' . Str::studly($section)}($cart, $request);
-        } else {
-            abort(404, "Method set" . Str::studly($section) . " not found in CartService");
-        }
+        try {
+            $methodName = 'set' . Str::studly($section);
 
-        return $this->json($data, $data ? 200 : 204);
+            if (!method_exists($this->service, $methodName)) {
+                return $this->json([
+                    'error' => "Sección '$section' no válida"
+                ], 404);
+            }
+
+            DB::beginTransaction();
+
+            $data = $this->service->{$methodName}($cart, $request);
+
+            DB::commit();
+
+            return $this->json($data, $data ? 200 : 204);
+        } catch (SlotNotAvailableException $e) {
+            DB::rollBack();
+            return $this->json([
+                'error' => 'Slot no disponible',
+                'message' => $e->getMessage()
+            ], 409); // Conflict
+
+        } catch (SessionFullException $e) {
+            DB::rollBack();
+            return $this->json([
+                'error' => 'Sesión completa',
+                'message' => $e->getMessage()
+            ], 409);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Error actualizando carrito sección: $section", [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return $this->json([
+                'error' => 'Error actualizando carrito: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
+    /**
+     * Eliminar elementos del carrito
+     * ✅ DESHABILITAR BrandScope al buscar elementos
+     */
     public function destroy(Cart $cart, $type, $id)
     {
         try {
+            DB::beginTransaction();
+
             switch ($type) {
                 case 'pack':
-                    return $this->destroyPack($cart, GroupPack::find($id));
+                    // ✅ DESHABILITAR BrandScope al buscar GroupPack
+                    $result = $this->destroyPack(
+                        $cart,
+                        GroupPack::withoutGlobalScope(\App\Scopes\BrandScope::class)->find($id)
+                    );
+                    break;
+
                 case 'session':
-                    return $this->destroySession($cart, Session::find($id));
+                    // ✅ DESHABILITAR BrandScope al buscar Session
+                    $result = $this->destroySession(
+                        $cart,
+                        Session::withoutGlobalScope(\App\Scopes\BrandScope::class)->find($id)
+                    );
+                    break;
+
                 case 'inscription':
-                    return $this->destroyInscription($cart, Inscription::find($id));
+                    // ✅ DESHABILITAR BrandScope al buscar Inscription
+                    $result = $this->destroyInscription(
+                        $cart,
+                        Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)->find($id)
+                    );
+                    break;
+
                 case 'gift-card':
-                    return $this->destroyGiftCard($cart, $id);
+                    $result = $this->destroyGiftCard($cart, $id);
+                    break;
+
                 default:
-                    return $this->json(['error' => "Type $type is not expected"], 400);
+                    DB::rollBack();
+                    return $this->json(['error' => "Tipo '$type' no válido"], 400);
             }
+
+            DB::commit();
+
+            return $result;
         } catch (\Exception $e) {
-            return $this->json(['error' => $e->getMessage()], 500);
+            DB::rollBack();
+            Log::error("Error eliminando del carrito", [
+                'cart_id' => $cart->id,
+                'type' => $type,
+                'id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            return $this->json([
+                'error' => 'Error eliminando del carrito: ' . $e->getMessage()
+            ], 500);
         }
     }
 
-
-    private function destroyPack(Cart $cart, GroupPack $pack)
+    /**
+     * Eliminar pack del carrito
+     * ✅ DESHABILITAR BrandScope al cargar inscripciones
+     */
+    private function destroyPack(Cart $cart, ?GroupPack $pack)
     {
         if (!$pack) {
-            return $this->json(['error' => 'Pack not found'], 404);
+            return $this->json(['error' => 'Pack no encontrado'], 404);
         }
 
-        $pack->inscriptions->each(function (Inscription $inscription) {
-            $inscription->delete();
-        });
+        // ✅ Cargar inscripciones con BrandScope deshabilitado
+        $pack->load(['inscriptions' => function ($q) {
+            $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                ->with(['session' => function ($sq) {
+                    $sq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                }]);
+        }]);
+
+        // Liberar slots de inscripciones numeradas
+        foreach ($pack->inscriptions as $inscription) {
+            if ($inscription->slot_id) {
+                try {
+                    $this->inscriptionService->releaseSlot($inscription);
+                } catch (\Exception $e) {
+                    Log::warning('Error liberando slot de pack', [
+                        'inscription_id' => $inscription->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                $inscription->delete();
+            }
+        }
+
         $pack->delete();
 
         return $this->json(null, 204);
     }
 
-
-    private function destroyInscription(Cart $cart, Inscription $inscription)
+    /**
+     * Eliminar inscripción individual
+     * ✅ Ya recibe la inscripción con BrandScope deshabilitado desde destroy()
+     */
+    private function destroyInscription(Cart $cart, ?Inscription $inscription)
     {
+        if (!$inscription) {
+            return $this->json(['error' => 'Inscripción no encontrada'], 404);
+        }
 
-        if ($inscription->rate()->get()->first()->has_rule) {
-            $cart->inscriptions()
-                ->where('rate_id', '=', $inscription->rate()->get()->first()->id)
-                ->where('session_id', '=', $inscription->session()->get()->first()->id)
-                ->get()->each(function (Inscription $inscription) {
-                    $inscription->delete();
-                });
+        // Si tiene slot, usar el servicio para liberarlo correctamente
+        if ($inscription->slot_id) {
+            // ✅ Cargar session si no está cargada
+            if (!$inscription->relationLoaded('session')) {
+                $inscription->load(['session' => function ($q) {
+                    $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                        ->withTrashed();
+                }]);
+            }
+
+            if ($inscription->session) {
+                $this->inscriptionService->releaseSlot($inscription);
+            } else {
+                Log::warning('Inscripción sin session válida al eliminar', [
+                    'inscription_id' => $inscription->id,
+                    'slot_id' => $inscription->slot_id
+                ]);
+                $inscription->delete();
+            }
         } else {
-            $inscription->delete();
+            // Si es una tarifa con reglas especiales
+            if ($inscription->rate && $inscription->rate->has_rule) {
+                $cart->inscriptions()
+                    ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->where('rate_id', $inscription->rate_id)
+                    ->where('session_id', $inscription->session_id)
+                    ->delete();
+            } else {
+                $inscription->delete();
+            }
         }
 
         return $this->json(null, 204);
     }
 
-    private function destroySession(Cart $cart, Session $session)
+    /**
+     * Eliminar todas las inscripciones de una sesión
+     * ✅ DESHABILITAR BrandScope al cargar inscripciones
+     */
+    private function destroySession(Cart $cart, ?Session $session)
     {
         if (!$session) {
-            return $this->json(['error' => 'Session not found'], 404);
+            return $this->json(['error' => 'Sesión no encontrada'], 404);
         }
 
-        // Eliminar todas las inscripciones en una sola operación
-        $cart->inscriptions()->where('session_id', $session->id)->delete();
+        // ✅ Obtener inscripciones con BrandScope deshabilitado
+        $inscriptions = $cart->inscriptions()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->where('session_id', $session->id)
+            ->with(['session' => function ($q) {
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class);
+            }])
+            ->get();
+
+        // Liberar slots numerados
+        foreach ($inscriptions as $inscription) {
+            if ($inscription->slot_id) {
+                try {
+                    $this->inscriptionService->releaseSlot($inscription);
+                } catch (\Exception $e) {
+                    Log::warning('Error liberando slot', [
+                        'inscription_id' => $inscription->id,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            } else {
+                $inscription->delete();
+            }
+        }
 
         return $this->json(null, 204);
     }
 
-
+    /**
+     * Eliminar gift card
+     * ✅ La relación gift_cards() ya tiene withoutGlobalScope en el modelo Cart
+     */
     private function destroyGiftCard(Cart $cart, $id)
     {
         $cart->gift_cards()->where('id', $id)->delete();
-
         return $this->json(null, 204);
     }
 
+    /**
+     * Verificar duplicados
+     * ✅ DESHABILITAR BrandScope para buscar en TODOS los carritos del sistema
+     */
     public function checkDuplicated($id)
     {
         $cart = $this->getCartBuilder($id)
@@ -168,112 +367,153 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
             ->orHas('gift_cards')
             ->firstOrFail();
 
-        $slots = $cart->allInscriptions->pluck('slot_id');
-        $session_id = $cart->allInscriptions->first()->session_id ?? '';
+        $slots = $cart->allInscriptions->pluck('slot_id')->filter();
+        $sessionId = $cart->allInscriptions->first()->session_id ?? null;
 
-        $duplicated_cart = Cart::ownedByBrand()->notExpired()
+        if (!$sessionId || $slots->isEmpty()) {
+            return $this->json(false, 200);
+        }
+
+        // ✅ DESHABILITAR BrandScope para buscar duplicados en TODOS los brands
+        // Esto es importante porque queremos evitar duplicados en TODO el sistema,
+        // no solo en el brand actual
+        $duplicatedCart = Cart::withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->notExpired()
             ->where('id', '!=', $cart->id)
-            ->whereHas('allInscriptions', function ($q) use ($session_id, $slots) {
-                $q->where('session_id', $session_id)->whereIn('slot_id', $slots);
+            ->whereHas('allInscriptions', function ($q) use ($sessionId, $slots) {
+                // ✅ También deshabilitar aquí
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->where('session_id', $sessionId)
+                    ->whereIn('slot_id', $slots);
             })
-            ->first();
+            ->exists();
 
-        if ($duplicated_cart)
-            return $this->json(true, 200);
-
-        return $this->json(false, 200);
+        return $this->json($duplicatedCart, 200);
     }
 
-
+    /**
+     * Obtener datos de pago
+     */
     public function getPayment($id)
     {
-
-        $builder = $this->getCartBuilder($id)
+        $cart = $this->getCartBuilder($id)
             ->notExpired()
             ->whereNull('confirmation_code')
             ->where(function ($q) {
                 $q->withInscriptions()
                     ->orWhereHas('gift_cards');
-            });
+            })
+            ->first();
 
-        $cart = $builder->first();
+        if (!$cart) {
+            return $this->json(['error' => 'Carrito no válido'], 404);
+        }
 
         try {
-            // Determinar la plataforma de pago
             $platform = $cart->price_sold == 0 ? 'Free' : 'Redsys_Redirect';
-
-            // Crear el servicio de pago usando la fábrica
             $service = $this->paymentServiceFactory->create($platform);
-
-            // Procesar la compra
             $service->purchase($cart);
 
             return $this->json($service->getData());
         } catch (\Exception $e) {
-            // Registrar el error para fines de depuración
-            \Log::error('PAYMENT error', [
-                'msg' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
+            Log::error('Error procesando pago', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
-            // Retornar una respuesta de error al cliente
-            return $this->json(['error' => 'No se pudo procesar el pago.'], 500);
+            return $this->json([
+                'error' => 'No se pudo procesar el pago'
+            ], 500);
         }
     }
 
+    /**
+     * Obtener pago desde email
+     */
     public function getPaymentForEmail($token)
     {
-        $cart = $this->getCartBuilder($token)->with('payments')->first();
+        $cart = $this->getCartBuilder($token)
+            ->notExpired()
+            ->whereNull('confirmation_code')
+            ->where(function ($q) {
+                $q->withInscriptions()
+                    ->orWhereHas('gift_cards');
+            })
+            ->first();
 
-        $platform = 'Redsys_Redirect';
-
-        $service = $this->paymentServiceFactory->create($platform);
-
-        $service->purchase($cart);
-
-        return $this->json($service->getData());
-    }
-
-    public function checkPaymentPaid($token)
-    {
-        $cart = $this->getCartBuilder($token)->first();
-        if ($cart->payments()->where('paid_at', '!=', NULL)->count() > 0) {
-            return $this->json(true);
+        if (!$cart) {
+            return $this->json(['error' => 'Carrito no válido'], 404);
         }
 
-        return $this->json(null, 204);
+        try {
+            $platform = $cart->price_sold == 0 ? 'Free' : 'Redsys_Redirect';
+            $service = $this->paymentServiceFactory->create($platform);
+            $service->purchase($cart);
+
+            return $this->json($service->getData());
+        } catch (\Exception $e) {
+            Log::error('Error procesando pago desde email', [
+                'cart_token' => $token,
+                'error' => $e->getMessage()
+            ]);
+
+            return $this->json([
+                'error' => 'No se pudo procesar el pago'
+            ], 500);
+        }
     }
 
+    /**
+     * Verificar si el pago está confirmado
+     */
+    public function checkPaymentPaid($token)
+    {
+        $cart = $this->getCartBuilder($token)
+            ->whereNotNull('confirmation_code')
+            ->first();
+
+        return $this->json((bool) $cart, 200);
+    }
+
+    /**
+     * Extender tiempo del carrito
+     */
     public function extendTime(Cart $cart)
     {
-        // time is extended in Middleware. If time is expired, it throws an Exception
-        // and next return is not reached
-        return $this->json(null, 204);
+        // El middleware ya maneja la extensión
+        return $this->json([
+            'expires_on' => $cart->expires_on->toIso8601String(),
+            'minutes_remaining' => $cart->expires_on->diffInMinutes(now())
+        ], 200);
     }
 
+    /**
+     * Marcar carrito como expirado
+     */
     public function expiredTime(Cart $cart)
     {
         $cart->expiredTime();
 
-        return $this->json(null, 204);
+        return $this->json([
+            'message' => 'Carrito marcado como expirado',
+            'expired' => true
+        ], 200);
     }
 
-    // https://gitlab.com/javajan_laravel/tincket/issues/52
-    //
-    // This method should be REfactored when this issue is fixed.
+    /**
+     * Constructor de query para cart
+     * ✅ Este método SÍ debe mantener ownedByBrand() porque solo queremos
+     * carritos del brand actual (no de otros brands)
+     */
     private function getCartBuilder($id)
     {
+        $query = Cart::ownedByBrand()->with('brand');
 
         if (is_numeric($id)) {
-            return Cart::ownedByBrand()
-                ->where('id', $id)
-                ->with('brand');
+            return $query->where('id', $id);
         }
 
-        return Cart::ownedByBrand()
-            ->where('token', $id)
-            ->with('brand');
+        return $query->where('token', $id);
     }
 }

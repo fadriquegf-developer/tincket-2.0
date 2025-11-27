@@ -1,5 +1,4 @@
 <?php
-// app/Services/Payment/Impl/PaymentRedsysService.php
 
 namespace App\Services\Payment\Impl;
 
@@ -10,7 +9,6 @@ use App\Models\Payment;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Omnipay\Redsys\Message\Security;
 use App\Services\TpvConfigurationDecoder;
 use Omnipay\Common\Message\AbstractResponse;
 use App\Services\Payment\AbstractPaymentService;
@@ -37,29 +35,72 @@ class PaymentRedsysService extends AbstractPaymentService
             throw new \RuntimeException('Cart no seteado');
         }
 
+        // ✅ Cargar inscripciones con sus sesiones, deshabilitando BrandScope
+        $cart->load([
+            'allInscriptions' => function ($q) {
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->with([
+                        'session' => function ($sq) {
+                            $sq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                        }
+                    ]);
+            }
+        ]);
+
+        // Buscar TPV en inscripciones
         $tpvId = $cart->allInscriptions
             ->pluck('session.tpv_id')
             ->filter()
             ->unique()
-            ->sole();
+            ->first();
 
-        $this->tpv = Tpv::findOrFail($tpvId);
+        // Si no hay inscripciones, buscar en gift cards
+        if (!$tpvId) {
+            // ✅ Cargar gift_cards con eventos y sesiones, deshabilitando BrandScope
+            $cart->load([
+                'gift_cards' => function ($q) {
+                    $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                        ->with([
+                            'event' => function ($eq) {
+                                $eq->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                                    ->with([
+                                        'sessions' => function ($sq) {
+                                            $sq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                                        }
+                                    ]);
+                            }
+                        ]);
+                }
+            ]);
+
+            $tpvId = $cart->gift_cards
+                ->flatMap(fn($gc) => optional($gc->event?->sessions)->pluck('tpv_id') ?? collect())
+                ->filter()
+                ->unique()
+                ->first();
+        }
+
+        if (!$tpvId) {
+            // ✅ LOG 6: ERROR - No se encontró TPV
+            \Log::error('❌ No se encontró TPV válido', [
+                'cart_id' => $cart->id,
+                'inscriptions_count' => $cart->allInscriptions->count(),
+                'gift_cards_count' => $cart->gift_cards->count()
+            ]);
+
+            throw new \RuntimeException('No se pudo encontrar un TPV válido para el carrito');
+        }
+
+        // ✅ Buscar TPV deshabilitando BrandScope (por si acaso)
+        $this->tpv = Tpv::withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->findOrFail($tpvId);
+
         $this->payment->update([
             'tpv_id' => $this->tpv->id,
             'tpv_name' => $this->tpv->name,
         ]);
 
-        // 1) obtenemos el JSON
         $raw = $this->tpv->config;
-
-        // 2) si viene envuelto en {"config":[…]}, extraemos sólo el array
-        if (isset($raw['config']) && is_array($raw['config'])) {
-            $raw = $raw['config'];
-        }
-
-        Log::info('TPV config used:', ['config' => $raw]);
-
-        // 3) inicializamos el decoder con el array de {key,value}
         $this->cfg = new TpvConfigurationDecoder($raw);
     }
 
@@ -72,20 +113,13 @@ class PaymentRedsysService extends AbstractPaymentService
         $this->loadTpvConfiguration();
 
         $this->gateway = Omnipay::create(self::OMNIPAY_DRIVER);
-        $this->gateway->initialize([
-            'merchantId' => $this->cfg->get('sermepaMerchantCode'),
-            'terminalId' => $this->cfg->get('sermepaTerminal', '001'),
-            'hmacKey' => $this->cfg->get('sermepaMerchantKey'),
-            'merchantName' => $this->cfg->get('sermepaMerchantName', ''),
-            'testMode' => (bool) $this->cfg->get('sermepaTestMode', 0),
-        ]);
-    }
 
-    /**
-     * 1) Prepara el purchase
-     * 2) Lo envía (firma datos)
-     * 3) Devuelve URL + params (signature) para el form
-     */
+        $this->gateway->setMerchantId($this->cfg->get('sermepaMerchantCode'));
+        $this->gateway->setTerminalId($this->cfg->get('sermepaTerminal', '001'));
+        $this->gateway->setHmacKey($this->cfg->get('sermepaMerchantKey'));
+        $this->gateway->setMerchantName($this->cfg->get('sermepaMerchantName', ''));
+        $this->gateway->setTestMode((bool) $this->cfg->get('sermepaTestMode', 0));
+    }
 
     public function getData(Payment $payment = null): array
     {
@@ -98,51 +132,84 @@ class PaymentRedsysService extends AbstractPaymentService
         $this->initGateway();
         $cart = $this->payment->cart;
 
+        // URLs
         $notifyUrl = route('api1.payment.callback', [
             'gateway' => $this->gatewayAlias,
         ]);
-        \Log::info('REDSYS notifyUrl', ['url' => $notifyUrl, 'gateway' => $this->gateway->getName()]);
+
         $returnUrl = str_replace(
             ['{token}', '{locale}'],
             [$cart->token, $cart->client->locale],
             $this->cfg->get('sermepaUrlOK')
         );
 
-        $purchase = $this->gateway->purchase([
-            /* credenciales */
-            'merchantId' => $this->cfg->get('sermepaMerchantCode'),
-            'terminalId' => $this->cfg->get('sermepaTerminal', '001'),
-            'hmacKey' => $this->cfg->get('sermepaMerchantKey'),
+        $cancelUrl = str_replace(
+            ['{id}', '{locale}'],
+            [$cart->id, $cart->client->locale],
+            $this->cfg->get('sermepaUrlKO')
+        );
 
-            /* operación */
-            'amount' => number_format($cart->price_sold, 2, '.', ''),
-            'multiply' => true,
+        // Crear el request usando el método del gateway
+        $request = $this->gateway->purchase([
+            'amount' => sprintf('%.2f', $cart->price_sold),
             'currency' => 'EUR',
             'transactionId' => $this->payment->order_code,
-            'transactionType' => '0',
             'description' => $this->getDescription($this->payment),
-            'merchantName' => $this->cfg->get('sermepaMerchantName', ''),
-
-            /* idioma: ISO 639-1 o código interno */
-            'consumerLanguage' => $cart->client->locale ?: 'es',
-
-            /* URLs */
             'notifyUrl' => $notifyUrl,
-            'returnUrl' => $returnUrl,
+            'returnUrl' => $returnUrl, // Esto se usará para ambas URLs por el bug de la librería
+            'consumerLanguage' => $this->mapLanguageCode($cart->client->locale),
         ]);
 
-        /** @var \Omnipay\Redsys\Message\PurchaseResponse $response */
-        $response = $purchase->send();
+        // Obtener los datos antes de enviar
+        $data = $request->getData();
+
+        // CORRECCIÓN: Sobrescribir manualmente Ds_Merchant_UrlKO con la URL correcta
+        $data['Ds_Merchant_UrlKO'] = $cancelUrl;
+
+        // Enviar los datos modificados
+        $response = $request->sendData($data);
+
         $redirectUrl = $response->getRedirectUrl();
         $redirectData = $response->getRedirectData();
 
-        Log::info('REDSYS_POST', $redirectData);
-        Log::info('REDSYS_URL ', ['url' => $redirectUrl]);
+        // Verificar el resultado
+        if (isset($redirectData['Ds_MerchantParameters'])) {
+            $decodedParams = json_decode(base64_decode($redirectData['Ds_MerchantParameters']), true);
+
+            if ($decodedParams['Ds_Merchant_UrlKO'] === $decodedParams['Ds_Merchant_UrlOK']) {
+                Log::error('CRITICAL: UrlKO and UrlOK are still identical!');
+            }
+
+            if (empty($decodedParams['Ds_Merchant_MerchantCode'])) {
+                Log::error('CRITICAL: MerchantCode is empty!');
+            }
+        }
 
         return [
             'url' => $redirectUrl,
             'params' => $redirectData,
+            'platform' => $this->gateway->getName(),
         ];
+    }
+
+    private function mapLanguageCode($locale): string
+    {
+        $languageMap = [
+            'es' => '001',
+            'ca' => '003',
+            'en' => '002',
+            'fr' => '004',
+            'de' => '005',
+            'nl' => '006',
+            'it' => '007',
+            'sv' => '008',
+            'pt' => '009',
+            'pl' => '011',
+            'gl' => '012',
+            'eu' => '013',
+        ];
+
+        return $languageMap[$locale] ?? '001';
     }
 
     public function getConfigDecoder(): TpvConfigurationDecoder|null
@@ -162,27 +229,23 @@ class PaymentRedsysService extends AbstractPaymentService
     {
         $req = $request ?? request();
 
-        // Decodificar Ds_MerchantParameters correctamente
         if (!$req->filled('Ds_MerchantParameters')) {
-            Log::error('❌ Ds_MerchantParameters no encontrado en request');
+            Log::error('Ds_MerchantParameters no encontrado en request');
             return null;
         }
 
         $merchantParams = json_decode(base64_decode($req->input('Ds_MerchantParameters')), true);
-
         $orderCode = $merchantParams['Ds_Order'] ?? null;
 
         if (!$orderCode) {
-            Log::error('❌ Ds_Order no encontrado tras decodificar Ds_MerchantParameters');
+            Log::error('Ds_Order no encontrado tras decodificar Ds_MerchantParameters');
             return null;
         }
-
-        Log::info('🔍 Buscando Payment por order_code', ['order_code' => $orderCode]);
 
         $this->payment = Payment::where('order_code', $orderCode)->first();
 
         if (!$this->payment) {
-            Log::error('❌ Payment no encontrado en setPaymentFromRequest', ['order_code' => $orderCode]);
+            Log::error('Payment no encontrado en setPaymentFromRequest', ['order_code' => $orderCode]);
             return null;
         }
 
@@ -204,57 +267,69 @@ class PaymentRedsysService extends AbstractPaymentService
 
             return $this->response->isSuccessful();
         } catch (InvalidResponseException $e) {
-            Log::error('❌ Redsys callback InvalidResponseException', ['message' => $e->getMessage()]);
+            Log::error('Redsys callback InvalidResponseException', ['message' => $e->getMessage()]);
             return false;
         } catch (\Exception $e) {
-            Log::error('❌ Error general en Redsys callback', ['message' => $e->getMessage()]);
+            Log::error('Error general en Redsys callback', ['message' => $e->getMessage()]);
             return false;
         }
     }
 
     public function confirmPayment(): void
     {
-        if (!$this->payment) {
-            Log::error('❌ No hay payment seteado en confirmPayment');
-            return;
-        }
-
-        if (!$this->response) {
-            Log::error('❌ No hay respuesta de Redsys en confirmPayment');
-            return;
-        }
-
-        $payment = $this->payment;
-        $cart = $payment->cart;
-
-        if ($this->response->isSuccessful()) {
-            $cart->update(['confirmation_code' => $payment->order_code]);
-            $payment->update([
-                'paid_at' => now(),
-                'gateway' => $this->gateway->getName(),
-                'gateway_response' => json_encode($this->response->getData()),
-            ]);
-
-            Log::info('✅ Pago confirmado correctamente', ['order_code' => $payment->order_code]);
-
-            \App\Jobs\CartConfirm::dispatch(
-                $cart,
-                ['pdf' => config('base.inscription.ticket-web-params')]
-            );
-        } else {
-            Log::warning('⚠️ Redsys devolvió respuesta no exitosa', ['order_code' => $payment->order_code]);
-        }
+        parent::confirmPayment();
     }
 
+    /**
+     * Genera la descripción del pago para Redsys
+     * 
+     * @param Payment $payment
+     * @return string
+     */
     protected function getDescription(Payment $payment): string
     {
         $parts = [];
-        foreach ($payment->cart->inscriptions as $ins) {
-            $parts[] = Str::limit("{$ins->session->event->id}.{$ins->session->event->name}", 15);
+
+        // ✅ Cargar relaciones necesarias con BrandScope deshabilitado
+        $payment->cart->load([
+            'allInscriptions' => function ($q) {  // ← CAMBIO: usar allInscriptions
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->with([
+                        'session' => function ($sq) {
+                        $sq->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->with([
+                                'event' => function ($eq) {  // ← Cargar event dentro de session
+                                    $eq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                                }
+                            ]);
+                    }
+                    ]);
+            },
+            'groupPacks.pack' => function ($q) {
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class);
+            },
+            'gift_cards' => function ($q) {
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class);
+            }
+        ]);
+
+        // ✅ Usar allInscriptions y verificar que session y event existen
+        foreach ($payment->cart->allInscriptions as $ins) {
+            if ($ins->session && $ins->session->event) {
+                $parts[] = Str::limit("{$ins->session->event->id}.{$ins->session->event->name}", 15);
+            }
         }
+
         foreach ($payment->cart->groupPacks as $gp) {
-            $parts[] = Str::limit("P{$gp->pack->id}.{$gp->pack->name}", 25);
+            if ($gp->pack) {
+                $parts[] = Str::limit("P{$gp->pack->id}.{$gp->pack->name}", 25);
+            }
         }
+
+        foreach ($payment->cart->gift_cards as $gc) {
+            $parts[] = Str::limit("G{$gc->id}.GiftCard", 25);
+        }
+
         return Str::limit(implode('|', array_unique($parts)), 120, '(...)');
     }
 }

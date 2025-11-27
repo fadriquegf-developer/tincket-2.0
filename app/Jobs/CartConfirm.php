@@ -18,10 +18,22 @@ use Illuminate\Foundation\Bus\Dispatchable;
 class CartConfirm implements ShouldQueue
 {
 
-    use Dispatchable,
-        InteractsWithQueue,
-        Queueable,
-        SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    // Timeout apropiado para generación de PDFs
+    public $timeout = 120;
+
+    // Reintentos limitados para evitar loops infinitos
+    public $tries = 3;
+
+    // Esperar entre reintentos (exponencial backoff)
+    public $backoff = [10, 30, 60];
+
+    // Máximo de excepciones antes de fallar
+    public $maxExceptions = 2;
+
+    // Eliminar el job si el modelo ya no existe
+    public $deleteWhenMissingModels = true;
 
     protected $cart;
     protected $hasToSendEmail;
@@ -37,6 +49,7 @@ class CartConfirm implements ShouldQueue
         $this->cart = $cart;
         $this->hasToSendEmail = $params['send_mail'] ?? true;
         $this->params = $params;
+        $this->onQueue('critical');
     }
 
     /**
@@ -46,21 +59,70 @@ class CartConfirm implements ShouldQueue
      */
     public function handle()
     {
-        // because this may be called from a third thread, so API Header key
-        // to identify the brand will not be received, we need to set
-        // base config to render proper PDF design according to the brand
         (new \App\Http\Middleware\CheckBrandHost())->loadBrandConfig($this->cart->brand->code_name);
 
-        // Confirm temp slots
         $this->cart->confirmTempSlot();
-
         $this->storeInscriptionsPdf($this->cart);
-
         $this->storePacksPdf($this->cart);
-
         $this->storeGiftCardsPdf($this->cart);
+        $this->updateSlotsLockReason();
+        if ($this->hasToSendEmail) {
+            $this->sendConfirmationEmail($this->cart);
+        }
+    }
 
-        if ($this->hasToSendEmail) $this->sendConfirmationEmail($this->cart);
+    private function updateSlotsLockReason()
+    {
+        // 🔥 Usar array en lugar de Collection
+        $inscriptionsBySession = [];
+
+        // Inscripciones normales
+        foreach ($this->cart->allInscriptions as $inscription) {
+            if ($inscription->slot_id && $inscription->session_id) {
+                if (!isset($inscriptionsBySession[$inscription->session_id])) {
+                    $inscriptionsBySession[$inscription->session_id] = [];
+                }
+                $inscriptionsBySession[$inscription->session_id][] = $inscription->slot_id;
+            }
+        }
+
+        // Inscripciones de packs
+        foreach ($this->cart->groupPacks as $groupPack) {
+            foreach ($groupPack->inscriptions as $inscription) {
+                if ($inscription->slot_id && $inscription->session_id) {
+                    if (!isset($inscriptionsBySession[$inscription->session_id])) {
+                        $inscriptionsBySession[$inscription->session_id] = [];
+                    }
+                    $inscriptionsBySession[$inscription->session_id][] = $inscription->slot_id;
+                }
+            }
+        }
+
+        // Actualizar session_slot para cada sesión
+        foreach ($inscriptionsBySession as $sessionId => $slotIds) {
+            $slotIds = array_unique($slotIds);
+
+            foreach ($slotIds as $slotId) {
+                // 🔥 Crear o actualizar SessionSlot con status_id = 2 (vendida)
+                \App\Models\SessionSlot::updateOrCreate(
+                    [
+                        'session_id' => $sessionId,
+                        'slot_id' => $slotId
+                    ],
+                    [
+                        'status_id' => 2, // 2 = Vendida
+                        'comment' => null
+                    ]
+                );
+            }
+
+            // Invalidar cache de Redis
+            $session = \App\Models\Session::find($sessionId);
+            if ($session) {
+                $redisService = new \App\Services\RedisSlotsService($session);
+                $redisService->regenerateCache();
+            }
+        }
     }
 
     /**
@@ -75,13 +137,20 @@ class CartConfirm implements ShouldQueue
             app()->setLocale($cart->client->locale);
         }
 
-        $mailer = (new \App\Services\MailerBrandService($cart->brand->code_name))->getMailer();
+        $mailer = app(\App\Services\MailerService::class)->getMailerForBrand($cart->brand);
         $mailer_class = brand_setting('mail.confirmation_class');
-        $mailer->to(trim($cart->client->email))->send(new $mailer_class($cart));
+
+        // client has email
+        if (isset($cart->client->email)) {
+            $mailer->to(trim($cart->client->email))->send(new $mailer_class($cart));
+        }
 
         // send gift card to friends
         foreach ($cart->gift_cards()->hasEmail()->get() as $gift) {
-            $mailer->to(trim($gift->email))->send(new GiftCardMail($gift));
+            $giftEmail = trim($gift->email);
+            if ($giftEmail) {
+                $mailer->to($giftEmail)->send(new GiftCardMail($gift));
+            }
         }
     }
 
@@ -104,6 +173,7 @@ class CartConfirm implements ShouldQueue
         }
     }
 
+
     /**
      * Stores, if not exists, the inscription PDF for the given Inscription
      * 
@@ -117,50 +187,67 @@ class CartConfirm implements ShouldQueue
             app()->setLocale($inscription->cart->client->locale);
         }
 
-        //Comentamos para la regeneracion
-        /* if ($inscription->pdf)
-        {
-            $inscription->pdf;
-        } */
-
-
-        // This nasty thing it's because one client has a borken barcode reader
-        // whose doesn't recognise them well or they dont know how to configure it.
-        // Numbers cant be used on the random string.
-        // Ask managers to explain why this is here and dont change it!
-        // $inscription->barcode = str_random(13);
         if (!$inscription->barcode) {
             $inscription->barcode = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 13);
         }
-
         $inscription->save();
 
-        $destination_path = brand_setting('base.inscription.pdf_folder');
-        $pdfParams = $this->params['pdf'] ?? [];
+        \DB::commit();
 
+        $inscription = Inscription::with(['cart'])->find($inscription->id);
+        if (!$inscription) {
+            \Log::error("Inscription not found after save", ['id' => $inscription->id]);
+            throw new \Exception("Inscription {$inscription->id} not found after save");
+        }
+
+        // Crear directorio si no existe
+        $destination_path = 'pdf/inscriptions';
+        $fullDirectoryPath = storage_path('app/' . $destination_path);
+        if (!is_dir($fullDirectoryPath)) {
+            mkdir($fullDirectoryPath, 0775, true);
+            chmod($fullDirectoryPath, 0775);
+        }
+
+        $pdfParams = $this->params['pdf'] ?? [];
         if (!is_array($pdfParams)) {
             $pdfParams = [];
         }
 
-        $pdf_url = env('TK_PDF_RENDERER', 'https://pdf.yesweticket.com') .
-            "/render?url=" . url(route('open.inscription.pdf', array_merge(
-                [
-                    'inscription' => $inscription,
-                    'token' => $inscription->cart->token
-                ],
-                $pdfParams
-            )));
+        sleep(1);
+
+        // 🔥 NUEVO: Generar URL interna
+        $url = url(route('open.inscription.pdf', array_merge(
+            [
+                'inscription' => $inscription->id,
+                'token' => $inscription->cart->token,
+                'brand_code' => $inscription->cart->brand->code_name
+            ],
+            $pdfParams
+        )));
 
         try {
-            if (\Storage::disk()->put("$destination_path/$inscription->pdf_name", fopen($pdf_url, 'r'))) {
-                # we need the magic string "/app" due to this bug: https://github.com/laravel/framework/issues/13610
-                $inscription->pdf = "app/$destination_path/$inscription->pdf_name";
+            // 🔥 NUEVO: Usar servicio local en lugar de externo
+            $pdfService = app(\App\Services\PdfGeneratorService::class);
+            $pdf_content = $pdfService->generateFromUrl($url, $pdfParams);
+
+            if (empty($pdf_content)) {
+                throw new \Exception("PDF content is empty");
+            }
+
+            if (\Storage::disk()->put("$destination_path/$inscription->pdf_name", $pdf_content)) {
+                $inscription->pdf = "$destination_path/$inscription->pdf_name";
                 $inscription->save();
             }
         } catch (\Exception $e) {
-            \Log::error("TICKET of Inscription ID $inscription->id failed", ["exception" => $e]);
-            if (app()->environment() === 'production')
+            \Log::error("Failed to generate inscription PDF", [
+                'inscription_id' => $inscription->id,
+                'error' => $e->getMessage(),
+                'url' => $url
+            ]);
+
+            if (app()->environment() === 'production') {
                 throw $e;
+            }
         }
 
         return $inscription->pdf;
@@ -175,19 +262,14 @@ class CartConfirm implements ShouldQueue
 
     private function storePackPdf(GroupPack $pack)
     {
-        //Comentamos para la regeneracion
-        /* if ($pack->pdf)
-        {
-            return;
-        } */
-
         foreach ($pack->inscriptions as $inscription) {
             $pdfs[] = $this->storeInscriptionPdf($inscription);
         }
 
         $tmp_file = $this->mergePdfs($pdfs);
 
-        $destination_path = config()->get('base.packs.pdf_folder');
+        $destination_path = 'pdf/packs';
+
         if (\Storage::disk()->put("$destination_path/$pack->pdf_name", fopen($tmp_file, 'r'))) {
             # we need the magic string "/app" due to this bug: https://github.com/laravel/framework/issues/13610
             $pack->pdf = "app/public/$destination_path/$pack->pdf_name";
@@ -205,32 +287,66 @@ class CartConfirm implements ShouldQueue
 
     private function storeGiftCardPdf(GiftCard $gift)
     {
-        // generate gift card codes
         if (!$gift->code) {
             $gift->generateCode();
         }
 
-        // create pdfs
-        $destination_path = brand_setting('base.gift_card.pdf_folder');
-        $pdf_url = env('TK_PDF_RENDERER', 'https://pdf.yesweticket.com') .
-            "/render?url=" . url(route('open.gitf_card.pdf', array_merge(
-                [
-                    'gift' => $gift,
-                    'token' => $gift->cart->token
-                ],
-                (['ph' => 140, 'pw' => 240, 'mb' => 0, 'mt' => 5, 'ml' => 5, 'mr' => 5])
-            )));
+        // Crear directorio si no existe
+        $destination_path = 'pdf/gift_cards';
+        $fullDirectoryPath = storage_path('app/' . $destination_path);
+        if (!is_dir($fullDirectoryPath)) {
+            mkdir($fullDirectoryPath, 0775, true);
+            chmod($fullDirectoryPath, 0775);
+        }
+
+        $filePath = "$destination_path/{$gift->pdf_name}";
+
+        // 🔥 NUEVO: Generar URL interna
+        $url = url(route('open.gift_card.pdf', [
+            'gift' => $gift->id,
+            'token' => $gift->cart->token,
+            'brand_code' => $gift->cart->brand->code_name,
+        ]));
+
+        // Opciones específicas para gift cards
+        $options = [
+            'ph' => 140,
+            'pw' => 240,
+            'mb' => 0,
+            'mt' => 5,
+            'ml' => 5,
+            'mr' => 5,
+        ];
 
         try {
-            if (\Storage::disk()->put("$destination_path/$gift->pdf_name", fopen($pdf_url, 'r'))) {
-                # we need the magic string "/app" due to this bug: https://github.com/laravel/framework/issues/13610
-                $gift->pdf = "app/public/$destination_path/$gift->pdf_name";
-                $gift->save();
+            if (!\Storage::disk()->exists($filePath)) {
+                if (!\Storage::disk()->exists($destination_path)) {
+                    \Storage::disk()->makeDirectory($destination_path);
+                }
+
+                // 🔥 NUEVO: Usar servicio local en lugar de externo
+                $pdfService = app(\App\Services\PdfGeneratorService::class);
+                $pdf_content = $pdfService->generateFromUrl($url, $options);
+
+                if (empty($pdf_content)) {
+                    throw new \Exception("PDF content is empty");
+                }
+
+                if (\Storage::disk()->put($filePath, $pdf_content)) {
+                    $gift->pdf = $filePath;
+                    $gift->save();
+                }
             }
         } catch (\Exception $e) {
-            \Log::error("Gift card ID $gift->id failed", ["exception" => $e]);
-            if (app()->environment() === 'production')
+            \Log::error("Gift card PDF generation failed", [
+                'gift_id' => $gift->id,
+                'error' => $e->getMessage(),
+                'url' => $url
+            ]);
+
+            if (app()->environment('production')) {
                 throw $e;
+            }
         }
 
         return $gift->pdf;
@@ -263,5 +379,20 @@ class CartConfirm implements ShouldQueue
         $pdf->Output($tmpFile, 'F');
 
         return $tmpFile;
+    }
+
+    /**
+     * Manejar fallos del job
+     */
+    public function failed(\Throwable $exception): void
+    {
+        \Log::error('CartConfirm failed', [
+            'cart_id' => $this->cart->id,
+            'error' => $exception->getMessage(),
+            'trace' => $exception->getTraceAsString()
+        ]);
+
+        // Notificar al admin o al cliente si es necesario
+        // Notification::send($admins, new JobFailedNotification($this->cart));
     }
 }

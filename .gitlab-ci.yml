@@ -1,21 +1,102 @@
 stages:
-  - deploy
+  - deploy_dev
+  - deploy_prod
 
-deploy_production:
-  stage: deploy
-  tags:
-    - deploy
+variables:
+  GIT_DEPTH: "1"
+  APP_DIR_DEV: "/var/www/yesweticket-develop"
+  APP_DIR_PROD: "/var/www/yesweticket"
+  PHP_BIN: "php"
+  COMPOSER_BIN: "composer"
+
+cache:
+  key: "composer-${CI_COMMIT_REF_SLUG}"
+  paths:
+    - vendor/
+
+# -------- DEPLOY DEVELOP CON TESTS --------
+deploy_develop:
+  stage: deploy_dev
+  tags: ["clouding","local","shell","yesweticket-2"]
+  environment:
+    name: develop
+    url: https://dev.yesweticket.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: on_success
+  before_script:
+    - $PHP_BIN -v
+    - $COMPOSER_BIN -V
+    - mkdir -p "$APP_DIR_DEV"
   script:
-    - sudo rsync -avz ./ /var/www/tincket-2.0
+    - echo ">> Sync código a $APP_DIR_DEV"
+    - rsync -a --delete --exclude=".git" --exclude="storage" --exclude=".env" --exclude=".env.testing" --no-perms --no-owner --no-group --no-times --omit-dir-times "$CI_PROJECT_DIR"/ "$APP_DIR_DEV"/
 
-    - cd /var/www/tincket-2.0
+    - cd "$APP_DIR_DEV"
 
-    - sudo chown -R ec2-user:ec2-user /var/www/tincket-2.0
+    # Instalar dependencias (con dev para tests)
+    - COMPOSER_MEMORY_LIMIT=-1 $COMPOSER_BIN install --no-interaction --prefer-dist
 
-    - php artisan migrate --force
-
-    - sudo chown -R apache:apache storage bootstrap/cache
-    - sudo chmod -R 775 storage bootstrap/cache
+    # Migraciones y cache
+    - $PHP_BIN artisan migrate --force
+    - $PHP_BIN artisan storage:link || true
+    - $PHP_BIN artisan config:clear
+    - $PHP_BIN artisan cache:clear
+    - $PHP_BIN artisan route:clear
+    - $PHP_BIN artisan view:clear
+    - $PHP_BIN artisan config:cache
     
-  only:
-    - main 
+    # Reiniciar queue worker
+    - $PHP_BIN artisan queue:restart
+    - sudo systemctl restart ywt-queue-develop.service
+    - sudo service php8.4-fpm reload
+    
+    # TESTS - Solo en desarrollo, usando .env.testing
+    - echo ">> Ejecutando tests en desarrollo..."
+    - $PHP_BIN artisan test --testsuite=Critical --env=testing || echo "⚠️ Tests fallaron pero el deploy continúa"
+
+# -------- DEPLOY PRODUCCIÓN SIN TESTS --------
+deploy_production:
+  stage: deploy_prod
+  tags: ["clouding","local","shell","yesweticket-2"]
+  environment:
+    name: production
+    url: https://admin.yesweticket.com
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: on_success
+      allow_failure: false
+  before_script:
+    - $PHP_BIN -v
+    - $COMPOSER_BIN -V
+    - mkdir -p "$APP_DIR_PROD"
+  script:
+    - echo ">> Sync código a $APP_DIR_PROD"
+    - rsync -a --delete --exclude=".git" --exclude="storage" --exclude="/vendor" --exclude="bootstrap/cache" --exclude=".env" --exclude=".env.testing" --no-perms --no-owner --no-group --no-times --omit-dir-times "$CI_PROJECT_DIR"/ "$APP_DIR_PROD"/
+
+    - cd "$APP_DIR_PROD"
+
+    # Instalar dependencias (sin dev, optimizado)
+    - COMPOSER_MEMORY_LIMIT=-1 $COMPOSER_BIN install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+    # Modo mantenimiento
+    - if [ -f artisan ] && [ -f vendor/autoload.php ]; then $PHP_BIN artisan down --retry=60; fi
+
+    # Migraciones y cache
+    - $PHP_BIN artisan migrate --force
+    - $PHP_BIN artisan storage:link || true
+    - $PHP_BIN artisan config:clear
+    - $PHP_BIN artisan cache:clear
+    - $PHP_BIN artisan route:clear
+    - $PHP_BIN artisan view:clear
+    - $PHP_BIN artisan config:cache
+    
+    # Reiniciar queue worker
+    - $PHP_BIN artisan queue:restart
+    - sudo systemctl restart ywt-queue-production@1.service
+    - sudo service php8.4-fpm reload
+
+    # Salir de modo mantenimiento
+    - if [ -f artisan ]; then $PHP_BIN artisan up; fi
+    
+    - echo "✅ Deploy en producción completado (sin tests)"

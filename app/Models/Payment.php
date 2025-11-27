@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use App\Traits\LogsActivity;
 
 class Payment extends BaseModel
 {
     use \Illuminate\Database\Eloquent\SoftDeletes;
+    use LogsActivity;
 
     protected $fillable = [
         'cart_id',
@@ -16,7 +18,6 @@ class Payment extends BaseModel
         'order_code',
         'gateway',
         'gateway_response',
-        'amount',
         'paid_at'
     ];
 
@@ -40,8 +41,16 @@ class Payment extends BaseModel
     {
         $payment = new static;
         $payment->cart_id = $cart->id;
-        $orderCode = now()->format('ym') . str_pad($cart->id, 6, '0', STR_PAD_LEFT);
-        $payment->order_code = $orderCode;
+
+        // Rellenar ID a 7 caracteres con ceros a la izquierda
+        $paddedId = str_pad($cart->id, 7, '0', STR_PAD_LEFT);
+
+        // Generar 2 números aleatorios
+        $randomNumbers = rand(10, 99);
+
+        // Formato: 7 chars ID + -TK + 2 números = 12 caracteres
+        $payment->order_code = $paddedId . '-TK' . $randomNumbers;
+
         $payment->save();
 
         return $payment;

@@ -8,6 +8,7 @@ use App\Traits\PageTemplatesTrait;
 use App\Traits\CrudPermissionTrait;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\PageManager\app\Http\Requests\PageRequest;
+use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
 class PageCrudController extends CrudController
 {
@@ -26,7 +27,7 @@ class PageCrudController extends CrudController
     {
         $this->crud->setModel(config('backpack.pagemanager.page_model_class', 'Backpack\PageManager\app\Models\Page'));
         $this->crud->setRoute(config('backpack.base.route_prefix') . '/page');
-        $this->crud->setEntityNameStrings(__('backend.menu.page'), __('backend.menu.pages'));
+        $this->crud->setEntityNameStrings(__('menu.page'), __('menu.pages'));
         $this->setAccessUsingPermissions();
     }
 
@@ -47,6 +48,7 @@ class PageCrudController extends CrudController
             'label' => trans('backpack::pagemanager.slug'),
         ]);
         $this->crud->addButtonFromModelFunction('line', 'open', 'getOpenButton', 'beginning');
+        CRUD::addButtonFromView('top', 'page_help', 'page_help', 'end');
     }
 
     // -----------------------------------------------

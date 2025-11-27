@@ -30,7 +30,7 @@ class FormCrudController extends CrudController
     {
         CRUD::setModel(Form::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/form');
-        CRUD::setEntityNameStrings(__('backend.menu.form'), __('backend.menu.forms'));
+        CRUD::setEntityNameStrings(__('menu.form'), __('menu.forms'));
 
         $this->setAccessUsingPermissions();
     }
@@ -142,12 +142,12 @@ class FormCrudController extends CrudController
             'name' => 'name',
             'label' => __('backend.form.name'),
             'type' => 'text',
-            'hint' => '<a href="/form-field/create" class="btn btn-sm btn-primary mt-4">Nuevo campo</a>',
+            'hint' => '<a href="/form-field/create" class="btn btn-sm btn-primary mt-4 p-1"> Crear ' . __('menu.form_field') . '</a>',
         ]);
 
         CRUD::addField([
             'name' => 'form_fields',
-            'label' => __('backend.form.form_fields'),
+            'label' => __('menu.form_fields'),
             'type' => 'select_and_order',
             'entity' => 'form_fields',
             'attribute' => 'label',

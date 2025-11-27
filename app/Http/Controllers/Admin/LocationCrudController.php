@@ -33,7 +33,7 @@ class LocationCrudController extends CrudController
     {
         CRUD::setModel(Location::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/location');
-        CRUD::setEntityNameStrings(__('backend.menu.location'), __('backend.menu.locations'));
+        CRUD::setEntityNameStrings(__('menu.location'), __('menu.locations'));
 
         //$this->crud->addButton('line', 'add_space', 'view', 'crud::buttons.add_space', 'beginning');
         $this->setAccessUsingPermissions();

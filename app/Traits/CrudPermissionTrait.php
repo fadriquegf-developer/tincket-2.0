@@ -8,9 +8,6 @@ trait CrudPermissionTrait
 {
     /**
      * Mapeo de sufijos de permisos a operaciones CRUD.
-     *
-     * Por ejemplo, el permiso "users.index" permite la operación "list",
-     * "users.show" permite la operación "show", "users.create" la operación "create", etc.
      */
     protected array $permissionOperationMapping = [
         'index'  => ['list'],
@@ -22,37 +19,48 @@ trait CrudPermissionTrait
 
     /**
      * Configura el acceso a las operaciones CRUD basado en los permisos del usuario.
-     *
      */
     public function setAccessUsingPermissions()
     {
-        // Obtén el modelo y la tabla que se está utilizando en el CRUD.
-        $model = CRUD::getModel();
-        $table = is_string($model) ? (new $model)->getTable() : $model->getTable();
+        // Denegar TODAS las operaciones por defecto
+        $this->crud->denyAccess(['list', 'show', 'create', 'update', 'delete']);
 
-        // Obtén el usuario autenticado.
-        $user = request()->user();
+        // Obtener el usuario autenticado
+        $user = request()->user() ?? backpack_user();
 
         if (!$user) {
-            //\Log::debug('[Permission] No user authenticated');
+            // CRÍTICO: Si no hay usuario, mantener todo denegado y salir
+            \Log::warning('[Permission] Access denied - No user authenticated for ' . request()->url());
             return;
         }
 
-        // Deniega inicialmente todas las operaciones para partir de una base segura.
-        $this->crud->denyAccess('list', 'show', 'create', 'update', 'delete');
+        // Determinar qué nombre usar para los permisos
+        // Comprovar si la classe que usa el trait té la propietat $customPermissionName
+        if (property_exists($this, 'customPermissionName') && $this->customPermissionName) {
+            $table = $this->customPermissionName;
+        } else {
+            // Usar el nombre de la tabla del modelo por defecto
+            $model = CRUD::getModel();
+            $table = is_string($model) ? (new $model)->getTable() : $model->getTable();
+        }
 
-        // Itera sobre cada mapeo de permiso.
+        // Para usuarios engine (superadmin), dar todos los permisos
+        if (get_brand_capability() === 'engine' && in_array($user->id, config('superusers.ids', [1]))) {
+            $this->crud->allowAccess(['list', 'show', 'create', 'update', 'delete']);
+            return;
+        }
+
+        // Iterar sobre cada mapeo de permiso
         foreach ($this->permissionOperationMapping as $suffix => $operations) {
-            // Construye el permiso; por ejemplo: "users.index", "users.show", etc.
             $permission = "$table.$suffix";
 
-            // Verifica si el usuario tiene el permiso usando el método hasPermissionTo().
-            if ($user->hasPermissionTo($permission)) {
-                //\Log::debug("[Permission] Granting access to: $permission");
-                $this->crud->allowAccess($operations);
-            } else {
-                //\Log::debug("[Permission] Denying access to: $permission");
-                $this->crud->denyAccess($operations);
+            try {
+                if ($user->hasPermissionTo($permission)) {
+                    $this->crud->allowAccess($operations);
+                }
+            } catch (\Exception $e) {
+                \Log::error("[Permission] Error checking permission $permission: " . $e->getMessage());
+                // En caso de error, mantener el acceso denegado
             }
         }
     }

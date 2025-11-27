@@ -136,10 +136,10 @@
                 </div>
                 <div class="row border-bottom-dashed border-bottom pb-2">
                     <div class="col-xs-2">
-                        Día: <strong>{{ $inscription->session->starts_on->formatLocalized('%d/%m/%Y') }}</strong>
+                        Día: <strong>{{ $inscription->session->starts_on->translatedFormat('d/m/Y') }}</strong>
                     </div>
                     <div class="col-xs-2">
-                        Hora: <strong>{{ $inscription->session->starts_on->formatLocalized('%H:%M') }}</strong>
+                        Hora: <strong>{{ $inscription->session->starts_on->translatedFormat('H:i') }}</strong>
                     </div>
                     <div class="col-xs-4">
                         Preu: <strong>{{ sprintf('%s - %s €', $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}</strong>

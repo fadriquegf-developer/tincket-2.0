@@ -20,11 +20,14 @@ use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 class SpaceCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation {
+        store as traitStore;
     }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation {
+        update as traitUpdate;
     }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation {
+        destroy as traitDestroy;
     }
     use CrudPermissionTrait;
     use FetchOperation;
@@ -33,7 +36,7 @@ class SpaceCrudController extends CrudController
     {
         CRUD::setModel(Space::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/space');
-        CRUD::setEntityNameStrings(__('backend.menu.space'), __('backend.menu.spaces'));
+        CRUD::setEntityNameStrings(__('menu.space'), __('menu.spaces'));
         $this->setAccessUsingPermissions();
     }
 
@@ -41,13 +44,13 @@ class SpaceCrudController extends CrudController
     {
         CRUD::addColumn([
             'name' => 'name',
-            'label' => __('backend.space.spacename'),
+            'label' => __('backend.spaces.spacename'),
             'searchLogic' => function ($query, $column, $searchTerm) {
                 $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
             },
         ]);
         CRUD::addColumn([
-            'label' => __('backend.space.location'),
+            'label' => __('backend.spaces.location'),
             'type' => 'select',
             'name' => 'location_id',
             'entity' => 'location',
@@ -55,12 +58,34 @@ class SpaceCrudController extends CrudController
             'model' => Location::class,
         ]);
         CRUD::addColumn([
-            'label' => __('backend.space.created-by'),
+            'label' => __('backend.spaces.created-by'),
             'type' => 'select',
             'name' => 'user_id',
             'entity' => 'user',
             'attribute' => 'email',
             'model' => User::class,
+        ]);
+
+        CRUD::addColumn([
+            'name'  => 'zones_info',
+            'label' => __('backend.spaces.zones_info.label'),
+            'type'  => 'custom_html',
+            'value' => function ($entry) {
+                $zonesCount = $entry->zones()->count();
+                $slotsCount = $entry->slots()->count();
+
+                if ($zonesCount == 0) {
+                    return '<span class="badge badge-warning">' . __('backend.spaces.zones_info.none') . '</span>';
+                }
+
+                $html  = "<small>";
+                $html .= "<strong>{$zonesCount}</strong> " . __('backend.spaces.zones_info.zones') . " • ";
+                $html .= "<strong>{$slotsCount}</strong> " . __('backend.spaces.zones_info.slots');
+                $html .= "</small>";
+
+                return $html;
+            },
+            'searchLogic' => false,
         ]);
     }
 
@@ -76,6 +101,7 @@ class SpaceCrudController extends CrudController
         $this->addBasicFields($isCreate = false);
 
         $space = $this->crud->getCurrentEntry();
+
         if ($space->svg_path && \Storage::disk('public')->exists($space->svg_path)) {
             $this->setLayoutTab($space);
         }
@@ -103,7 +129,7 @@ class SpaceCrudController extends CrudController
         CRUD::addField([
             'name' => 'name',
             'type' => 'text',
-            'label' => __('backend.space.spacename'),
+            'label' => __('backend.spaces.spacename'),
             'wrapperAttributes' => ['class' => 'form-group col-md-6'],
             'tab' => 'Basic',
         ]);
@@ -111,7 +137,7 @@ class SpaceCrudController extends CrudController
         CRUD::addField([
             'name' => 'capacity',
             'type' => 'number',
-            'label' => __('backend.space.spacecapacity'),
+            'label' => __('backend.spaces.spacecapacity'),
             'wrapperAttributes' => ['class' => 'form-group col-md-6'],
             'tab' => 'Basic',
         ]);
@@ -120,10 +146,10 @@ class SpaceCrudController extends CrudController
             CRUD::addField([
                 'name' => 'svg_path',
                 'type' => 'upload',
-                'label' => __('backend.space.svglayout'),
+                'label' => __('backend.spaces.svglayout'),
                 'withFiles' => [
                     'disk' => 'public',
-                    'path' => 'uploads/' . get_current_brand()->code_name . '/spaces',
+                    'path' => 'uploads/' . get_current_brand()->code_name . '/_spaces',
                     'deleteWhenEntryIsDeleted' => true,
                 ],
                 'tab' => 'Basic',
@@ -132,16 +158,16 @@ class SpaceCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'description',
-            'label' => __('backend.space.space_description'),
+            'label' => __('backend.spaces.space_description'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'tab' => 'Basic',
         ]);
 
         CRUD::addField([
             'name' => 'location',
             'type' => 'relationship',
-            'label' => __('backend.space.location'),
+            'label' => __('backend.spaces.location'),
             'ajax' => true,
             'inline_create' => [
                 'entity' => 'location',
@@ -156,14 +182,14 @@ class SpaceCrudController extends CrudController
         CRUD::addField([
             'name' => 'hide',
             'type' => 'switch',
-            'label' => __('backend.space.hide'),
+            'label' => __('backend.spaces.hide'),
             'tab' => 'Basic',
         ]);
 
         CRUD::addField([
             'name' => 'zoom',
             'type' => 'switch',
-            'label' => __('backend.space.zoom'),
+            'label' => __('backend.spaces.zoom'),
             'tab' => 'Basic',
         ]);
     }
@@ -195,6 +221,47 @@ class SpaceCrudController extends CrudController
             'type' => 'svg_layout',
             'label' => '',
             'wrapperAttributes' => ['class' => 'text-center'],
+            'tab' => 'Layout',
+        ]);
+
+        CRUD::addField([
+            'name'  => 'layout_instructions',
+            'type'  => 'custom_html',
+            'value' => '
+                <div class="row">
+                    <div class="col-md-8 mt-3">
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0"><i class="la la-map"></i> ' . __("backend.spaces.layout_instructions.title") . '</h6>
+                            </div>
+                            <div class="card-body">
+                                <h6>' . __("backend.spaces.layout_instructions.how.title") . '</h6>
+                                <ol>
+                                    <li>' . __("backend.spaces.layout_instructions.how.step1") . '</li>
+                                    <li>' . __("backend.spaces.layout_instructions.how.step2") . '</li>
+                                    <li>' . __("backend.spaces.layout_instructions.how.step3") . '</li>
+                                    <li>' . __("backend.spaces.layout_instructions.how.step4") . '</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mt-3">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="la la-question-circle"></i> ' . __("backend.spaces.layout_instructions.help.title") . '</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small mb-2">' . __("backend.spaces.layout_instructions.help.intro") . '</p>
+                                <ol class="small">
+                                    <li>' . __("backend.spaces.layout_instructions.help.step1", ["url" => backpack_url("zone")]) . '</li>
+                                    <li>' . __("backend.spaces.layout_instructions.help.step2") . '</li>
+                                    <li>' . __("backend.spaces.layout_instructions.help.step3") . '</li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ',
             'tab' => 'Layout',
         ]);
     }
@@ -244,7 +311,6 @@ class SpaceCrudController extends CrudController
 
             $doc->save($svg_path);
             $space->svg_path = $doc->documentURI;
-
         }
     }
 
@@ -299,5 +365,28 @@ class SpaceCrudController extends CrudController
     public function fetchLocation()
     {
         return $this->fetch(Location::class);
+    }
+
+    /**
+     * Obtiene la capacidad de un espacio para autocompletar en sesiones
+     * 
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getCapacity($id)
+    {
+        try {
+            $space = \App\Models\Space::findOrFail($id);
+
+            return response()->json([
+                'capacity' => $space->capacity,
+                'name' => $space->name,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Espacio no encontrado',
+                'capacity' => null
+            ], 404);
+        }
     }
 }

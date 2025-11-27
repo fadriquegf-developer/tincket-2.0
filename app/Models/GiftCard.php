@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Brand;
+use App\Observers\GiftCardObserver;
 use App\Scopes\BrandScope;
 use App\Traits\LogsActivity;
 use App\Traits\HasTranslations;
@@ -34,6 +35,8 @@ class GiftCard extends BaseModel
         if (get_brand_capability() !== 'engine') {
             static::addGlobalScope(new BrandScope());
         }
+
+        GiftCard::observe(GiftCardObserver::class);
     }
 
     public function brand()
@@ -64,12 +67,11 @@ class GiftCard extends BaseModel
 
     public function getPdfNameAttribute($value)
     {
-        if (!$value) {
-            // filename has pattern: "BRANDID"-"CONFIRM ORDER CODE"-"id gift".pdf
-            $value = sprintf("%s-%s-%s.pdf", $this->cart->brand->id, $this->cart->confirmation_code, $this->id);
+        if ($value) {
+            return basename($value); // siempre solo el nombre del fichero
         }
 
-        return $value;
+        return sprintf("%s-%s-%s.pdf", $this->cart->brand->id, $this->cart->confirmation_code, $this->id);
     }
 
     public function scopeHasEmail($query)

@@ -2,12 +2,11 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use App\Models\Setting;
 
-class BrandSettingsRepository 
+class BrandSettingsRepository
 {
     public function get($key, $brand = null, $default = null)
     {
@@ -25,13 +24,8 @@ class BrandSettingsRepository
             return config($key, $default);
         }
 
-        // 2. Cache key única por brand
-        $cacheKey = "brand_settings_array_{$brand->id}";
-
-        // 3. Obtén el array completo de settings fusionado y cacheado
-        $settings = Cache::remember($cacheKey, 300, function () use ($brand) {
-            return $this->buildSettingsArray($brand);
-        });
+        // ✅ SIN CACHE - Siempre lee fresco
+        $settings = $this->buildSettingsArray($brand);
 
         // 4. Accede a la key solicitada en formato "dot notation"
         return Arr::get($settings, $key, $default);
@@ -44,10 +38,19 @@ class BrandSettingsRepository
     {
         $result = [];
 
+        // Configs que NO deben cachearse porque contienen closures u objetos no serializables
+        $excludedConfigs = ['elfinder', 'cache', 'queue', 'broadcasting', 'logging'];
+
         // A. Config global (recorre todos los archivos de /config/)
         $configPath = config_path();
         foreach (File::files($configPath) as $file) {
             $name = basename($file, '.php');
+
+            // Excluir configs problemáticos
+            if (in_array($name, $excludedConfigs)) {
+                continue;
+            }
+
             $result[$name] = config($name);
         }
 
@@ -56,6 +59,12 @@ class BrandSettingsRepository
         if (File::isDirectory($brandConfigPath)) {
             foreach (File::files($brandConfigPath) as $file) {
                 $name = basename($file, '.php');
+
+                // Excluir configs problemáticos
+                if (in_array($name, $excludedConfigs)) {
+                    continue;
+                }
+
                 $brandArray = include $file;
                 if (isset($result[$name])) {
                     $result[$name] = array_replace_recursive($result[$name], $brandArray);
@@ -68,7 +77,6 @@ class BrandSettingsRepository
         // C. Settings desde la BD (tabla settings)
         $dbSettings = Setting::where('brand_id', $brand->id)->get();
         foreach ($dbSettings as $setting) {
-            // Las keys deben estar en notación dot, ej: "clients.email_from"
             Arr::set($result, $setting->key, $setting->value);
         }
 
@@ -76,11 +84,10 @@ class BrandSettingsRepository
     }
 
     /**
-     * Limpia la caché de un brand (llamar tras actualizar settings en panel)
+     * Limpia la caché de un brand (ya no hace nada, pero se mantiene por compatibilidad)
      */
     public function clearCache($brand)
     {
-        $cacheKey = "brand_settings_array_{$brand->id}";
-        Cache::forget($cacheKey);
+        // No-op: ya no hay cache para limpiar
     }
 }

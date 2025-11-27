@@ -16,9 +16,10 @@ return [
     'translatable_field_icon_position' => 'right', // left or right
 
     'locales' => [
-        "ca" => "Catalan",
-        "gl" => "Gallego",
+        "ca" => "Català",
+        "gl" => "Galego",
         "es" => "Español",
+        "en" => "English",
     ],
 
     'view_namespaces' => [

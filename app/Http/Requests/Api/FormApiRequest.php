@@ -35,7 +35,7 @@ class FormApiRequest extends FormRequest
         // Upcoming on next releases:
         // here $id will be the form_id to load.
 
-        $fields = FormField::where('brand_id', $id)->whereNull('is_editable')->get();
+        $fields = FormField::where('brand_id', $id)->get();
 
         $rules = $fields->map(function($field){
             if(isset($field->config->rules)){

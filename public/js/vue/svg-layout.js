@@ -50,6 +50,11 @@
                 statusColor: STATUS_COLORS,
                 zoneColorMap: {}, // mapa zone_id → color
                 changed: {}, // id → payload para backend
+                /* popover */
+                popoverEl: null,
+                currentPopoverNode: null,
+                popoverTimeout: null,
+                hasSingleZone: false,
             };
         },
 
@@ -84,16 +89,20 @@
             /* drag-select */
             startDrag(e) {
                 // Ignorar si no es click izquierdo o si el target es una butaca
-                if (e.button !== 0 || e.target.classList.contains('slot')) return;
-                
+                if (e.button !== 0 || e.target.classList.contains("slot"))
+                    return;
+
                 // Prevenir el comportamiento por defecto
                 e.preventDefault();
-                
+
+                // Ocultar popover al iniciar drag
+                this.hidePopover();
+
                 this.isDragging = true;
                 const r = this.$refs.canvas.getBoundingClientRect();
                 this.dragStartX = e.clientX - r.left;
                 this.dragStartY = e.clientY - r.top;
-                
+
                 // Crear el rectángulo de selección
                 this.dragRectEl = document.createElement("div");
                 this.dragRectEl.className = "drag-select-rect";
@@ -101,20 +110,20 @@
                     left: this.dragStartX + "px",
                     top: this.dragStartY + "px",
                     width: "0px",
-                    height: "0px"
+                    height: "0px",
                 });
                 this.$refs.canvas.appendChild(this.dragRectEl);
-                
+
                 // Añadir listeners globales
                 window.addEventListener("mousemove", this.onDrag);
                 window.addEventListener("mouseup", this.stopDrag);
                 // Añadir listener para cuando el mouse sale de la ventana
                 document.addEventListener("mouseleave", this.cancelDrag);
             },
-            
+
             onDrag(e) {
                 if (!this.isDragging || !this.dragRectEl) return;
-                
+
                 const r = this.$refs.canvas.getBoundingClientRect();
                 const curX = e.clientX - r.left;
                 const curY = e.clientY - r.top;
@@ -122,7 +131,7 @@
                 const y = Math.min(curY, this.dragStartY);
                 const w = Math.abs(curX - this.dragStartX);
                 const h = Math.abs(curY - this.dragStartY);
-                
+
                 Object.assign(this.dragRectEl.style, {
                     left: x + "px",
                     top: y + "px",
@@ -130,19 +139,19 @@
                     height: h + "px",
                 });
             },
-            
+
             stopDrag(e) {
                 if (!this.isDragging) return;
-                
+
                 // Si hay un rectángulo y tiene tamaño significativo, procesar la selección
                 if (this.dragRectEl) {
                     const rect = this.dragRectEl.getBoundingClientRect();
                     const hasSize = rect.width > 5 && rect.height > 5; // Solo si el rectángulo tiene un tamaño mínimo
-                    
+
                     if (hasSize) {
                         const add = e.ctrlKey || e.metaKey;
                         if (!add) this.clearSelection();
-                        
+
                         this.nodesArray.forEach((node) => {
                             const b = node.getBoundingClientRect();
                             const centerX = b.left + b.width / 2;
@@ -155,35 +164,149 @@
                                 centerY <= rect.bottom;
                             if (inside) this.toggleNode(node, true);
                         });
-                        
+
                         this.writeHidden();
                     }
                 }
-                
+
                 // Limpiar siempre
                 this.cleanupDrag();
             },
-            
+
             cancelDrag() {
                 // Cancelar el drag si el mouse sale del documento
                 if (this.isDragging) {
                     this.cleanupDrag();
                 }
             },
-            
+
             cleanupDrag() {
                 this.isDragging = false;
-                
+
                 // Remover listeners
                 window.removeEventListener("mousemove", this.onDrag);
                 window.removeEventListener("mouseup", this.stopDrag);
                 document.removeEventListener("mouseleave", this.cancelDrag);
-                
+
                 // Remover el rectángulo del DOM si existe
                 if (this.dragRectEl && this.dragRectEl.parentNode) {
                     this.dragRectEl.remove();
                 }
                 this.dragRectEl = null;
+            },
+
+            /* Métodos para el popover */
+            createPopover() {
+                if (!this.popoverEl) {
+                    this.popoverEl = document.createElement("div");
+                    this.popoverEl.className = "slot-popover";
+                    this.popoverEl.style.cssText = `
+                        position: fixed;
+                        background: rgba(0, 0, 0, 0.9);
+                        color: white;
+                        padding: 10px 15px;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        line-height: 1.5;
+                        pointer-events: none;
+                        z-index: 10000;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                        max-width: 250px;
+                        word-wrap: break-word;
+                        display: none;
+                    `;
+                    document.body.appendChild(this.popoverEl);
+                }
+            },
+
+            showPopover(node, e) {
+                if (this.isDragging) return;
+
+                const sid = +node.dataset.slotId;
+                const slot = this.slotById[sid];
+
+                if (!slot) return;
+
+                this.createPopover();
+
+                // Construir contenido del popover
+                let content = "";
+
+                // Obtener el color del estado
+                const stId = slot.status_id;
+                const statusColor =
+                    stId === null
+                        ? AVAILABLE_STROKE
+                        : this.statusColor[stId] || "#666";
+
+                if (slot.name) {
+                    content += `<div style="font-weight: 600; margin-bottom: 5px;">
+                        <span style="color: ${statusColor};">●</span> ${this.escapeHtml(
+                        slot.name
+                    )}
+                    </div>`;
+                }
+
+                if (slot.comment) {
+                    content += `<div style="color: #e0e0e0; font-size: 12px;">
+                        ${this.escapeHtml(slot.comment)}
+                    </div>`;
+                }
+
+                // Si no hay ni nombre ni comentario, no mostrar popover
+                if (!content) return;
+
+                this.popoverEl.innerHTML = content;
+                this.currentPopoverNode = node;
+
+                // Posicionar el popover
+                this.positionPopover(e);
+
+                // Mostrar con delay
+                clearTimeout(this.popoverTimeout);
+                this.popoverTimeout = setTimeout(() => {
+                    if (this.popoverEl && this.currentPopoverNode === node) {
+                        this.popoverEl.style.display = "block";
+                    }
+                }, 300);
+            },
+
+            positionPopover(e) {
+                if (!this.popoverEl) return;
+
+                const offset = 15;
+                let left = e.clientX + offset;
+                let top = e.clientY + offset;
+
+                // Obtener dimensiones del popover sin ocultarlo
+                const rect = this.popoverEl.getBoundingClientRect();
+
+                // Ajustar si se sale de la ventana por la derecha
+                if (left + rect.width > window.innerWidth) {
+                    left = e.clientX - rect.width - offset;
+                }
+
+                // Ajustar si se sale de la ventana por abajo
+                if (top + rect.height > window.innerHeight) {
+                    top = e.clientY - rect.height - offset;
+                }
+
+                this.popoverEl.style.left = left + "px";
+                this.popoverEl.style.top = top + "px";
+            },
+
+            hidePopover() {
+                clearTimeout(this.popoverTimeout);
+                if (this.popoverEl) {
+                    this.popoverEl.style.display = "none";
+                }
+                this.currentPopoverNode = null;
+            },
+
+            escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text;
+                return div.innerHTML;
             },
 
             /* abrir modal de edición */
@@ -229,6 +352,7 @@
                 const xCommon = this.valorComun(slotsSel, "x");
                 const yCommon = this.valorComun(slotsSel, "y");
                 const statusCommon = this.valorComun(slotsSel, "status_id");
+                const commentCommon = this.valorComun(slotsSel, "comment");
 
                 // 3) Rellenamos el formulario
                 $("#set-slot-id").val(
@@ -240,8 +364,10 @@
                     statusCommon !== null ? statusCommon : "null"
                 );
 
-                // ── Comentario (lo dejamos vacío siempre para no machacar sin querer)
-                $('#setSlotProperties input[name="comment"]').val("");
+                // ── Comentario (mostrar si es común, vacío si es múltiple/diferente)
+                $('#setSlotProperties input[name="comment"]').val(
+                    commentCommon !== null ? commentCommon : ""
+                );
 
                 // ── Nombre solo editable si es uno solo
                 $("#set-slot-name")
@@ -284,10 +410,22 @@
                     slot.y = isNaN(newY) ? null : newY;
                     slot.zone_id = newZone;
 
-                    node.style.stroke =
+                    const newStatusColor =
                         newStatus === null
                             ? AVAILABLE_STROKE
                             : this.statusColor[newStatus] ?? "#666";
+                    node.style.fill = newStatusColor;
+
+                    // Actualizar stroke según número de zonas
+                    if (this.hasSingleZone) {
+                        node.style.stroke = newStatusColor;
+                        node.style.strokeWidth = STROKE_WIDTH;
+                    } else {
+                        const zoneColor =
+                            this.zoneColorMap[slot.zone_id] || "#cccccc";
+                        node.style.stroke = zoneColor;
+                        node.style.strokeWidth = 2;
+                    }
 
                     this.changed[id] = {
                         id,
@@ -305,19 +443,25 @@
                 $("#setSlotProperties").modal("hide");
             },
         },
-        
+
         beforeUnmount() {
             // Limpiar si el componente se desmonta mientras arrastra
             this.cleanupDrag();
+            // Limpiar popover al destruir el componente
+            if (this.popoverEl) {
+                this.popoverEl.remove();
+                this.popoverEl = null;
+            }
+            clearTimeout(this.popoverTimeout);
         },
 
         mounted() {
             const canvas = this.$refs.canvas;
-            
+
             // Evento para iniciar el drag solo en el canvas, no en las butacas
             canvas.addEventListener("mousedown", (e) => {
                 // Solo iniciar drag si el click es directamente en el canvas o el SVG
-                if (e.target === canvas || e.target.tagName === 'svg') {
+                if (e.target === canvas || e.target.tagName === "svg") {
                     this.startDrag(e);
                 }
             });
@@ -326,6 +470,11 @@
             this.zoneColorMap = Object.fromEntries(
                 this.zones.map((z) => [z.id, z.color])
             );
+
+            const uniqueZones = new Set(
+                this.slots.map((s) => s.zone_id).filter((zid) => zid != null)
+            );
+            this.hasSingleZone = uniqueZones.size === 1;
 
             // Cargar y renderizar el SVG
             fetch(this.svgUrl)
@@ -357,22 +506,57 @@
                     this.nodesArray.forEach((node) => {
                         const sid = +node.dataset.slotId;
                         const slot = this.slotById[sid];
-                        const fillColor =
-                            this.zoneColorMap[slot.zone_id] || "#cccccc";
-                        node.style.fill = fillColor;
-
                         const stId = slot.status_id;
                         const free = stId == null;
-                        node.style.stroke = free
+                        const statusColor = free
                             ? AVAILABLE_STROKE
                             : this.statusColor[stId] ?? "#666";
-                        node.style.strokeWidth = STROKE_WIDTH;
+                        node.style.fill = statusColor;
+
+                        // STROKE: Depende del número de zonas
+                        if (this.hasSingleZone) {
+                            // Una zona: stroke del estado
+                            node.style.stroke = statusColor;
+                            node.style.strokeWidth = STROKE_WIDTH;
+                        } else {
+                            // Múltiples zonas: stroke = color de zona (más fino)
+                            const zoneColor =
+                                this.zoneColorMap[slot.zone_id] || "#cccccc";
+                            node.style.stroke = zoneColor;
+                            node.style.strokeWidth = 1;
+                        }
 
                         node.style.cursor = "pointer";
+
+                        // Event listeners para el popover
+                        node.addEventListener("mouseenter", (e) => {
+                            this.showPopover(node, e);
+                        });
+
+                        node.addEventListener("mousemove", (e) => {
+                            // Solo actualizar posición, no volver a mostrar
+                            if (
+                                this.currentPopoverNode === node &&
+                                this.popoverEl
+                            ) {
+                                this.positionPopover(e);
+                            }
+                        });
+
+                        node.addEventListener("mouseleave", () => {
+                            // Solo ocultar si realmente estamos saliendo de este nodo
+                            if (this.currentPopoverNode === node) {
+                                this.hidePopover();
+                            }
+                        });
+
                         node.addEventListener("click", (ev) => {
                             // Prevenir que el click en la butaca inicie el drag
                             ev.stopPropagation();
-                            
+
+                            // Ocultar popover al hacer click
+                            this.hidePopover();
+
                             if (ev.shiftKey && this.lastIndex !== null) {
                                 const [from, to] =
                                     this.lastIndex < idx
@@ -419,14 +603,11 @@
                         });
 
                         // sólo zoom con rueda y botones:
-                        svgEl.parentElement.addEventListener(
-                            "wheel",
-                            (e) => {
-                                if (!this.isDragging) {
-                                    this.panzoom.zoomWithWheel(e);
-                                }
+                        svgEl.parentElement.addEventListener("wheel", (e) => {
+                            if (!this.isDragging) {
+                                this.panzoom.zoomWithWheel(e);
                             }
-                        );
+                        });
                         document
                             .querySelector(".btn-zoom-in")
                             ?.addEventListener("click", () =>

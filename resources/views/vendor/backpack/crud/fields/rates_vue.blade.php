@@ -79,14 +79,17 @@
     }
 
     $translations = [
-        'zone' => __('backend.menu.zone'),
-        'rate' => __('backend.menu.rate'),
+        'zone' => __('backend.rate.zone'),
+        'rate' => __('backend.cart.rate'),
         'total' => __('backend.rate.totalavailablity'),
         'per_insc' => __('backend.rate.availabilityperinscription'),
         'price' => __('backend.ticket.price'),
         'web' => __('backend.rate.availableonweb'),
         'identif' => __('backend.rate.availableonidentification'),
+        'add_rate' => __('backend.multi_session.btn_add') . __('backend.cart.rate'),
         'actions' => '', // si quieres un título de columna vacío
+        'discount_code' => __('backend.rate.discount_code'),
+        'max_per_user' => __('backend.rate.max_per_user'),
     ];
 
     /* 4️⃣  Preparamos el JSON que pasará Vue */
@@ -146,7 +149,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         {{ __('backend.rate.close') }}
                     </button>
                     <button type="button" class="btn btn-primary" id="modal_save_codes">
@@ -161,5 +164,5 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     {{-- Nuestro widget Vue autónomo --}}
-    <script src="{{ asset('js/vue/rates-field.js') }}"></script>
+    <script src="{{ asset('js/vue/rates-field.js') }}?v={{ filemtime(public_path('js/vue/rates-field.js')) }}"></script>
 @endpush

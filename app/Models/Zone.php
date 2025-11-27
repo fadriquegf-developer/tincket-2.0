@@ -30,12 +30,21 @@ class Zone extends BaseModel
         return $this->hasMany(Slot::class, 'zone_id');
     }
 
-    public function rates()
+    /**
+     * Obtener tarifas de la zona para una sesión específica
+     * 
+     * @param int|null $sessionId
+     * @return \Illuminate\Database\Eloquent\Relations\MorphToMany
+     */
+    public function rates($sessionId = null)
     {
-        if (!isset($this->pivot_session_id) || !$this->pivot_session_id) {
-            \Log::debug("Zone rates() called without pivot_session_id", [
-                'zone_id' => $this->id
-            ]);
+        // Si no se proporciona sessionId, intentar obtenerlo del pivot
+        if (!$sessionId && isset($this->pivot_session_id)) {
+            $sessionId = $this->pivot_session_id;
+        }
+
+        // Si aún no tenemos sessionId, log y retornar relación vacía
+        if (!$sessionId) {
 
             // Retornar una relación vacía
             return $this->morphToMany(
@@ -55,7 +64,7 @@ class Zone extends BaseModel
             'rate_id'
         )
             ->wherePivot('assignated_rate_type', self::class)
-            ->wherePivot('session_id', $this->pivot_session_id)
+            ->wherePivot('session_id', $sessionId)
             ->withPivot([
                 'id',
                 'price',
@@ -70,5 +79,28 @@ class Zone extends BaseModel
                 'max_per_code',
                 'validator_class',
             ]);
+    }
+
+    /**
+     * Método helper para obtener tarifas con session_id explícito
+     * Preferir este método sobre rates() cuando sea posible
+     * 
+     * @param int $sessionId
+     * @return \Illuminate\Database\Eloquent\Relations\MorphToMany
+     */
+    public function getRatesForSession(int $sessionId)
+    {
+        return $this->rates($sessionId);
+    }
+
+    /**
+     * Verificar si la zona tiene tarifas para una sesión
+     * 
+     * @param int $sessionId
+     * @return bool
+     */
+    public function hasRatesForSession(int $sessionId): bool
+    {
+        return $this->rates($sessionId)->exists();
     }
 }

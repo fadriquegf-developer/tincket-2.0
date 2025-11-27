@@ -3,26 +3,58 @@
 namespace App\Observers;
 
 use App\Models\SessionSlot;
+use App\Services\RedisSlotsService;
+use Illuminate\Support\Facades\Log;
 
 class SessionSlotObserver
 {
-
     public function saved(SessionSlot $sessionSlot)
     {
-        if($sessionSlot->status_id != null)
-        {
-            (new \App\Services\Api\SlotCacheService($sessionSlot->session()->first()))->lockSlot($sessionSlot->slot->first(), $sessionSlot->status->id, $sessionSlot->comment);
-        }
+        try {
+            $session = $sessionSlot->session;
+            
+            if (!$session) {
+                Log::warning('SessionSlotObserver: No session found for SessionSlot', [
+                    'session_slot_id' => $sessionSlot->id
+                ]);
+                return;
+            }
 
-        if($sessionSlot->status_id == null)
-        {
-            (new \App\Services\Api\SlotCacheService($sessionSlot->session()->first()))->freeSlot($sessionSlot->slot()->first(), $sessionSlot->comment);
+            $redisService = new RedisSlotsService($session);
+            
+            if ($sessionSlot->status_id != null) {
+                $redisService->lockSlot(
+                    $sessionSlot->slot_id,
+                    $sessionSlot->status_id,
+                    $sessionSlot->comment
+                );
+            } else {
+                $redisService->freeSlot($sessionSlot->slot_id);
+            }
+        } catch (\Exception $e) {
+            Log::error('SessionSlotObserver: Error updating Redis', [
+                'session_slot_id' => $sessionSlot->id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 
     public function deleted(SessionSlot $sessionSlot)
     {
-        (new \App\Services\Api\SlotCacheService($sessionSlot->session()->first()))->freeSlot($sessionSlot->slot()->first(), $sessionSlot->comment);
-    }
+        try {
+            $session = $sessionSlot->session;
+            
+            if (!$session) {
+                return;
+            }
 
+            $redisService = new RedisSlotsService($session);
+            $redisService->freeSlot($sessionSlot->slot_id);
+        } catch (\Exception $e) {
+            Log::error('SessionSlotObserver: Error freeing slot in Redis', [
+                'session_slot_id' => $sessionSlot->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
 }

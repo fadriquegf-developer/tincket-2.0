@@ -12,9 +12,14 @@ use App\Traits\OwnedModelTrait;
 use App\Traits\SetsUserOnCreate;
 use App\Traits\SetsBrandOnCreate;
 use App\Observers\SessionObserver;
+use App\Repositories\SessionRepository;
+use App\Services\RedisSlotsService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use App\Models\Setting;
 
 class Session extends BaseModel
 {
@@ -73,12 +78,6 @@ class Session extends BaseModel
         'tags',
         'metadata',
     ];
-    /* protected $dates = [
-        'starts_on',
-        'ends_on',
-        'inscription_starts_on',
-        'inscription_ends_on',
-    ]; */
     protected $casts = [
         'images' => 'array',
         'validate_all_session' => 'boolean',
@@ -89,11 +88,9 @@ class Session extends BaseModel
     ];
     protected $appends = [
         'has_public_rates',
-        'has_booked_packs',
         'redirect_to',
-        'count_free_positions',
-        'count_available_web_positions',
-        'name_filter'
+        'name_filter',
+        'count_free_positions'
     ];
 
     protected static function booted()
@@ -107,7 +104,6 @@ class Session extends BaseModel
         static::saved(function (self $event) {
             $event->relocateTempUploads();
         });
-
     }
 
     public function user()
@@ -136,9 +132,38 @@ class Session extends BaseModel
         return $this->belongsTo(Event::class);
     }
 
+    /**
+     * Accessor que resuelve el TPV heredado cuando session.tpv_id es NULL
+     * 
+     * @param int|null $value
+     * @return int|null
+     */
+    public function getTpvIdAttribute($value)
+    {
+        // 1. Si la sesión tiene TPV propio, usarlo
+        if ($value !== null) {
+            return $value;
+        }
+
+        // 2. Si no hay brand_id, retornar null (caso de creación en Backpack)
+        if (!isset($this->attributes['brand_id'])) {
+            return null;
+        }
+
+        // 3. Buscar en extra_config del brand de la sesión (sin BrandScope)
+        $brand = Brand::withoutGlobalScope(BrandScope::class)
+            ->find($this->attributes['brand_id']);
+
+        return $brand?->extra_config['default_tpv_id'] ?? null;
+    }
+
+    /**
+     * Relación al TPV (sin BrandScope para permitir TPVs de otros brands)
+     */
     public function tpv()
     {
-        return $this->belongsTo(Tpv::class);
+        return $this->belongsTo(Tpv::class, 'tpv_id')
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     public function inscriptions()
@@ -167,62 +192,151 @@ class Session extends BaseModel
         return $this->belongsToMany(Pack::class);
     }
 
-    /**
-     * Returns the relation of all (public and private) rates associated
-     * to this Session
-     * 
-     * @return \Illuminate\Database\Eloquent\Relations\MorphToMany
-     */
-    public function rates()
+    // Convertir accessor en método explícito con cache
+    public function getFreePositions(): int
     {
-        return $this->morphToMany(
-            Rate::class,
-            'assignated_rate',
-            'assignated_rates',
-            'assignated_rate_id',
-            'rate_id'
-        )
-            ->wherePivot('assignated_rate_type', self::class)
-            ->wherePivot('session_id', $this->id)
-            ->withPivot([
-                'id',
-                'price',
-                'session_id',
-                'max_on_sale',
-                'max_per_order',
-                'assignated_rate_type',
-                'available_since',
-                'available_until',
-                'is_public',
-                'is_private',
-                'max_per_code',
-                'validator_class',
-            ]);
+        $service = new RedisSlotsService($this);
+        return $service->getFreePositions();
+    }
+
+    // En lugar de accessor, método explícito
+    public function getAvailableWebPositions(): int
+    {
+        $service = new RedisSlotsService($this);
+        return $service->getAvailableWebPositions();
+    }
+
+    public function countBlockedInscriptions(): int
+    {
+        $service = new RedisSlotsService($this);
+        return $service->countBlockedInscriptions();
+    }
+
+    public function getSelledInscriptions(bool $onlyWeb = true): int
+    {
+        return app(SessionRepository::class)->getSelledInscriptions($this, $onlyWeb);
+    }
+
+    public function getSelledOfficeInscriptions(): int
+    {
+        return app(SessionRepository::class)->getSelledOfficeInscriptions($this);
+    }
+
+    public function getValidatedCount(): int
+    {
+        return app(SessionRepository::class)->getValidatedCount($this)['validated'];
+    }
+
+    public function getValidatedOutCount(): int
+    {
+        return app(SessionRepository::class)->getValidatedCount($this)['validated_out'];
+    }
+
+    public function getCountFreePositionsAttribute()
+    {
+        return $this->getAvailableWebPositions();
     }
 
     /**
-     * Unlike rates() which returns all the rates that is morphed to session,
-     * this method returns all the rates of the session, wherever it comes from 
-     * Session, Zone or Slot
+     * Todas las tarifas de la sesión (Session, Zone, Slot)
      */
-    public function all_rates()
+    public function allRates()
     {
-        return $this->hasMany(AssignatedRate::class);
+        return $this->hasMany(AssignatedRate::class, 'session_id');
     }
 
-    /**
-     * Mix of rates and all_rates
-     * Get all the rates of the session like all_rates but 
-     * insted of return AssignatedRate model return Rates model withPivot
-     */
-    public function all_rates_rates()
+    public function getPublicRatesAttribute()
     {
-        return $this->belongsToMany(
-            Rate::class,
-            'assignated_rates',
-            'session_id',
-            'rate_id'
-        )->withPivot(['id', 'price', 'session_id', 'max_on_sale', 'max_per_order', 'assignated_rate_type', 'available_since', 'available_until', 'is_public', 'is_private', 'max_per_code', 'validator_class'])->where('is_public', 1);
+        $cacheKey = "session_{$this->id}_public_rates_formatted";
+
+        return Cache::remember($cacheKey, 60, function () {
+            $service = new \App\Services\RedisSlotsService($this);
+            $availableWebPositions = $service->getAvailableWebPositions();
+
+            // ✅ DESHABILITAR BrandScope
+            return $this->allRates()
+                ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                ->with([
+                    'rate' => function ($q) {
+                        $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->with([
+                                'form' => function ($fq) {
+                                    $fq->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                                        ->with([
+                                            'form_fields' => function ($ffq) {
+                                                $ffq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                                            }
+                                        ]);
+                                }
+                            ]);
+                    }
+                ])
+                ->where('is_public', true)
+                ->get()
+                ->filter(function ($ar) {
+                    return $ar->rate !== null;
+                })
+                ->map(function ($ar) use ($availableWebPositions) {
+
+                    $blockedForRate = $this->calculateBlockedForRate($ar->rate_id);
+                    $availableForRate = max(0, $ar->max_on_sale - $blockedForRate);
+                    $maxOnSale = min($ar->max_per_order, $availableForRate, $availableWebPositions);
+
+                    return [
+                        'id' => $ar->rate->id,
+                        'name' => json_decode($ar->rate->getRawOriginal('name'), true),
+                        'price' => $ar->price,
+                        'needs_code' => $ar->rate->needs_code,
+                        'has_rule' => $ar->rate->has_rule,
+                        'form_id' => $ar->rate->form_id,
+                        'form' => ($form = $ar->rate->relationLoaded('form') ? $ar->rate->getRelation('form') : null) && $form ? [
+                            'id' => $form->id,
+                            'name' => $form->name,
+                            'form_fields' => $form->form_fields->map(function ($field) {
+                                return [
+                                    'id' => $field->id,
+                                    'type' => $field->type,
+                                    'name' => $field->name,
+                                    'label' => json_decode($field->getRawOriginal('label'), true),
+                                    'config' => $field->config,
+                                ];
+                            })->toArray()
+                        ] : null,
+                        'rule_parameters' => $ar->rate->rule_parameters,
+                        'max_on_sale' => $maxOnSale,
+                        'pivot' => [
+                            'rate_id' => $ar->rate_id,
+                            'price' => $ar->price,
+                            'max_on_sale' => $ar->max_on_sale,
+                            'max_per_order' => $ar->max_per_order,
+                            'is_private' => $ar->is_private ?? false,
+                            'max_per_code' => $ar->max_per_code,
+                            'available_since' => $ar->available_since,
+                            'available_until' => $ar->available_until,
+                        ]
+                    ];
+                });
+        });
+    }
+
+    private function calculateBlockedForRate($rateId)
+    {
+        $cartTTL = $this->brand->getSetting(
+            Brand::EXTRA_CONFIG['CART_TTL_KEY'],
+            Cart::DEFAULT_MINUTES_TO_EXPIRE
+        );
+
+        return Inscription::where('session_id', $this->id)
+            ->where('rate_id', $rateId)
+            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
+            ->where(function ($q) use ($cartTTL) {
+                $q->whereNotNull('carts.confirmation_code')
+                    ->orWhere(function ($sq) use ($cartTTL) {
+                        $sq->whereNull('carts.confirmation_code')
+                            ->where('carts.expires_on', '>', now()->subMinutes($cartTTL));
+                    });
+            })
+            ->count();
     }
 
     public function currentBrandFrontend()
@@ -236,76 +350,64 @@ class Session extends BaseModel
 
     public function getGeneralRateAttribute()
     {
-        $today = now();
+        $rateData = app(SessionRepository::class)->getGeneralRate($this);
 
-        // Buscar la tarifa privada válida con el mayor precio
-        $privateRate = $this->all_rates()
-            ->where('is_private', true)
-            ->where(function ($query) use ($today) {
-                $query->where(function ($subQuery) use ($today) {
-                    $subQuery->whereNotNull('available_since')
-                        ->where('available_since', '<=', $today);
-                })
-                    ->orWhereNull('available_since');
-            })
-            ->where(function ($query) use ($today) {
-                $query->where(function ($subQuery) use ($today) {
-                    $subQuery->whereNotNull('available_until')
-                        ->where('available_until', '>=', $today);
-                })
-                    ->orWhereNull('available_until');
-            })
-            ->orderBy('price', 'DESC')
-            ->first();
-
-        // Si no encontramos ninguna tarifa privada válida, devolvemos la tarifa con mayor precio
-        if (!$privateRate) {
-            return $this->all_rates()
-                ->orderBy('price', 'DESC')
-                ->first();
+        if (!$rateData) {
+            return null;
         }
 
-        return $privateRate;
+        $assignatedRate = new AssignatedRate();
+        foreach ($rateData as $key => $value) {
+            if (property_exists($assignatedRate, $key)) {
+                $assignatedRate->{$key} = $value;
+            }
+        }
+
+        $assignatedRate->price = $rateData->price;
+
+        return $assignatedRate;
     }
 
-    public function getSelledInscriptions($onlyWeb = true)
-    {
-        return Inscription::paid()
-            ->where('session_id', $this->id)
-            ->whereHas('cart', function ($q) use ($onlyWeb) {
-                if ($onlyWeb) {
-                    // Ventas web: Sermepa, SermepaSoapService o Free
-                    $q->whereHas('payments', function ($p) {
-                        $p->whereIn('gateway', ['Sermepa', 'SermepaSoapService', 'Free']);
-                    });
-                } else {
-                    // Otras ventas
-                    $q->whereHas('payments', function ($p) {
-                        $p->whereNotIn('gateway', ['Sermepa', 'SermepaSoapService', 'Free']);
-                    });
-                }
-            })
-            ->count();
-    }
-
-    public function getSelledOfficeInscriptions()
-    {
-        return Inscription::paid()
-            ->where('session_id', $this->id)
-            ->whereHas('cart.payments', function ($q) {
-                // Ventas de taquilla: TicketOffice
-                $q->where('gateway', 'TicketOffice');
-            })
-            ->count();
-    }
 
     public function getEventNameAttribute()
     {
-        $evt = $this->relationLoaded('event')
-            ? $this->event
-            : $this->event()->withTrashed()->first();
+        // Si la relación ya está cargada, usarla
+        if ($this->relationLoaded('event')) {
+            return $this->event?->name ?? '-';
+        }
 
-        return $evt?->name ?? '-';
+        // Si tenemos el event_id pero no la relación, devolver placeholder
+        // Esto evita el N+1, el desarrollador debe hacer eager loading
+        if ($this->event_id) {
+            return '[Event #' . $this->event_id . ']';
+        }
+
+        return '-';
+    }
+
+    /**
+     * Método helper para cargar relaciones necesarias de forma eficiente
+     */
+    public function loadCommonRelations(): self
+    {
+        return $this->load([
+            'event',
+            'space.location',
+            'space.zones.slots',
+            'brand'
+        ]);
+    }
+
+    /**
+     * Scope para incluir relaciones comunes
+     */
+    public function scopeWithCommonRelations($query)
+    {
+        return $query->with([
+            'event',
+            'space.location',
+            'brand'
+        ]);
     }
 
     public function getShowSessionButton()
@@ -323,223 +425,90 @@ class Session extends BaseModel
 
     public function getCloneSessionButton()
     {
+        $text = app()->getLocale() === 'en' ? 'Clone session' : 'Clonar sesión';
+
         return '<a href="#" class="btn btn-sm btn-link" onclick="openCloneModal(' . $this->id . ')">
-                <i class="la la-clone"></i> Clonar sesión
-            </a>';
-    }
-
-    public function getTpvNameForInscriptions()
-    {
-        $ywtNIF = null;
-        $ywtName = null;
-
-        $tpv_id = $this->attributes['tpv_id'];
-        if ($tpv_id) {
-            $tpv = Tpv::find($tpv_id);
-            $tpv_config = new \App\Services\TpvConfigurationDecoder($tpv->config);
-            $ywtNIF = $tpv_config->ywtNIF;
-            $ywtName = $tpv_config->ywtName;
-        }
-
-        return (object) ['ywtNIF' => $ywtNIF, 'ywtName' => $ywtName];
-    }
-
-    public function countBlockedInscriptions()
-    {
-        $confirmed_inscriptions = $this->inscriptions()
-            ->paid()
-            ->count();
-
-        $not_expired_carts = $this->inscriptions()
-            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
-            ->whereNull('carts.confirmation_code')
-            ->where('carts.expires_on', '>', \Carbon\Carbon::now()->subMinutes($this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE)))
-            ->count();
-
-        $sessionTempSlot = $this->inscriptions()
-            ->join('session_temp_slot', 'session_temp_slot.inscription_id', '=', 'inscriptions.id')
-            ->where('session_temp_slot.expires_on', '>', \Carbon\Carbon::now()->subMinutes($this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE)))
-            ->count();
-
-        return $confirmed_inscriptions + $not_expired_carts + $sessionTempSlot;
-    }
-
-    public function getCountFreePositionsAttribute()
-    {
-        $free = 0;
-        $maxPlaces = $this->attributes['max_places'] ?? 0;
-        $blocked_inscriptions = $this->countBlockedInscriptions();
-        $autolock = 0;
-        $limitX100 = $this->limit_x_100 ?? 100;
-        $limit = round($maxPlaces * ($limitX100 / 100));
-
-        // calucle autolock
-        if ($this->autolock_type !== null) {
-            $autolock = $this->sessionTempSlot()->notExpired()->distinct()->count('slot_id');
-        }
-
-        // real capacity: count max places - blocked - autolock
-        $realCapacity = $maxPlaces - $blocked_inscriptions - $autolock;
-
-        // limit autolock % capacity limit - blocked
-        $freeWithLimit = $limit - $blocked_inscriptions;
-
-        $free = max([min($realCapacity, $freeWithLimit), 0]);
-
-        // $this->inscriptions->count() should not be less than 0.
-        // we could put an intern alert here if we detect some of
-        // these cases.
-        $had_inscriptions_loaded = isset($this->relations['inscriptions']);
-
-        // we "forget" inscriptions relation in order to avoid return them
-        // throught the API accidentally if they were not set before
-        if (!$had_inscriptions_loaded) {
-            unset($this->relations['inscriptions']);
-        }
-
-        return $free;
-    }
-
-    public function getCountValidatedAttribute()
-    {
-        return $this->inscriptions()->paid()->whereNotNull('checked_at')->count();
-    }
-
-    public function getCountValidatedOutAttribute()
-    {
-        return $this->inscriptions()->paid()->whereNotNull('checked_at')->where('out_event', 1)->count();
+            <i class="la la-clone"></i> ' . $text . '
+        </a>';
     }
 
     public function getHasPublicRatesAttribute($has_public_rates)
     {
         if (!isset($this->attributes['has_public_rates'])) {
-            $this->attributes['has_public_rates'] = (bool) $this->all_rates->filter(function ($r) {
-                return $r->is_public;
-            })->count();
+            // ✅ DESHABILITAR BrandScope
+            $this->attributes['has_public_rates'] = (bool) $this->allRates()
+                ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                ->where('is_public', true)
+                ->count();
         }
 
         return $this->attributes['has_public_rates'];
     }
 
-    public function getHasBookedPacksAttribute()
+    public function hasBookedPacks(): bool
     {
-        return $this->sessionSlot()->where('status_id', '8')->get()->count() > 0;
+        return $this->sessionSlot()->where('status_id', '8')->exists();
     }
 
     public function getRedirectToAttribute()
     {
-        if (
-            request()->get('brand')
-            && $this->brand_id != request()->get('brand')->id
-            && get_brand_capability() == 'basic'
-            && $frontend_url = Setting::where('brand_id', $this->brand->id)->where('key', 'clients.frontend.url')->first()
-        ) {
-            return sprintf("%s/%s", trim($frontend_url->value, '/'), "redirect/session/$this->id");
+        // Si ya se calculó, devolverlo
+        if (isset($this->attributes['redirect_to'])) {
+            return $this->attributes['redirect_to'];
+        }
+
+        // Obtener brand del request
+        $currentBrand = request()->get('brand');
+
+        if (!$currentBrand) {
+            return null;
+        }
+
+        // Si la sesión pertenece a un brand diferente al actual
+        if ($this->brand_id != $currentBrand->id) {
+            return $this->getRedirectTo();
         }
 
         return null;
     }
 
-    public function getCountAvailableWebPositionsAttribute()
+    /**
+     * Get url session from the session's own brand frontend
+     * 
+     * @return string|null
+     */
+    public function getRedirectTo()
     {
-        // Inicialización de variables
-        $available = 0;
-        $free = 0;
-        $maxPlaces = $this->attributes['max_places'] ?? 0;
+        $sessionBrand = $this->brand;
 
-        // Contamos las posiciones bloqueadas e inscripciones
-        $blocked_inscriptions = $this->countBlockedInscriptions();
-
-        // Obtener todas las session slots en una sola consulta con los datos necesarios
-        $sessionSlots = $this->sessionSlot()
-            ->select('status_id', 'slot_id')
-            ->get();
-
-        $blocked_session_slots = $sessionSlots->where('status_id', '!=', 2)->where('status_id', '!=', 6);
-        $blocked_session_slot_count = $blocked_session_slots->count();
-
-        // Optimización: reducir la cantidad de plucks y condicionales
-        $sold_blocked_session_slot_with_status = $this->inscriptions()
-            ->paid()
-            ->where('session_id', $this->id)
-            ->whereIn('slot_id', $blocked_session_slots->pluck('slot_id'))
-            ->count();
-
-        // Cálculo de los bloqueados
-        $blocked_session_slot = $blocked_session_slot_count - $sold_blocked_session_slot_with_status;
-
-        // Optimización: obtener las session slots vendidas en una sola consulta
-        $blocked_session_slot_sell = $this->sessionSlot()
-            ->where('status_id', '2')
-            ->count();
-
-        // Autolock y capacidad límite
-        $autolock = 0;
-        $limitX100 = $this->limit_x_100 ?? 100;
-        $limit = round($maxPlaces * ($limitX100 / 100));
-
-        // Cálculo de tarifas disponibles
-        $ratesPublic = $this->all_rates()->where('is_public', true)->get();
-        foreach ($ratesPublic as $rate) {
-            $available += $this->getAvailableFromRateSessio($rate);
+        if (!$sessionBrand) {
+            return null;
         }
 
-        // Optimización: calculo autolock si es necesario
-        if ($this->autolock_type !== null) {
-            $autolock = $this->sessionTempSlot()->notExpired()->distinct()->count('slot_id');
+        // Cargar capability si no está cargada
+        if (!$sessionBrand->relationLoaded('capability')) {
+            $sessionBrand->load('capability');
         }
 
-        // Capacidad real: max places - inscripciones bloqueadas - autolock
-        $realCapacity = $maxPlaces - $blocked_inscriptions - $autolock;
+        $capability = $sessionBrand->capability;
 
-        // Capacidad con límite
-        $freeWithLimit = $limit - $blocked_inscriptions;
+        // Verificar el capability del brand DE LA SESIÓN
+        if ($capability && $capability->code_name === 'basic') {
+            $frontend_url = Setting::withoutGlobalScope(BrandScope::class)
+                ->where('brand_id', $sessionBrand->id)
+                ->where('key', 'clients.frontend.url')
+                ->first();
 
-        // Capacidad web: asumiendo que ahora son disponibles por tarifa
-        $webCapacity = $available;
-
-        // Validación: Comprobamos diferencia entre butacas en estado 'vendido' y las inscripciones vendidas
-        $sell_status_slot = ($blocked_session_slot_sell > $blocked_inscriptions) ? $blocked_session_slot_sell - $blocked_inscriptions : 0;
-
-        // Capacidad dependiendo de las butacas bloqueadas en el sessionSlot
-        $sessionSlotBlocked = $maxPlaces - $blocked_session_slot - $blocked_inscriptions - $sell_status_slot;
-
-        // Calcular la cantidad libre y asegurar que no sea menor que 0
-        $free = max([min($realCapacity, $freeWithLimit, $webCapacity, $sessionSlotBlocked), 0]);
-
-        // Verificamos si las inscripciones están cargadas previamente
-        $had_inscriptions_loaded = isset($this->relations['inscriptions']);
-
-        // Eliminamos la relación para evitar retornarla accidentalmente a través de la API
-        if (!$had_inscriptions_loaded) {
-            unset($this->relations['inscriptions']);
+            if ($frontend_url) {
+                return sprintf(
+                    "%s/redirect/session/%s",
+                    rtrim($frontend_url->value, '/'),
+                    $this->id
+                );
+            }
         }
 
-        return $free;
-    }
-
-    public function getAvailableFromRateSessio($rate)
-    {
-
-        $confirmed_inscriptions = $this->inscriptions()
-            ->paid()
-            ->where('rate_id', $rate->rate_id)
-            ->count();
-
-        $not_expired_carts = $this->inscriptions()
-            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
-            ->whereNull('carts.confirmation_code')
-            ->where('inscriptions.rate_id', $rate->rate_id)
-            ->where('carts.expires_on', '>', \Carbon\Carbon::now()->subMinutes($this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE)))
-            ->count();
-
-        $sessionTempSlot = $this->inscriptions()
-            ->join('session_temp_slot', 'session_temp_slot.inscription_id', '=', 'inscriptions.id')
-            ->where('inscriptions.rate_id', $rate->rate_id)
-            ->where('session_temp_slot.expires_on', '>', \Carbon\Carbon::now()->subMinutes($this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE)))
-            ->count();
-
-        return $rate->max_on_sale - ($confirmed_inscriptions + $not_expired_carts + $sessionTempSlot);
+        return null;
     }
 
     public function getNameFilterAttribute()
@@ -616,5 +585,4 @@ class Session extends BaseModel
 
         return [$dest, dirname($original)];
     }
-
 }

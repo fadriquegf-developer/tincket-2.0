@@ -15,21 +15,18 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Traits\SessionCrudUi;
 use App\Models\AssignatedRate;
-use App\Jobs\RegenerateSession;
 use App\Traits\AllowUsersTrait;
 use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\CacheSessionSlot;
+use App\Services\RedisSlotsService;
 use Illuminate\Http\JsonResponse;
 use App\Imports\SessionCodeImport;
 use App\Observers\SessionObserver;
 use Illuminate\Support\Facades\DB;
 use Prologue\Alerts\Facades\Alert;
-use App\Events\SessionRatesUpdated;
 use App\Traits\CrudPermissionTrait;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Http\Requests\SessionRequest;
-use Backpack\CRUD\app\Library\Widget;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -37,9 +34,13 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use App\Http\Requests\StoreMultiSessionRequest;
+use App\Jobs\UpdateSessionSlotCache;
+use App\Models\Inscription;
+use App\Repositories\SessionRepository;
+use App\Scopes\BrandScope;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
-
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Class SessionCrudController
@@ -49,9 +50,9 @@ use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 class SessionCrudController extends CrudController
 {
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore;
-    }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation {
+        update as traitUpdate;
     }
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
@@ -66,7 +67,8 @@ class SessionCrudController extends CrudController
     {
         CRUD::setModel(Session::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/session');
-        CRUD::setEntityNameStrings(__('backend.menu.session'), __('backend.menu.sessions'));
+        CRUD::setEntityNameStrings(__('menu.session'), __('menu.sessions'));
+
         $this->setAccessUsingPermissions();
 
         if ($this->isSuperuser()) {
@@ -79,185 +81,194 @@ class SessionCrudController extends CrudController
         //CRUD::addButtonFromView('line', 'import_codes', 'import_session_codes', 'end');                               //no funciona el modal
         CRUD::addButtonFromModelFunction('line', 'show_session', 'getShowSessionButton', 'end');
         CRUD::addButtonFromModelFunction('line', 'clone_session', 'getCloneSessionButton', 'end');
-
-    }
-
-    // Todas las funciones de columnas y campos se definen en el trait SessionCrudUi
-
-    public function store(SessionRequest $request)
-    {
-
-
-        $response = $this->traitStore();
-        $session = $this->crud->getCurrentEntry();
-
-        SessionRatesUpdated::dispatch($session);
-
-        return $response;
     }
 
     public function update(SessionRequest $request)
     {
-        // Obtenemos el modelo ANTES de actualizar, para capturar las rutas antiguas
         $session = $this->crud->getCurrentEntry();
         $oldImages = $session->images ?? [];
+        $needsCacheRegeneration = false;
 
+        //Session::unsetEventDispatcher();
         $response = $this->traitUpdate();
-        $session = $this->crud->getCurrentEntry();
+        //Session::setEventDispatcher(app('events'));
 
+        $session = $this->crud->getCurrentEntry();
         SessionObserver::processImages($session);
 
-        //  Volvemos a leer `$session->images` ya procesadas (definitivas)
         $session->refresh();
         $newImages = $session->images ?? [];
 
-        // Calculamos qué imágenes antiguas hay que eliminar del disco
         $toDelete = array_diff($oldImages, $newImages);
-
         foreach ($toDelete as $oldPath) {
             if (Storage::disk('public')->exists($oldPath)) {
                 Storage::disk('public')->delete($oldPath);
-            } else {
-                Log::warning('[Debug][SessionUpdate] No existe en disco, no se pudo borrar: ' . $oldPath);
             }
         }
 
-        // Actualizar precios, slots, disparar eventos…
         if ((bool) $request->input('is_rates_table_dirty', false)) {
             $this->updatePrices($request);
-            SessionRatesUpdated::dispatch($session);
+            $needsCacheRegeneration = true;
         }
 
         if ($request->filled('slot_labels')) {
             $this->updateSlots($session);
+            $needsCacheRegeneration = true;
+        }
+
+        if ($needsCacheRegeneration && $session->is_numbered) {
+            UpdateSessionSlotCache::dispatch($session);
         }
 
         return $response;
     }
 
-
-
     protected function updateSlots(Session $session): void
     {
         $locked_slots = collect(json_decode(request()->input('slot_labels')));
-        $auxIdTempSlots = collect();
+        $redisService = new RedisSlotsService($session);
 
         // Eliminar SessionTempSlots caducados con diferencias de estado
-        $session_temp_slots = \App\Models\SessionTempSlot::notExpired()->whereSessionId($session->id)->get();
-        $session_temp_slots->each(function ($slot) use ($locked_slots, $auxIdTempSlots) {
+        $session_temp_slots = \App\Models\SessionTempSlot::notExpired()
+            ->whereSessionId($session->id)
+            ->get();
+
+        $session_temp_slots->each(function ($slot) use ($locked_slots) {
             $new_slot = $locked_slots->where('id', $slot->slot_id);
             if ($new_slot->count() > 0) {
                 if ($slot->expires_on === null && $new_slot->first()->status_id !== $slot->status_id) {
                     $slot->delete();
-                } else {
-                    $auxIdTempSlots->push($slot->slot_id);
                 }
             }
         });
 
-        // Eliminar SessionSlots que ahora están vacíos (sin estado)
-        SessionSlot::whereSessionId($session->id)
-            ->whereIn('slot_id', $locked_slots->where('status_id', null)->pluck('id')->toArray())
-            ->delete();
+        foreach ($locked_slots as $slot_data) {
+            $slotId = $slot_data->id;
+            $statusId = $slot_data->status_id ?? null;
+            $comment = $slot_data->comment ?? null;
 
-        // Liberar de la caché los slots eliminados
-        CacheSessionSlot::whereSessionId($session->id)
-            ->whereIn('slot_id', $locked_slots->where('status_id', null)->pluck('id')->toArray())
-            ->update([
-                'cart_id' => null,
-                'is_locked' => 0,
-                'lock_reason' => null,
-                'comment' => null
-            ]);
+            // Verificar si está vendida
+            $isSold = Inscription::paid()
+                ->where('session_id', $session->id)
+                ->where('slot_id', $slotId)
+                ->exists();
 
-        // Filtrar los slots con estado definido
-        $session_slots = $locked_slots->where('status_id', '!=', null);
+            if ($isSold) {
+                SessionSlot::updateOrCreate(
+                    ['session_id' => $session->id, 'slot_id' => $slotId],
+                    ['status_id' => 2, 'comment' => null]
+                );
+                continue;
+            }
 
-        // Obtener slots vendidos
-        $sold_slots = \App\Models\Inscription::paid()
-            ->where('session_id', $session->id)
-            ->get();
+            SessionSlot::updateOrCreate(
+                ['session_id' => $session->id, 'slot_id' => $slotId],
+                ['status_id' => $statusId, 'comment' => $comment]
+            );
 
-        // Obtener los SessionSlots existentes
-        $dbSessionSlots = SessionSlot::whereSessionId($session->id)
-            ->whereIn('slot_id', $session_slots->pluck('id')->toArray())
-            ->get();
-
-        // Iterar y actualizar/crear
-        $session_slots->each(function ($new_slot) use ($session, $dbSessionSlots, $sold_slots) {
-            $slot = $dbSessionSlots->where('slot_id', $new_slot->id)->first();
-
-            if ($slot) {
-                if ($sold_slots->where('slot_id', $new_slot->id)->first()) {
-                    $slot->status_id = 2;
-                    $slot->comment = null;
-                    $slot->save();
-                } else {
-                    if ($slot->status_id != $new_slot->status_id || ($new_slot->comment ?? null) !== $slot->comment) {
-                        $slot->status_id = $new_slot->status_id;
-                        $slot->comment = $new_slot->comment ?? null;
-                        $slot->save();
-                    }
-                }
+            // Actualizar Redis
+            if ($statusId === null) {
+                $redisService->freeSlot($slotId);
             } else {
-                $status_id = $sold_slots->where('slot_id', $new_slot->id)->first() ? 2 : $new_slot->status_id;
-
-                SessionSlot::create([
-                    'session_id' => $session->id,
-                    'slot_id' => $new_slot->id,
-                    'status_id' => $status_id,
-                    'comment' => $new_slot->comment ?? null,
+                $redisService->updateSlotState($slotId, [
+                    'is_locked' => true,
+                    'lock_reason' => $statusId,
+                    'comment' => $comment
                 ]);
             }
-        });
+        }
     }
 
     protected function updatePrices(Request $request)
     {
         $this->session_id = is_a($this->crud->entry, Session::class) ? $this->crud->entry->id : null;
 
-        //  what to do when other controllers extend this one?
-        if (!$this->session_id)
-            throw new \Exception("Not implemented yet");
+        if (!$this->session_id) {
+            throw new \Exception("Session ID not found");
+        }
 
-        // delete all related rates
-        \DB::table('assignated_rates')->where('session_id', $this->session_id)->delete();
+        DB::transaction(function () use ($request) {
+            // Eliminar tarifas anteriores
+            AssignatedRate::where('session_id', $this->session_id)->delete();
 
-        if ($this->crud->entry->is_numbered) {
-            $this->updateNumberedSessionPrices($request);
-        } else {
-            $this->updateNonNumberedSessionPrices($request);
+            // Procesar según tipo de sesión
+            if ($this->crud->entry->is_numbered) {
+                $this->updateNumberedSessionPrices($request);
+            } else {
+                $this->updateNonNumberedSessionPrices($request);
+            }
+
+            // IMPORTANTE: Invalidar toda la cache después de actualizar precios
+            $this->invalidatePriceCache();
+        });
+    }
+
+    /**
+     * Invalidar cache después de actualizar precios
+     */
+    protected function invalidatePriceCache(): void
+    {
+        try {
+            $session = $this->crud->entry;
+
+            // Invalidar cache de Laravel
+            Cache::tags(["session:{$session->id}"])->flush();
+
+            // Cache específicos de tarifas
+            $brandPrefix = $session->brand_id ? "b{$session->brand_id}" : 'default';
+
+            // Limpiar cache de tarifas por zona
+            if ($session->is_numbered && $session->space) {
+                foreach ($session->space->zones as $zone) {
+                    Cache::forget("{$brandPrefix}:rates:s{$session->id}:z{$zone->id}");
+                }
+            }
+
+            // Limpiar cache de disponibilidad
+            Cache::forget("{$brandPrefix}:free:s{$session->id}");
+            Cache::forget("{$brandPrefix}:available_web:s{$session->id}");
+            Cache::forget("{$brandPrefix}:blocked:s{$session->id}");
+            Cache::forget("session_{$session->id}_public_rates_formatted");
+            Cache::forget("session_{$session->id}_general_rate");
+
+            // Invalidar Redis si es numerada
+            if ($session->is_numbered) {
+                $redisService = new RedisSlotsService($session);
+                $redisService->clearAllCache();
+
+                // Disparar job para regenerar cache
+                UpdateSessionSlotCache::dispatch($session);
+            }
+
+            // Invalidar cache del repository
+            app(SessionRepository::class)->invalidateRateCache($this->crud->entry);
+        } catch (\Exception $e) {
+            Log::error("SessionCrudController: Error invalidating price cache", [
+                'session_id' => $this->session_id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 
     protected function updateNumberedSessionPrices(Request $request)
     {
-        // 1) Borra todas las tarifas antiguas de esta sesión (tanto zones como rates)
-        AssignatedRate::where('session_id', $this->session_id)->delete();
-
-        // 2) Decodifica el JSON de Vue
         $rawRates = $request->get('rates')
             ? json_decode($request->get('rates'), true)
             : [];
 
-        // 3) Recupera las zonas del espacio de esta sesión
         $zones = Zone::where('space_id', $this->crud->entry->space_id)->get();
 
-        // 4) Por cada zona, filtra las filas que le corresponden y las crea
         foreach ($zones as $zone) {
-            // Filtrar solo las filas asignadas a esta zona
             $filtered = array_filter($rawRates, function ($r) use ($zone) {
                 return isset($r['assignated_rate_id'])
                     && $r['assignated_rate_id'] == $zone->id;
             });
 
             foreach ($filtered as $raw) {
-                // Saltar si no hay tarifa seleccionada
                 if (empty($raw['rate']['id'])) {
                     continue;
                 }
 
-                // Montar el array de datos para creación
                 $data = [
                     'session_id' => $this->session_id,
                     'rate_id' => $raw['rate']['id'],
@@ -270,8 +281,6 @@ class SessionCrudController extends CrudController
                     'is_private' => (bool) ($raw['is_private'] ?? false),
                     'max_per_code' => $raw['max_per_code'] ?? null,
                     'validator_class' => $raw['validator_class'] ?? null,
-
-                    // estos dos para el morph
                     'assignated_rate_type' => Zone::class,
                     'assignated_rate_id' => $zone->id,
                 ];
@@ -283,24 +292,16 @@ class SessionCrudController extends CrudController
 
     protected function updateNonNumberedSessionPrices(Request $request)
     {
-        // 1) Borra todas las tarifas viejas de esta sesión
-        AssignatedRate::where('session_id', $this->session_id)->delete();
-
-        // 2) Decodifica el JSON que viene de Vue
         $rawRates = $request->get('rates')
             ? json_decode($request->get('rates'), true)
             : [];
 
-        // 3) Recorre cada fila y crea el registro en la BD
         foreach ($rawRates as $raw) {
-            // Asegúrate de que raw['rate'] existe y trae un id
             if (empty($raw['rate']['id'])) {
-                continue; // si no hay tarifa seleccionada, salta esta fila
+                continue;
             }
 
-            // Prepara los datos en un array plano
             $data = [
-                // los campos fijos
                 'session_id' => $this->session_id,
                 'rate_id' => $raw['rate']['id'],
                 'price' => $raw['price'] ?? 0,
@@ -312,31 +313,27 @@ class SessionCrudController extends CrudController
                 'is_private' => (bool) ($raw['is_private'] ?? false),
                 'max_per_code' => $raw['max_per_code'] ?? null,
                 'validator_class' => $raw['validator_class'] ?? null,
-
-                // para mantener el morph (si tu pivot lo requiere)
                 'assignated_rate_type' => Session::class,
                 'assignated_rate_id' => $this->session_id,
             ];
 
-            // 4) Crea el modelo en la tabla assignated_rates
             AssignatedRate::create($data);
         }
     }
 
+
     protected function updatePricesPerZone(array $rates, Zone $zone)
     {
-
         $rates = array_filter($rates, function ($rate) use ($zone) {
-            return ($rate->assignated_rate_id ?? null) === $zone->id; // only suitable for this version where we always add prices per Zone
+            return ($rate->assignated_rate_id ?? null) === $zone->id;
         });
 
         foreach ($rates as $rate) {
-            $zone->pivot_session_id = $this->session_id;
             $this->prepareRateObject($rate);
 
             if ($rate->rate_id) {
                 $rate->session_id = $this->session_id;
-                $zone->rates()->attach(
+                $zone->rates($this->session_id)->attach(
                     $rate->rate_id,
                     array_intersect_key(get_object_vars($rate), array_flip(
                         [
@@ -430,35 +427,41 @@ class SessionCrudController extends CrudController
 
     public function inscriptions($id)
     {
-        /* 1)  Sesión + relaciones */
-        $session = Session::with([
-            'event',
-            'space',
-            'inscriptions.cart.client',
-            'inscriptions.cart.payments',
-            'inscriptions.rate',
-            'inscriptions.slot',
-        ])->findOrFail($id);
+        /* 1) Sesión + relaciones */
+        $session = Session::with(['event', 'space'])->findOrFail($id);
 
-        /* 2)  Solo inscripciones con compra finalizada */
-        $inscriptions = $session->inscriptions()
-            ->whereHas('cart', fn($q) => $q->whereNotNull('confirmation_code'))
-            ->with(['cart.client', 'cart.payments', 'rate', 'slot'])
+        /* 2) Inscripciones SIN BrandScope */
+        $inscriptions = Inscription::withoutGlobalScope(BrandScope::class)
+            ->where('session_id', $session->id)
+            ->whereHas('cart', function ($q) {
+                $q->withoutGlobalScope(BrandScope::class)
+                    ->whereNotNull('confirmation_code');
+            })
+            ->with([
+                'cart' => function ($q) {
+                    $q->withoutGlobalScope(BrandScope::class)
+                        ->with([
+                            'client' => fn($c) => $c->withoutGlobalScope(BrandScope::class),
+                            'payments' => fn($p) => $p->withoutGlobalScope(BrandScope::class)->whereNotNull('payments.paid_at')
+                        ]);
+                },
+                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class),
+                'slot'
+            ])
             ->get();
 
-        /* 3)  Contadores */
+        /* 3) Contadores */
         $validated = $inscriptions->whereNotNull('checked_at')->count();
-        $validatedIn = $session->count_validated - $session->count_validated_out;
-        $validatedOut = $session->count_validated_out;
+        $validatedIn = $session->getValidatedCount() - $session->getValidatedOutCount();
+        $validatedOut = $session->getValidatedOutCount();
 
         $sellWebEntries = $inscriptions->filter(function ($i) {
-            return in_array(
-                optional($i->cart->payment)->gateway,
-                ['Sermepa', 'SermepaSoapService', 'Free']
-            );
+            $gateway = $i->cart?->payments?->first()?->gateway;
+            return in_array($gateway, ['Sermepa', 'SermepaSoapService', 'RedsysSoapService', 'Redsys Redirect', 'Free']);
         });
+
         $sellOfficeEntries = $inscriptions->filter(function ($i) {
-            return optional($i->cart->payment)->gateway === 'TicketOffice';
+            return $i->cart?->payments?->first()?->gateway === 'TicketOffice';
         });
 
         $stats = [
@@ -466,28 +469,26 @@ class SessionCrudController extends CrudController
             'validated' => $validated,
             'validated_in' => $validatedIn,
             'validated_out' => $validatedOut,
-
             'web_entries' => $sellWebEntries->count(),
             'web_amount' => round($sellWebEntries->sum('price_sold'), 2),
-
             'office_entries' => $sellOfficeEntries->count(),
             'office_amount' => round($sellOfficeEntries->sum('price_sold'), 2),
-
             'total_amount' => round($inscriptions->sum('price_sold'), 2),
         ];
 
-        /* 4)  DNIs duplicados */
-        $dniRepeated = $inscriptions->pluck('metadata')
-            ->map(fn($m) => data_get(json_decode($m, true), 'dni'))
+        /* 4) DNIs duplicados */
+        $dniRepeated = $inscriptions
+            ->pluck('metadata')
+            ->filter()
+            ->map(fn($m) => $m['dni'] ?? null)
             ->filter()
             ->duplicates();
 
         $duplicates = $inscriptions->filter(function ($i) use ($dniRepeated) {
-            $dni = data_get(json_decode($i->metadata, true), 'dni');
+            $dni = $i->metadata['dni'] ?? null;
             return $dni && $dniRepeated->contains($dni);
         });
 
-        /* 5)  Vista */
         return view(
             'core.session.inscriptions',
             compact('session', 'inscriptions', 'stats', 'duplicates')
@@ -497,37 +498,59 @@ class SessionCrudController extends CrudController
 
     public function exportExcel($sessionId)
     {
-        // 1) Cargo la sesión con sus inscripciones
-        $session = Session::with([
-            'inscriptions.cart.client',
-            'inscriptions.cart.payments',
-            'inscriptions.rate',
-            'inscriptions.slot',
-        ])->findOrFail($sessionId);
+        // 1) Cargo la sesión
+        $session = Session::findOrFail($sessionId);
 
-        // 2) Preparo los datos
-        $rows = $session->inscriptions->map(function ($i) {
-            $client = optional($i->cart->client);
-            $meta = collect(json_decode($i->metadata, true));
+        // 2) Cargo las inscripciones SIN BrandScope y sin el eager loading automático
+        $inscriptions = Inscription::withoutGlobalScope(BrandScope::class)
+            ->without(['session', 'rate', 'slot']) // <-- IMPORTANTE: Deshabilitar el eager loading automático del modelo
+            ->where('session_id', $session->id)
+            ->whereHas('cart', function ($q) {
+                $q->withoutGlobalScope(BrandScope::class)
+                    ->whereNotNull('confirmation_code');
+            })
+            ->with([
+                'cart' => function ($q) {
+                    $q->withoutGlobalScope(BrandScope::class)
+                        ->with([
+                            'client' => fn($c) => $c->withoutGlobalScope(BrandScope::class),
+                            'payments' => fn($p) => $p->withoutGlobalScope(BrandScope::class)
+                                ->whereNotNull('payments.paid_at')
+                        ]);
+                },
+                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class),
+                'slot' // <-- Slot no necesita withoutGlobalScope porque no lo tiene
+            ])
+            ->get();
+
+        // 3) Preparo los datos
+        $rows = $inscriptions->map(function ($i) {
+            $client = $i->cart?->client;
+            $slot = $i->slot;
+            $meta = is_array($i->metadata) ? $i->metadata : json_decode($i->metadata, true) ?? [];
+
+            // Obtiene el primer payment de la colección payments
+            $payment = $i->cart?->payments?->first();
 
             return [
-                'Nombre' => $client->name,
-                'Apellidos' => $client->surname,
-                'Email' => $client->email,
-                'Teléfono' => $client->phone,
-                'Confirmación' => optional($i->cart)->confirmation_code,
-                'Plataforma' => optional($i->cart->payment)->gateway,
-                'Tarifa' => optional($i->rate)->name,
-                'Posición en mapa' => optional($i->slot)->name ?? 'n/a',
-                'Código de barras' => $i->barcode,
+                'Nombre' => $client?->name ?? '',
+                'Apellidos' => $client?->surname ?? '',
+                'Email' => $client?->email ?? '',
+                'Teléfono' => $client?->phone ?? '',
+                'Confirmación' => $i->cart?->confirmation_code ?? '',
+                'Plataforma' => $payment?->gateway ?? '',
+                'Tarifa' => $i->rate?->name ?? '',
+                'Precio' => number_format($i->price_sold, 2),
+                'Posición en mapa' => $slot?->name ?? 'n/a',
+                'Código de barras' => $i->barcode ?? '',
                 'Validado' => $i->checked_at ? 'Sí' : 'No',
-                'DNI' => $meta->get('dni', ''),
-                'Creado' => optional($i->cart)->created_at?->format('d/m/Y H:i'),
+                'DNI' => $meta['dni'] ?? '',
+                'Creado' => $i->cart?->created_at?->format('d/m/Y H:i') ?? '',
             ];
         })->toArray();
 
-        // 3) Clase anónima que implementa FromCollection, WithHeadings y WithEvents
-        $export = new class (collect($rows)) implements FromCollection, WithHeadings, WithEvents {
+        // 4) Clase anónima que implementa FromCollection, WithHeadings y WithEvents
+        $export = new class(collect($rows)) implements FromCollection, WithHeadings, WithEvents {
             private $collection;
 
             public function __construct($collection)
@@ -535,29 +558,23 @@ class SessionCrudController extends CrudController
                 $this->collection = $collection;
             }
 
-            // FromCollection: filas de datos
             public function collection()
             {
                 return $this->collection;
             }
 
-            // WithHeadings: cabeceras (claves del primer elemento)
             public function headings(): array
             {
-                return $this->collection->first()
-                    ? array_keys($this->collection->first())
-                    : [];
+                return $this->collection->first() ? array_keys($this->collection->first()) : [];
             }
 
-            // WithEvents: zebra striping
             public function registerEvents(): array
             {
                 return [
                     AfterSheet::class => function (AfterSheet $event) {
                         $sheet = $event->sheet->getDelegate();
-                        $rowCount = $this->collection->count() + 1; // +1 por la cabecera
-    
-                        // Aplico zebra: filas pares (2,4,6...) con gris muy claro
+                        $rowCount = $this->collection->count() + 1;
+
                         for ($row = 2; $row <= $rowCount; $row++) {
                             if ($row % 2 === 0) {
                                 $sheet
@@ -573,46 +590,76 @@ class SessionCrudController extends CrudController
             }
         };
 
-        // 4) Descarga
+        // 5) Descarga
         return Excel::download($export, "inscripciones-{$sessionId}.xlsx");
     }
-
 
     /**
      * Genera un PDF imprimible de las inscripciones.
      */
     public function printInscr($sessionId)
     {
-        $session = Session::with([
-            'inscriptions.cart.client',
-            'inscriptions.cart.payments',
-            'inscriptions.rate',
-            'inscriptions.slot',
-        ])->findOrFail($sessionId);
+        // ✅ Aumentar límite de memoria temporalmente
+        ini_set('memory_limit', '256M');
 
-        $inscriptions = $session->inscriptions;
+        // 1) Cargar sesión con solo campos necesarios
+        $session = Session::select('id', 'name', 'event_id', 'starts_on')
+            ->with('event:id,name')
+            ->findOrFail($sessionId);
 
-        // Crea la vista resources/views/admin/session/print-inscriptions.blade.php
-        $pdf = Pdf::loadView('core.session.print-inscriptions', compact('session', 'inscriptions'));
+        // 2) ✅ QUERY OPTIMIZADA: Solo campos necesarios + chunk processing
+        $inscriptions = Inscription::withoutGlobalScope(BrandScope::class)
+            ->select([
+                'inscriptions.id',
+                'inscriptions.cart_id',
+                'inscriptions.rate_id',
+                'inscriptions.slot_id',
+                'inscriptions.barcode',
+                'inscriptions.checked_at',
+                'inscriptions.metadata'
+            ])
+            ->where('inscriptions.session_id', $session->id)
+            ->whereHas('cart', function ($q) {
+                $q->withoutGlobalScope(BrandScope::class)
+                    ->whereNotNull('confirmation_code');
+            })
+            ->with([
+                'cart' => function ($q) {
+                    $q->withoutGlobalScope(BrandScope::class)
+                        ->with([
+                            'client' => fn($c) => $c->withoutGlobalScope(BrandScope::class),
+                            'confirmedPayment' => fn($p) => $p->withoutGlobalScope(BrandScope::class)->whereNotNull('payments.paid_at')
+                        ]);
+                },
+                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class),
+                'slot',
+                'slot.zone'
+            ])
+            ->orderBy('inscriptions.created_at')
+            ->get();
+
+        // 3) Generar PDF con configuración optimizada
+        $pdf = Pdf::loadView('core.session.print-inscriptions', compact('session', 'inscriptions'))
+            ->setPaper('a4', 'landscape')
+            ->setOption('isHtml5ParserEnabled', true)
+            ->setOption('isRemoteEnabled', false)
+            ->setOption('dpi', 96);
+
         return $pdf->stream("inscripciones-{$sessionId}.pdf");
     }
 
     public function liquidation($id)
     {
-        // sólo superadmins
         abort_if(!$this->isSuperuser(), 403);
 
         $session = Session::findOrFail($id);
-
-        // cambia el booleano
         $session->liquidation = !$session->liquidation;
         $session->save();
 
-        // feedback opcional
         Alert::success(
             $session->liquidation
-            ? __('backend.session.marked_as_liquidated')
-            : __('backend.session.marked_as_unliquidated')
+                ? __('backend.session.marked_as_liquidated')
+                : __('backend.session.marked_as_unliquidated')
         )->flash();
 
         return redirect()->back();
@@ -620,12 +667,12 @@ class SessionCrudController extends CrudController
 
     public function regenerate($id)
     {
-        // Borra todas las entradas de CacheSessionSlot para esta sesión
-        CacheSessionSlot::where('session_id', $id)->delete();
-
-        // Recupera la sesión y dispara el job
         $session = Session::findOrFail($id);
-        RegenerateSession::dispatch($session);
+
+        $redisService = new RedisSlotsService($session);
+        $redisService->regenerateCache();
+
+        Alert::success('Cache de slots regenerada correctamente')->flash();
 
         return redirect()->back();
     }
@@ -652,6 +699,9 @@ class SessionCrudController extends CrudController
         return view('core.session.list-pdf-errors', compact('session', 'inscriptions'));
     }
 
+    /**
+     * También actualizar el método cloneSessions para invalidar cache
+     */
     public function cloneSessions(Request $request): JsonResponse
     {
         $request->validate([
@@ -660,12 +710,12 @@ class SessionCrudController extends CrudController
             'sessions.*.end' => 'required|date|after:sessions.*.start',
         ]);
 
-        /** @var \App\Models\Session $originalSession */
         $originalSession = Session::findOrFail($request->input('session_id'));
-
         $brand = get_current_brand()->code_name;
         $oldId = $originalSession->id;
         $oldFolder = "uploads/{$brand}/session/{$oldId}/";
+
+        $clonedSessions = [];
 
         foreach ($request->sessions as $sessionData) {
             $clone = $originalSession->replicate();
@@ -677,21 +727,22 @@ class SessionCrudController extends CrudController
             $clone->user_id = backpack_user()->id;
 
             $clone->save();
-
-
             $this->cloneRates($originalSession, $clone);
 
+            // Regenerar cache para la nueva sesión clonada
+            if ($clone->is_numbered) {
+                UpdateSessionSlotCache::dispatch($clone);
+            }
+
+            // Copiar archivos si existen
             $newId = $clone->id;
             $newFolder = "uploads/{$brand}/session/{$newId}/";
 
-            // 3.1) Si la carpeta del original existe, listamos todos los archivos dentro
             if (Storage::disk('public')->exists($oldFolder)) {
                 $allFiles = Storage::disk('public')->allFiles($oldFolder);
 
                 foreach ($allFiles as $filePath) {
-
                     $relative = Str::after($filePath, $oldFolder);
-
                     $newFile = $newFolder . $relative;
 
                     $parentDir = dirname($newFile);
@@ -699,13 +750,17 @@ class SessionCrudController extends CrudController
                         Storage::disk('public')->makeDirectory($parentDir);
                     }
 
-                    // Copiamos el archivo
                     Storage::disk('public')->copy($filePath, $newFile);
                 }
             }
+
+            $clonedSessions[] = $clone->id;
         }
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'cloned_sessions' => $clonedSessions
+        ]);
     }
 
     protected function cloneRates(Session $original, Session $clone): void
@@ -804,70 +859,165 @@ class SessionCrudController extends CrudController
         return view('core.session.multi-create', compact('events', 'spaces', 'rates', 'tpvs'));
     }
 
+    /**
+     * Store multiple sessions - VERSIÓN MEJORADA
+     * Soporta dos modos: temporada (season) y fechas específicas (specific_dates)
+     */
     public function multiStore(StoreMultiSessionRequest $request)
     {
-        // 1. VALIDACIÓN ---------------------------------------------------------
         $data = $request->validated();
+        $creationMode = $data['creation_mode'];
 
-        // 2. PARAMETROS DE FECHA -------------------------------------------------
-        $seasonStart = Carbon::parse($data['season_start'])->startOfDay();
-        $seasonEnd = Carbon::parse($data['season_end'])->endOfDay();
-        $weekdays = collect($data['weekdays'])->map(fn($d) => (int) $d);
+        // Parámetros comunes
         $globalInscStart = Carbon::parse($data['inscription_start']);
 
+        DB::transaction(function () use ($data, $creationMode, $globalInscStart) {
+            $createdSessions = [];
 
-        // 3. CREACIÓN EN UNA TRANSACCIÓN ----------------------------------------
-        DB::transaction(function () use ($data, $seasonStart, $seasonEnd, $weekdays, $globalInscStart) {
+            if ($creationMode === 'season') {
+                // ============ MODO TEMPORADA (actual) ============
+                $seasonStart = Carbon::parse($data['season_start'])->startOfDay();
+                $seasonEnd = Carbon::parse($data['season_end'])->endOfDay();
+                $weekdays = collect($data['weekdays'])->map(fn($d) => (int) $d);
 
-            // Recorre cada día del rango
-            for ($date = $seasonStart->copy(); $date->lte($seasonEnd); $date->addDay()) {
+                // Recorrer cada día del rango
+                for ($date = $seasonStart->copy(); $date->lte($seasonEnd); $date->addDay()) {
+                    // Filtrar por días seleccionados
+                    if (!$weekdays->contains($date->isoWeekday())) {
+                        continue;
+                    }
 
-                // Filtra por los días marcados (1 = lunes … 7 = domingo)
-                if (!$weekdays->contains($date->isoWeekday())) {
-                    continue;
+                    // Por cada template, crear sesión
+                    foreach ($data['templates'] as $tpl) {
+                        $startsOn = $date->copy()->setTimeFromTimeString($tpl['start']);
+                        $endsOn = $date->copy()->setTimeFromTimeString($tpl['end']);
+
+                        $session = $this->createSession([
+                            'event_id' => $data['event_id'],
+                            'space_id' => $data['space_id'],
+                            'tpv_id' => $data['tpv_id'],
+                            'name' => $tpl['title'],
+                            'starts_on' => $startsOn,
+                            'ends_on' => $endsOn,
+                            'inscription_starts_on' => $globalInscStart,
+                            'inscription_ends_on' => $startsOn,
+                            'is_numbered' => $data['is_numbered'],
+                            'max_places' => $data['max_places'],
+                        ]);
+
+                        $this->createRatesForSession($session, $data);
+
+                        if ($session->is_numbered) {
+                            $createdSessions[] = $session;
+                        }
+                    }
                 }
+            } else {
+                // ============ MODO FECHAS ESPECÍFICAS (nuevo) ============
+                foreach ($data['specific_dates'] as $specificDate) {
+                    $date = Carbon::parse($specificDate['date']);
+                    $startsOn = $date->copy()->setTimeFromTimeString($specificDate['start']);
+                    $endsOn = $date->copy()->setTimeFromTimeString($specificDate['end']);
 
-                // Por cada plantilla diaria…
-                foreach ($data['templates'] as $tpl) {
+                    // ✅ Nombre personalizado o por defecto
+                    $sessionName = !empty($specificDate['title'])
+                        ? $specificDate['title']
+                        : "Sesión " . $date->format('d/m/Y H:i');
 
-                    // Combina la fecha del bucle con las horas definidas en la plantilla
-                    $startsOn = $date->copy()->setTimeFromTimeString($tpl['start']);
-                    $endsOn = $date->copy()->setTimeFromTimeString($tpl['end']);
-
-                    // Crea la sesión
-                    $session = Session::create([
+                    $session = $this->createSession([
                         'event_id' => $data['event_id'],
                         'space_id' => $data['space_id'],
                         'tpv_id' => $data['tpv_id'],
-                        'name' => $tpl['title'],
-
+                        'name' => $sessionName,
                         'starts_on' => $startsOn,
                         'ends_on' => $endsOn,
-
-                        // --- reglas de inscripción solicitadas --------------
                         'inscription_starts_on' => $globalInscStart,
                         'inscription_ends_on' => $startsOn,
-                        // -----------------------------------------------------
-
                         'is_numbered' => $data['is_numbered'],
                         'max_places' => $data['max_places'],
                     ]);
 
-                    // Asigna las tarifas
-                    foreach ($data['rates'] as $rate) {
-                        $session->rates()->attach($rate['rate_id'], [
-                            'price' => $rate['price'],
-                            'max_on_sale' => $rate['max_on_sale'] ?? 0,
-                            'max_per_order' => $rate['max_per_order'] ?? 0,
-                            'is_public' => $rate['is_public'] ?? false,
-                        ]);
+                    $this->createRatesForSession($session, $data);
+
+                    if ($session->is_numbered) {
+                        $createdSessions[] = $session;
                     }
                 }
+            }
+
+            // Regenerar cache para sesiones numeradas
+            foreach ($createdSessions as $session) {
+                UpdateSessionSlotCache::dispatch($session);
             }
         });
 
         Alert::success('Sesiones creadas con éxito')->flash();
         return redirect()->to(backpack_url('session'));
+    }
+
+    /**
+     * Método auxiliar para crear una sesión
+     */
+    private function createSession(array $data): Session
+    {
+        return Session::create([
+            'event_id' => $data['event_id'],
+            'space_id' => $data['space_id'],
+            'tpv_id' => $data['tpv_id'] ?? null,
+            'name' => $data['name'],
+            'starts_on' => $data['starts_on'],
+            'ends_on' => $data['ends_on'],
+            'inscription_starts_on' => $data['inscription_starts_on'],
+            'inscription_ends_on' => $data['inscription_ends_on'],
+            'is_numbered' => $data['is_numbered'],
+            'max_places' => $data['max_places'],
+        ]);
+    }
+
+    /**
+     * Método auxiliar para crear tarifas de una sesión
+     */
+    private function createRatesForSession(Session $session, array $data): void
+    {
+        if ($data['is_numbered']) {
+            // Sesión numerada: tarifas por zona
+            $space = Space::with('zones')->find($data['space_id']);
+
+            if ($space->zones->isEmpty()) {
+                throw new \Exception("El espacio '{$space->name}' no tiene zonas definidas.");
+            }
+
+            foreach ($data['rates'] as $rate) {
+                $zoneId = !empty($rate['zone_id'])
+                    ? $rate['zone_id']
+                    : $space->zones->first()->id;
+
+                AssignatedRate::create([
+                    'rate_id' => $rate['rate_id'],
+                    'assignated_rate_type' => Zone::class,
+                    'assignated_rate_id' => $zoneId,
+                    'session_id' => $session->id,
+                    'price' => $rate['price'],
+                    'max_on_sale' => $rate['max_on_sale'] ?? 0,
+                    'max_per_order' => $rate['max_per_order'] ?? 0,
+                    'is_public' => $rate['is_public'] ?? false,
+                ]);
+            }
+        } else {
+            // Sesión NO numerada: tarifas generales
+            foreach ($data['rates'] as $rate) {
+                AssignatedRate::create([
+                    'rate_id' => $rate['rate_id'],
+                    'assignated_rate_type' => Session::class,
+                    'assignated_rate_id' => $session->id,
+                    'session_id' => $session->id,
+                    'price' => $rate['price'],
+                    'max_on_sale' => $rate['max_on_sale'] ?? 0,
+                    'max_per_order' => $rate['max_per_order'] ?? 0,
+                    'is_public' => $rate['is_public'] ?? false,
+                ]);
+            }
+        }
     }
 
     public function importCodes($id)

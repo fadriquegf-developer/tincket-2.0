@@ -71,7 +71,7 @@
                                 <td>
                                     <i class="la la-long-arrow-right"></i>
                                     @if ($inscription->isGift())
-                                        <i class="la la-gift text-warning" title="{{ __('backend/gift_card.gift_card') }}"></i>
+                                        <i class="la la-gift text-warning" title="{{ __('backend.cart.gift_card') }}"></i>
                                     @endif
                                 </td>
                                 <td>

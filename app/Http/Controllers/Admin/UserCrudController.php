@@ -38,7 +38,7 @@ class UserCrudController extends CrudController
     {
         CRUD::setModel(\App\Models\User::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/user');
-        CRUD::setEntityNameStrings(__('backend.menu.user'), __('backend.menu.users'));
+        CRUD::setEntityNameStrings(__('menu.user'), __('menu.users'));
 
         // Activar sistema de permisos
         $this->setAccessUsingPermissions();
@@ -76,20 +76,10 @@ class UserCrudController extends CrudController
             'type' => 'select_multiple',
             'name' => 'roles',
             'entity' => 'roles',
-            'attribute' => 'name',
+            'attribute' => 'displayName',
             'model' => config('permission.models.role'),
         ]);
 
-
-        //No funciona bien y corta la columna brand
-        /* CRUD::addColumn([
-            'label' => trans('backpack::permissionmanager.extra_permissions'),
-            'type' => 'select_multiple',
-            'name' => 'permissions',
-            'entity' => 'permissions',
-            'attribute' => 'name',
-            'model' => config('permission.models.permission'),
-        ]); */
 
         if (get_brand_capability() === 'engine') {
             CRUD::addColumn([
@@ -100,8 +90,8 @@ class UserCrudController extends CrudController
             // 🔽 Filtro por marca, solo visible para "engine"
             CRUD::addFilter(
                 [
-                    'name'  => 'brand_id',
-                    'type'  => 'dropdown', // pon 'select2' si hay muchas marcas
+                    'name' => 'brand_id',
+                    'type' => 'dropdown', // pon 'select2' si hay muchas marcas
                     'label' => __('backend.user.brand'),
                 ],
                 // values del dropdown
@@ -126,47 +116,62 @@ class UserCrudController extends CrudController
             CRUD::addClause('where', 'id', '!=', 1);
         }
 
-
-
         CRUD::addFilter(
             [
-                'name'  => 'role',
-                'type'  => 'dropdown', // o 'select2' si hay muchos
+                'name' => 'role',
+                'type' => 'dropdown',
                 'label' => trans('backpack::permissionmanager.role'),
             ],
-            // values: array o closure que retorne array id => label
-            function () use ($brandId) {
-                return config('permission.models.role')::query()
-                    ->where(function ($q) use ($brandId) {
-                        $q->where('brand_id', $brandId)
-                            ->orWhereNull('brand_id');
-                    })
-                    ->orderBy('name')
-                    ->pluck('name', 'id')
-                    ->toArray();
+            function () {
+                $brandId = get_current_brand_id();
+
+                // Obtener roles según el contexto
+                if (get_brand_capability() === 'engine') {
+                    // Engine ve todos los roles
+                    return config('permission.models.role')::query()
+                        ->orderBy('name')
+                        ->get(['id', 'name', 'brand_id'])
+                        ->mapWithKeys(function ($r) {
+                            $scope = $r->brand_id ? ' (' . ($r->brand->name ?? 'Brand') . ')' : ' (General)';
+                            return [$r->id => $r->display_name . $scope];
+                        })
+                        ->toArray();
+                } else {
+                    // Otras brands ven solo sus roles + generales
+                    return config('permission.models.role')::query()
+                        ->where(function ($q) use ($brandId) {
+                            $q->where('brand_id', $brandId)
+                                ->orWhereNull('brand_id');
+                        })
+                        ->orderBy('name')
+                        ->get(['id', 'name', 'brand_id'])
+                        ->mapWithKeys(function ($r) {
+                            $scope = $r->brand_id ? '' : ' (General)';
+                            return [$r->id => $r->display_name . $scope];
+                        })
+                        ->toArray();
+                }
             },
-            // lógica del filtro cuando está activo
             function ($value) {
                 $this->crud->addClause('whereHas', 'roles', function ($q) use ($value) {
-                    // Mejor apuntar al id de la tabla roles:
                     $q->where('roles.id', $value);
                 });
             }
         );
 
-        // Extra Permission Filter
+        $options = config('permission.models.permission')::query()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->mapWithKeys(function ($p) {
+                $key = 'permissionmanager.' . $p->name;
+                $label = __($key);
+                return [$p->id => $label];
+            })->toArray();
+
         CRUD::addFilter(
-            [
-                'name' => 'permissions',
-                'type' => 'select2',
-                'label' => trans('backpack::permissionmanager.extra_permissions'),
-            ],
-            config('permission.models.permission')::all()->pluck('name', 'id')->toArray(),
-            function ($value) { // if the filter is active
-                $this->crud->addClause('whereHas', 'permissions', function ($query) use ($value) {
-                    $query->where('permission_id', '=', $value);
-                });
-            }
+            ['name' => 'permissions', 'type' => 'select2', 'label' => trans('backpack::permissionmanager.extra_permissions')],
+            $options,
+            fn($value) => $this->crud->addClause('whereHas', 'permissions', fn($q) => $q->where('permission_id', $value))
         );
     }
 
@@ -181,7 +186,6 @@ class UserCrudController extends CrudController
     {
         $this->crud->setValidation(UserRequest::class);
         $this->addUserFields();
-        
     }
 
     public function store()
@@ -216,15 +220,16 @@ class UserCrudController extends CrudController
 
     protected function handlePasswordInput($request)
     {
-        // Remove fields not present on the user.
+        // Eliminar campos que no existen en el modelo User
         $request->request->remove('password_confirmation');
         $request->request->remove('roles_show');
         $request->request->remove('permissions_show');
 
-        // Encrypt password if specified.
-        if ($request->input('password')) {
-            $request->request->set('password', Hash::make($request->input('password')));
-        } else {
+        // IMPORTANTE: NO hashear aquí porque el mutator setPasswordAttribute 
+        // ya se encarga del hash. Doble hash causaría problemas de login
+        if (empty($request->input('password'))) {
+            // Si la contraseña está vacía (en actualización), eliminarla
+            // para no sobrescribir la existente
             $request->request->remove('password');
         }
 
@@ -292,17 +297,25 @@ class UserCrudController extends CrudController
                     'name' => 'roles',
                     'entity' => 'roles',
                     'entity_secondary' => 'permissions',
-                    'attribute' => 'name',
+                    'attribute' => 'displayName',
                     'model' => config('permission.models.role'),
                     'pivot' => true,
                     'number_columns' => 3,
-                    'options' => function ($query) use ($brandId) {
-                        return $query
-                            ->where(function ($q) use ($brandId) {
-                                $q->where('brand_id', $brandId)
-                                    ->orWhereNull('brand_id');
-                            })
-                            ->orderBy('name');
+                    'options' => function ($query) {
+                        $brandId = get_current_brand_id();
+
+                        if (get_brand_capability() === 'engine') {
+                            // Engine ve todos los roles
+                            return $query->orderBy('name');
+                        } else {
+                            // Otras brands: solo sus roles + generales
+                            return $query
+                                ->where(function ($q) use ($brandId) {
+                                    $q->where('brand_id', $brandId)
+                                        ->orWhereNull('brand_id');
+                                })
+                                ->orderBy('name');
+                        }
                     },
                 ],
                 'secondary' => [

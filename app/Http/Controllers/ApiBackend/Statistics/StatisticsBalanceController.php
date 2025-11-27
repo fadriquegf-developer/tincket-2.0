@@ -32,15 +32,6 @@ class StatisticsBalanceController extends Controller
         $start_date = $this->parseDate($request->input('from'), true);
         $end_date   = $this->parseDate($request->input('to'), false);
 
-        // LOG de entrada
-        Log::info('Statistics Balance Request', [
-            'from'        => $request->input('from'),
-            'to'          => $request->input('to'),
-            'breakdown'   => $request->input('breakdown'),
-            'parsed_start' => $start_date->toDateTimeString(),
-            'parsed_end'  => $end_date->toDateTimeString(),
-        ]);
-
         // 3) Cache
         $brand = get_current_brand();
         $cacheKey = sprintf(
@@ -58,13 +49,6 @@ class StatisticsBalanceController extends Controller
                 default => $this->breakdownByUserOptimized($start_date, $end_date),
             };
         });
-
-        // LOG de salida
-        Log::info('Statistics Balance Response', [
-            'breakdown'     => $request->breakdown,
-            'total_results' => $balance instanceof \Illuminate\Support\Collection ? $balance->count() : (is_array($balance) ? count($balance) : null),
-            'sample'        => $balance instanceof \Illuminate\Support\Collection ? $balance->take(2)->toArray() : null,
-        ]);
 
         return response()->json($balance);
     }
@@ -137,17 +121,13 @@ class StatisticsBalanceController extends Controller
      * CONSISTENTE: Desglose por usuario/app (seller) usando SIEMPRE inscriptions.
      * - count = nº de carritos distintos.
      * - sum = SUM(inscriptions.price_sold).
-     * - totalCash/totalCard = sumatorios de price_sold solo cuando gateway=TicketOffice y payment_type coincide.
+     * - totalCash = sumatorio de price_sold solo cuando gateway=TicketOffice y payment_type=CASH
+     * - totalCard = sumatorio de price_sold para todos los demás casos (otros gateways o TicketOffice con CARD)
+     * 
      */
     private function breakdownByUserOptimized(Carbon $start_date, Carbon $end_date)
     {
         $brand = get_current_brand();
-
-        Log::info('BreakdownByUser: Starting', [
-            'brand_id'   => $brand->id,
-            'start_date' => $start_date->toDateTimeString(),
-            'end_date'   => $end_date->toDateTimeString(),
-        ]);
 
         $results = DB::table('inscriptions')
             ->join('carts', 'inscriptions.cart_id', '=', 'carts.id')
@@ -160,36 +140,36 @@ class StatisticsBalanceController extends Controller
             ->whereBetween('payments.paid_at', [$start_date, $end_date])
             ->whereNotNull('carts.seller_type')
             ->whereNotNull('carts.seller_id')
+            ->whereNull('carts.deleted_at')
+            ->whereNull('inscriptions.deleted_at')
             ->select(
                 'carts.seller_type',
                 'carts.seller_id',
                 DB::raw('COUNT(DISTINCT carts.id) as cart_count'),
                 DB::raw('COUNT(DISTINCT inscriptions.id) as inscription_count'),
                 DB::raw('SUM(inscriptions.price_sold) as total'),
+                // Solo efectivo de TicketOffice
                 DB::raw('SUM(
-                    CASE 
-                        WHEN payments.gateway = "TicketOffice" 
-                         AND JSON_UNQUOTE(JSON_EXTRACT(payments.gateway_response, "$.payment_type")) = "' . PaymentTicketOfficeService::CASH . '"
+                CASE 
+                    WHEN payments.gateway = "TicketOffice" 
+                    AND JSON_UNQUOTE(JSON_EXTRACT(payments.gateway_response, "$.payment_type")) = "' . PaymentTicketOfficeService::CASH . '"
                     THEN inscriptions.price_sold
                     ELSE 0 
                 END
-                ) as total_cash'),
+            ) as total_cash'),
+                // Todo lo demás se considera pago con tarjeta/online
                 DB::raw('SUM(
-                    CASE 
-                        WHEN payments.gateway = "TicketOffice" 
-                         AND JSON_UNQUOTE(JSON_EXTRACT(payments.gateway_response, "$.payment_type")) = "' . PaymentTicketOfficeService::CARD . '"
+                CASE 
+                    WHEN payments.gateway != "TicketOffice" 
+                        OR (payments.gateway = "TicketOffice" 
+                            AND JSON_UNQUOTE(JSON_EXTRACT(payments.gateway_response, "$.payment_type")) = "' . PaymentTicketOfficeService::CARD . '")
                     THEN inscriptions.price_sold
                     ELSE 0 
                 END
-                ) as total_card')
+            ) as total_card')
             )
             ->groupBy('carts.seller_type', 'carts.seller_id')
             ->get();
-
-        Log::info('BreakdownByUser: Query results', [
-            'count'  => $results->count(),
-            'sample' => $results->take(2)->toArray(),
-        ]);
 
         // Batch de sellers
         $userIds = $results->where('seller_type', 'App\\Models\\User')->pluck('seller_id')->unique();
@@ -233,14 +213,6 @@ class StatisticsBalanceController extends Controller
                 'sum'       => round((float) $row->total, 2),
             ];
 
-            Log::debug('BreakdownByUser: Seller processed', [
-                'type'              => $row->seller_type,
-                'id'                => $row->seller_id,
-                'inscription_count' => (int) $row->inscription_count,
-                'cart_count'        => (int) $row->cart_count,
-                'result'            => $result,
-            ]);
-
             return $result;
         })->filter()->values();
 
@@ -250,16 +222,12 @@ class StatisticsBalanceController extends Controller
     /**
      * Desglose por evento (brand actual + hijos).
      * Traduce el nombre del evento si viene como JSON de locales.
+     * 
      */
     private function breakdownByEventOptimized(Carbon $start_date, Carbon $end_date)
     {
         $brandId  = get_current_brand()->id;
         $brandIds = $this->getBrandAndChildrenIds();
-
-        Log::info('BreakdownByEvent: Starting', [
-            'brand_id'  => $brandId,
-            'brand_ids' => $brandIds,
-        ]);
 
         $results = DB::table('inscriptions')
             ->join('sessions', 'inscriptions.session_id', '=', 'sessions.id')
@@ -273,6 +241,8 @@ class StatisticsBalanceController extends Controller
             ->whereNotNull('carts.confirmation_code')
             ->whereBetween('payments.paid_at', [$start_date, $end_date])
             ->whereIn('sessions.brand_id', $brandIds)
+            ->whereNull('carts.deleted_at')
+            ->whereNull('inscriptions.deleted_at')
             ->select(
                 'events.id as event_id',
                 'events.name as event_name',
@@ -293,13 +263,6 @@ class StatisticsBalanceController extends Controller
                 'to'    => $end_date->toDateString(),
             ];
 
-            Log::debug('BreakdownByEvent: Event processed', [
-                'event_id'        => $row->event_id,
-                'original_name'   => $row->event_name,
-                'translated_name' => $eventName,
-                'result'          => $result,
-            ]);
-
             return $result;
         })->values();
 
@@ -308,16 +271,12 @@ class StatisticsBalanceController extends Controller
 
     /**
      * Desglose por promotor (brand actual + hijos).
+     * 
      */
     private function breakdownByPromoterOptimized(Carbon $start_date, Carbon $end_date)
     {
         $brandId  = get_current_brand()->id;
         $brandIds = $this->getBrandAndChildrenIds();
-
-        Log::info('BreakdownByPromoter: Starting', [
-            'brand_id'  => $brandId,
-            'brand_ids' => $brandIds,
-        ]);
 
         $results = DB::table('inscriptions')
             ->join('sessions', 'inscriptions.session_id', '=', 'sessions.id')
@@ -331,6 +290,8 @@ class StatisticsBalanceController extends Controller
             ->whereNotNull('carts.confirmation_code')
             ->whereBetween('payments.paid_at', [$start_date, $end_date])
             ->whereIn('sessions.brand_id', $brandIds)
+            ->whereNull('carts.deleted_at')
+            ->whereNull('inscriptions.deleted_at')
             ->select(
                 'brands.id',
                 'brands.name as brand_name',

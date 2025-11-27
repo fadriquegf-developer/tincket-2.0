@@ -53,14 +53,14 @@ class Rate extends BaseModel
             static::addGlobalScope(new BrandScope());
         }
     }
-    
+
     public function getMaxOnSaleAttribute()
     {
         return $this->pivot && $this->pivot->max_on_sale ?
             min([$this->pivot->max_per_order, $this->count_free_positions]) : -1;
     }
 
-   
+
     public function getCountFreePositionsAttribute()
     {
         $session = $this->pivot->morphTo('assignated_rate')->getResults() ?? $this->pivot->pivotParent;
@@ -87,7 +87,7 @@ class Rate extends BaseModel
         // Returns the number of booked Inscriptions for the given rate
         if ($session) {
             $car_ttl = $session->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE);
-            
+
             $confirmed_inscriptions = Inscription::where('session_id', $session->id)
                 ->where('rate_id', $rate_id)
                 ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
@@ -103,7 +103,7 @@ class Rate extends BaseModel
 
             $blocked_inscriptions = $confirmed_inscriptions  + $not_expired_carts;
 
-            return min([$session->count_free_positions, $this->pivot->max_on_sale - $blocked_inscriptions]);
+            return min([$session->getFreePositions(), $this->pivot->max_on_sale - $blocked_inscriptions]);
         }
 
         // TODO throw Exception? What if assignated_rate is not to Session?
@@ -137,4 +137,5 @@ class Rate extends BaseModel
     {
         return $this->hasMany(AssignatedRate::class, 'rate_id');
     }
+
 }

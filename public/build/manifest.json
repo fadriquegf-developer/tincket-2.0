@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-CvKm0lCu.css",
+    "file": "assets/app-864a9d8l.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -9,5 +9,14 @@
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true
+  },
+  "resources/js/ticket-office/main.js": {
+    "file": "assets/main-CixW5vJZ.js",
+    "name": "main",
+    "src": "resources/js/ticket-office/main.js",
+    "isEntry": true,
+    "css": [
+      "assets/main-DT6Wwb7d.css"
+    ]
   }
 }

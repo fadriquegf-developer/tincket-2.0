@@ -291,7 +291,7 @@
     <div class="container">
         <div class="row">
             <div class="col-4">
-                <img style="width: 100%;" src="{{ $inscription->cart->brand->logo }}" />
+                <img style="width: 100%;" src="{{ $inscription->getLogo() }}" />
             </div>
             <div class="col-4">
                 <p></p>
@@ -307,7 +307,7 @@
                     <small>{{ $inscription->session->event->getTranslation('lead', $inscription->cart->client->locale) }}</small>
                 </h2>
                 <h4 style="font-weight:400; margin-top: 16px; margin-bottom: 0px;">
-                    {{ $inscription->session->starts_on->formatLocalized('%d de %b de %Y') }}
+                    {{ $inscription->session->starts_on->translatedFormat('d \d\e M \d\e Y') }}
                     -
                     {{ $inscription->session->space->name }}
                 </h4>
@@ -334,7 +334,7 @@
                         <span>{{ $inscription->session->name }} - </span>
                     @endif
                     HORA:
-                    {{ $inscription->session->starts_on->formatLocalized('%H:%M') }}
+                    {{ $inscription->session->starts_on->translatedFormat('H:i') }}
                 </div>
                 <div style="border-top: 2px solid black; padding: 10px 0px; font-size: 18px;">
                     @if (isset($inscription->cart->client->name) && isset($inscription->cart->client->surname))

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Observers\SessionTempSlotObserver;
+use App\Scopes\BrandScope;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 
 
@@ -39,7 +40,8 @@ class SessionTempSlot extends BaseModel
 
     public function session()
     {
-        return $this->belongsTo(Session::class);
+        return $this->belongsTo(Session::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     public function slot()
@@ -54,7 +56,8 @@ class SessionTempSlot extends BaseModel
 
     public function inscription()
     {
-        return $this->belongsTo(Inscription::class);
+        return $this->belongsTo(Inscription::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     /**

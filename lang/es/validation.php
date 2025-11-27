@@ -162,5 +162,46 @@ return [
         'code_type' => 'Limitación de compra',
         'capacity' => 'Capacidad del espacio',
         'space_id' => 'Espacio',
+        'is_numbered' => 'Numerado',
+    ],
+    'brand' => [
+        'name' => [
+            'required' => 'El nombre de la marca es obligatorio.',
+        ],
+        'code_name' => [
+            'required' => 'El código de la marca es obligatorio.',
+            'alpha_dash' => 'El código solo puede contener letras, números, guiones y guiones bajos.',
+            'regex' => 'El código solo puede contener letras minúsculas, números, guiones y guiones bajos.',
+            'unique' => 'Este código ya está en uso.',
+        ],
+        'allowed_host' => [
+            'regex' => 'El dominio debe ser válido (ej: ejemplo.com).',
+            'unique' => 'Este dominio ya está en uso.',
+        ],
+        'capability_id' => [
+            'required' => 'La capacidad es obligatoria.',
+            'exists' => 'La capacidad seleccionada no es válida.',
+        ],
+        'parent_id' => [
+            'exists' => 'La marca padre seleccionada no es válida.',
+            'required' => 'La marca padre es obligatoria para capacidades de tipo promotor.',
+        ],
+    ],
+
+    'client' => [
+        'name_required' => 'El nombre es obligatorio.',
+        'surname_required' => 'Los apellidos son obligatorios.',
+        'email_required' => 'El correo electrónico es obligatorio.',
+        'email_invalid' => 'El correo electrónico debe ser una dirección válida.',
+        'email_unique' => 'Este correo electrónico ya está registrado.',
+        'password_required' => 'La contraseña es obligatoria.',
+        'password_confirmed' => 'La confirmación de la contraseña no coincide.',
+        'password_min' => 'La contraseña debe tener al menos 8 caracteres.',
+        'password_mixed' => 'La contraseña debe contener al menos una mayúscula y una minúscula.',
+        'password_numbers' => 'La contraseña debe contener al menos un número.',
+        'password_symbols' => 'La contraseña debe contener al menos un símbolo.',
+        'password_uncompromised' => 'Esta contraseña ha aparecido en una filtración de datos. Por favor, elige una contraseña diferente.',
+        'date_birth_before' => 'La fecha de nacimiento debe ser una fecha válida en el pasado.',
+        'date_birth_after' => 'La fecha de nacimiento debe ser posterior a 1900.',
     ],
 ];

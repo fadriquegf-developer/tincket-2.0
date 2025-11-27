@@ -101,6 +101,7 @@
                         @if($inscription->cart->brand->getAttributes()['logo'])
                             <img class="image h1" style="width: 100%;" alt="{{ $inscription->cart->brand->name }}"
                                 src="{{ $inscription->getLogo() }}" />
+
                         @endif
                     </div>
                     <div class="col-xs-8 event">
@@ -159,7 +160,7 @@
                             </p>
                             <p>
                                 {{ $inscription->session->space->location->postal_code }} -
-                                {{ $inscription->session->space->location->town->name }}
+                                {{ $inscription->session->space->location->city->name }}
                             </p>
                         </div>
                     @endif
@@ -169,7 +170,7 @@
     </div>
 
     <div class="col-10 text-extra-small" style="position: absolute; bottom: 10px; left: 0px;">
-        {{ __('tincket/tickets.footer-text') }}
+        {{ __('tickets.footer-text') }}
     </div>
 </body>
 

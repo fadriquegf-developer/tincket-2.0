@@ -1,7 +1,7 @@
 @php
-    $logo = !empty(config('ywt.header_mailing_image'))
-        ? 'storage/uploads/' . config('ywt.header_mailing_image')
-        : $brand->logoPath;
+    $logo = !empty(brand_setting('ywt.header_mailing_image'))
+        ? 'storage/uploads/' . brand_setting('ywt.header_mailing_image')
+        : $brand->logo;
 
     $embededLogo = '';
     if (isset($message) && file_exists(public_path() . '/' . $logo)) {
@@ -13,7 +13,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <head>
-    <title>{{ config('app.name') }}</title>
+    <title>{{ brand_setting('app.name') }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="color-scheme" content="light only">

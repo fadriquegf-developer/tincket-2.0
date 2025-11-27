@@ -5,7 +5,8 @@ namespace App\Services\Payment;
 use App\Services\Payment\Impl\{
     PaymentFreeService,
     PaymentRedsysService,
-    PaymentRedsysSoapService
+    PaymentRedsysSoapService,
+    PaymentTicketOfficeService
 };
 use InvalidArgumentException;
 
@@ -22,14 +23,15 @@ class PaymentServiceFactory
             'redsys', 'sermepa', 'redsys_redirect' => new PaymentRedsysService(),
 
             // ------------- CALLBACK SOAP (notificación) ------------
-            'redsyssoap', 'sermepasoap'           => new PaymentRedsysSoapService(),
+            'redsyssoap', 'sermepasoap', 'redsys_soap' => new PaymentRedsysSoapService(),
 
             // ------------- Gratuito --------------------------------
             'free'                                => new PaymentFreeService('Free'),
 
+            // Agregar soporte para TicketOffice
+            'ticketoffice', 'ticket_office'       => new PaymentTicketOfficeService('TicketOffice'),
+
             default => throw new InvalidArgumentException("Gateway {$gateway} no soportado"),
         };
     }
-
 }
-

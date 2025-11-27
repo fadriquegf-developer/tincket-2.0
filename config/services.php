@@ -34,38 +34,55 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+
     'stripe' => [
         'secret' => env('STRIPE_API_KEY'),
     ],
+
+    // ⚠️ CRÍTICO: Las credenciales por defecto NO deben estar hardcodeadas
     'redsys' => [
-        'merchantCode' => env('REDSYS_MERCHANT_CODE', '334582459'),
-        'merchantKey' => env('REDSYS_MERCHANT_KEY', 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'),
+        'merchantCode' => env('REDSYS_MERCHANT_CODE'),
+        'merchantKey' => env('REDSYS_MERCHANT_KEY'),
         'terminal' => env('REDSYS_TERMINAL', '002'),
         'testMode' => env('REDSYS_TEST', true),
         'urlOK' => env('REDSYS_URL_OK'),
         'urlKO' => env('REDSYS_URL_KO'),
     ],
+
     'sermepa' => [
-        'merchantCode' => env('REDSYS_MERCHANT_CODE', '334582459'),
-        'merchantKey' => env('REDSYS_MERCHANT_KEY', 'sq7HjrUOBfKmC576ILgskD5srU870gJ7'),
+        'merchantCode' => env('REDSYS_MERCHANT_CODE'),
+        'merchantKey' => env('REDSYS_MERCHANT_KEY'),
         'terminal' => env('REDSYS_TERMINAL', '002'),
         'testMode' => env('REDSYS_TEST', true),
-        'urlOK' => env('REDSYS_URL_OK'),        // ej: https://test.yourapp.com/booking-confirmed/{token}
-        'urlKO' => env('REDSYS_URL_KO'),        // ej: https://test.yourapp.com/booking-failure/{id}
+        'urlOK' => env('REDSYS_URL_OK'),
+        'urlKO' => env('REDSYS_URL_KO'),
     ],
+
     'javajan' => [
         'sermepa' => [
-            'sermepaMerchantCode' => '336790613',
-            'sermepaMerchantKey' => '0t8Z5B0x0pzM91S3dR2r6RGAoWdHDijw',
+            'sermepaMerchantCode' => env('JAVAJAN_MERCHANT_CODE'),
+            'sermepaMerchantKey' => env('JAVAJAN_MERCHANT_KEY'),
             'sermepaUrlKO' => ':public_url:/booking-failure/{id}?locale=ca',
             'sermepaUrlOK' => ':public_url:/booking-confirmed/{token}?locale=ca',
-            'sermepaTestMode' => '0',
+            'sermepaTestMode' => env('JAVAJAN_TEST_MODE', '0'),
             'sermepaMerchantName' => ':brand_name:',
-            'sermepaTerminal' => '002'
-        ]
+            'sermepaTerminal' => env('JAVAJAN_TERMINAL', '002')
+        ],
+        'admin_emails' => explode(',', env('JAVAJAN_ADMIN_EMAILS', '')),
     ],
+
     'mandrill' => [
-        'secret' => 'vd8dPZy4pESKj7bFiiSt4g'
+        'secret' => env('MANDRILL_SECRET')
+    ],
+
+    // Agregar configuración de cPanel
+    'cpanel' => [
+        'base_uri' => env('CPANEL_BASE_URI', 'https://yesweticket.com:2083'),
+        'username' => env('CPANEL_USERNAME'),
+        'api_key' => env('CPANEL_API_KEY'),
+        'root_domain' => env('CPANEL_ROOT_DOMAIN', 'yesweticket.com'),
+        'subdomain_dir' => env('CPANEL_SUBDOMAIN_DIR', '/public_html/engine/master/public'),
+        'timeout' => env('CPANEL_TIMEOUT', 30),
     ],
 
 ];

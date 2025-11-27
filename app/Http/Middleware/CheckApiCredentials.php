@@ -4,11 +4,9 @@ namespace App\Http\Middleware;
 
 use Closure;
 use App\Models\Application;
-use Illuminate\Auth\AuthenticationException;
 
 class CheckApiCredentials
 {
-
     // TPV callback endpoint must not be protected by credentials cheking
     protected $except = [
         '*/payment/callback',
@@ -28,27 +26,19 @@ class CheckApiCredentials
     public function handle($request, Closure $next)
     {
         // Is this URI must be excluded from validation?
-        if ($this->shouldPassThrough($request))
-        {
+        if ($this->shouldPassThrough($request)) {
             return $next($request);
         }
 
-        // ID and KEY should be sent with header.
-        // Headers travel throught SSL. Request URL parameters does not
-        //
-        // X-TK-KEY
-        // X-TK-ID
         $brand = $this->setBrandInformation($request);
 
-        if (!is_null($brand))
-        {
-            // we do not check key in local env
-            if ($request->header('X-TK-BRAND-KEY') === $brand->key)
-            {
-                
-                $this->loadBrandConfig($brand->code_name);
-                
+        if (!is_null($brand)) {
+            // we do not check key in local env (opcional)
+            $providedKey = $request->header('X-TK-BRAND-KEY');
 
+            // En desarrollo local podrías hacer bypass si necesitas
+            if (app()->environment('local') || $providedKey === $brand->key) {
+                $this->loadBrandConfig($brand->code_name);
                 return $next($request);
             }
         }
@@ -58,19 +48,21 @@ class CheckApiCredentials
 
     public function setBrandInformation($request)
     {
-        $application = Application::where('code_name', '!=', 'public_api')->where('key', $request->header('X-TK-APPLICATION-KEY'))->first();
+        $application = Application::where('code_name', '!=', 'public_api')
+            ->where('key', $request->header('X-TK-APPLICATION-KEY'))
+            ->whereNull('deleted_at') // Solo aplicaciones no eliminadas
+            ->first();
+
         $brand = $application ? $application->brand : null;
-        
-        if (!is_null($brand))
-        {            
+
+        if (!is_null($brand)) {
             // Store on Request
             $request->attributes->add(['brand' => $brand]);
             $request->attributes->add(['brand.id' => $brand->id]);
-
-            // the user is API appliaction (not a logged system's user)
+            // the user is API application (not a logged system's user)
             $request->attributes->add(['user' => $application]);
         }
-        
+
         return $brand;
     }
 
@@ -96,20 +88,16 @@ class CheckApiCredentials
      */
     protected function shouldPassThrough($request)
     {
-        foreach ($this->except as $except)
-        {
-            if ($except !== '/')
-            {
+        foreach ($this->except as $except) {
+            if ($except !== '/') {
                 $except = trim($except, '/');
             }
 
-            if ($request->is($except))
-            {
+            if ($request->is($except)) {
                 return true;
             }
         }
 
         return false;
     }
-
 }

@@ -92,7 +92,7 @@
             <div class="card-header bg-light d-flex justify-content-between align-items-center">
               <div class="d-flex align-items-center">
                 <i class="la la-list-ul me-2"></i>
-                <strong>Sesiones Disponibles</strong>
+                <strong>{{ translations.available_sessions }}</strong>
                 <span class="badge bg-secondary ms-2">{{ available.length }}</span>
               </div>
             </div>
@@ -102,12 +102,12 @@
               <div class="sessions-list" style="max-height: 400px; overflow-y: auto;">
                 <div v-if="!available.length" class="text-center text-muted py-3">
                   <i class="la la-inbox la-2x d-block mb-2"></i>
-                  No hay sesiones disponibles
+                  {{ translations.no_available }}
                 </div>
 
                 <div v-for="s in available" 
-                     :key="'av-' + s.id" 
-                     class="session-item d-flex align-items-center p-2 mb-1 border rounded hover-bg">
+                    :key="'av-' + s.id" 
+                    class="session-item d-flex align-items-center p-2 mb-1 border rounded hover-bg">
                   <div class="flex-grow-1 text-truncate" :title="s.name">
                     <i class="la la-calendar-check-o text-muted me-1"></i>
                     {{ s.name }}
@@ -120,7 +120,7 @@
                     @mouseleave="hideTooltip"
                     data-bs-toggle="tooltip"
                     data-bs-placement="left"
-                    title="Añadir al pack"
+                    :title="translations.add_to_pack"
                   >
                     <i class="la la-plus"></i>
                   </button>
@@ -135,7 +135,7 @@
                   @click="addAll"
                 >
                   <i class="la la-angle-double-right me-1"></i>
-                  Añadir todas ({{ available.length }})
+                  {{ translations.add_all }} ({{ available.length }})
                 </button>
               </div>
             </div>
@@ -148,7 +148,7 @@
             <div class="mb-3">
               <i class="la la-exchange la-2x text-muted"></i>
             </div>
-            <small class="text-muted">Arrastra o usa<br>los botones</small>
+            <small class="text-muted" v-html="translations.drag_or_buttons"></small>
           </div>
         </div>
 
@@ -158,7 +158,7 @@
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
               <div class="d-flex align-items-center">
                 <i class="la la-check-square me-2"></i>
-                <strong>Sesiones en el Pack</strong>
+                <strong>{{ translations.selected_sessions }}</strong>
                 <span class="badge bg-white text-primary ms-2">{{ selected.length }}</span>
               </div>
             </div>
@@ -168,12 +168,12 @@
               <div class="sessions-list" style="max-height: 400px; overflow-y: auto;">
                 <div v-if="!selected.length" class="text-center text-muted py-3">
                   <i class="la la-info-circle la-2x d-block mb-2"></i>
-                  No hay sesiones seleccionadas
+                  {{ translations.no_selected }}
                 </div>
 
                 <div v-for="s in selected" 
-                     :key="'sel-' + s.id" 
-                     class="session-item d-flex align-items-center p-2 mb-1 border rounded hover-bg bg-light">
+                    :key="'sel-' + s.id" 
+                    class="session-item d-flex align-items-center p-2 mb-1 border rounded hover-bg bg-light">
                   <button 
                     class="btn btn-sm btn-outline-danger me-2"
                     type="button" 
@@ -182,7 +182,7 @@
                     @mouseleave="hideTooltip"
                     data-bs-toggle="tooltip"
                     data-bs-placement="right"
-                    title="Quitar del pack"
+                    :title="translations.remove_from_pack"
                   >
                     <i class="la la-minus"></i>
                   </button>
@@ -201,7 +201,7 @@
                   @click="removeAll"
                 >
                   <i class="la la-angle-double-left me-1"></i>
-                  Quitar todas ({{ selected.length }})
+                  {{ translations.remove_all }} ({{ selected.length }})
                 </button>
               </div>
             </div>
@@ -243,6 +243,7 @@
         // Inicializar tooltips al montar
         const { onMounted, onUnmounted, nextTick } = Vue;
         
+        const translations = props.translations || {};
         let tooltipInstances = [];
         
         const initTooltips = () => {
@@ -302,6 +303,7 @@
           showTooltip,
           hideTooltip,
           name: props.name || 'sessions',
+          translations
         };
       },
     };

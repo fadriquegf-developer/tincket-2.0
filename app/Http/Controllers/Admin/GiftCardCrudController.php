@@ -16,7 +16,7 @@ class GiftCardCrudController extends CrudController
     {
         CRUD::setModel(GiftCard::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/gift-card');
-        CRUD::setEntityNameStrings(__('backend.menu.gift_card'), __('backend.menu.gift_cards'));
+        CRUD::setEntityNameStrings(__('menu.gift_card'), __('menu.gift_cards'));
 
         CRUD::orderBy('created_at', 'DESC');
         CRUD::with(['event', 'inscription']);

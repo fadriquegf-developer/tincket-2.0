@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Client;
 use App\Models\Setting;
 use App\Models\Capability;
+use App\Observers\BrandObserver;
 use App\Scopes\BrandScope;
 use App\Traits\LogsActivity;
 use App\Traits\HasTranslations;
@@ -39,7 +40,6 @@ class Brand extends BaseModel
         'name',
         'code_name',
         'key',
-        'type',
         'capability_id',
         'allowed_host',
         'brand_color',
@@ -81,6 +81,14 @@ class Brand extends BaseModel
     |--------------------------------------------------------------------------
     */
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Registrar el observer
+        static::observe(BrandObserver::class);
+    }
+
     /* public function getLogoAttribute($value)
     {
         if (!$value) {
@@ -100,46 +108,33 @@ class Brand extends BaseModel
     } */
 
 
+    /**
+     * Obtiene las marcas que tienen a esta marca como hija
+     * (es decir, las marcas "padre" que pueden vender mis eventos)
+     * 
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
     public function getPartnershipedBrandsAttribute()
     {
-        return static::get()  // todas las marcas
-            ->filter(function (Brand $brand) {
-                // desactivamos el scope sólo para esta query de Settings
-                $setting = Setting::withoutGlobalScope(BrandScope::class)
-                    ->where('brand_id', $brand->id)
-                    ->where('key', 'base.brand.partnershiped_ids')
-                    ->first();
+        // Si esta marca tiene un padre, devuelve una colección con ese padre
+        // Si no tiene padre, devuelve una colección vacía
+        if ($this->parent_id) {
+            return collect([$this->parent]);
+        }
 
-                if (!$setting || !trim($setting->value)) {
-                    return false;
-                }
-
-                $ids = array_map('intval', explode(',', $setting->value));
-
-                return in_array($this->id, $ids);
-            });
+        return collect();
     }
 
 
+    /**
+     * Obtiene las marcas hijas de esta marca
+     * (es decir, las marcas de las cuales puedo vender eventos)
+     * 
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
     public function getPartnershipedChildBrandsAttribute()
     {
-        // Obtiene solo el valor del setting; si no existe devuelve null.
-        $idsString = Setting::where('brand_id', $this->id)
-            ->where('key', 'base.brand.partnershiped_ids')
-            ->value('value');                //   null | "1,2,3"
-
-        // Sin configuración ⇒ colección vacía.
-        if (blank($idsString)) {
-            return collect();
-        }
-
-        // Normaliza: separa, quita espacios, convierte a int y filtra vacíos.
-        $ids = collect(explode(',', $idsString))
-            ->map(fn($id) => (int) trim($id))
-            ->filter()
-            ->all();                         // [1, 2, 3]
-
-        return static::whereIn('id', $ids)->get();
+        return $this->children;
     }
 
     /* public function getLogoPathAttribute()
@@ -151,6 +146,31 @@ class Brand extends BaseModel
 
         return $value;
     } */
+
+    public function hasRelations(): bool
+    {
+        return $this->applications()->exists() ||
+            $this->users()->exists() ||
+            $this->events()->exists() ||
+            $this->tpvs()->exists() ||
+            $this->clients()->exists() ||
+            $this->pages()->exists() ||
+            $this->children()->exists();
+    }
+
+    /**
+     * URLs frontend from current brand not event brand and for all types promotor and basic
+     * Similar to getRedirectTo but specifically for profile page
+     * 
+     * @return string
+     */
+    public function frontendProfile()
+    {
+        // Obtener URL del frontend desde brand_setting o config
+        $frontend_url = brand_setting('clients.frontend.url', $this) ?? config('clients.frontend.url');
+
+        return sprintf("%s/%s", trim($frontend_url, '/'), "perfil");
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -231,6 +251,30 @@ class Brand extends BaseModel
     | ACCESSORS
     |--------------------------------------------------------------------------
     */
+    public function getLogoUrlAttribute(): string
+    {
+        if (!$this->logo) {
+            return '';
+        }
+
+        // Si ya es URL completa
+        if (filter_var($this->logo, FILTER_VALIDATE_URL)) {
+            return $this->logo;
+        }
+
+        // Convertir a URL absoluta
+        $path = str_replace('\\', '/', $this->logo);
+
+        if (str_starts_with($path, 'storage/')) {
+            return url($path);
+        }
+
+        if (str_starts_with($path, 'uploads/')) {
+            return url('storage/' . $path);
+        }
+
+        return url('storage/' . ltrim($path, '/'));
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -252,12 +296,9 @@ class Brand extends BaseModel
 
     public function getBrandSuperAdmins()
     {
-        $admi_ids = Setting::where('brand_id', $this->id)->where('key', 'base.brand.admins_ids')->first()->value ?? '';
-
-        // check if user are allowed to login to current brand
-        return $this->users()->whereIn('id', explode(',', $admi_ids))->get()->pluck('id');
+        return $this->users()
+            ->whereIn('users.id', config('superusers.ids', [1]))
+            ->pluck('users.id')
+            ->toArray();
     }
-
-
-
 }

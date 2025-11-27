@@ -10,11 +10,8 @@ use Backpack\PermissionManager\app\Http\Requests\RoleUpdateCrudRequest as Update
 use Spatie\Permission\PermissionRegistrar;
 use App\Traits\CrudPermissionTrait;
 
-// VALIDATION
-
 class RoleCrudController extends CrudController
 {
-
     use CrudPermissionTrait;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
@@ -25,17 +22,47 @@ class RoleCrudController extends CrudController
     {
         $this->crud->setModel(Role::class);
 
-        // Configuración adicional del CRUD
         $this->crud->setEntityNameStrings(
             trans('backpack::permissionmanager.role'),
             trans('backpack::permissionmanager.roles')
         );
         $this->crud->setRoute(backpack_url('role'));
 
-        /* Activamos el sistema de permissos */
+        /* Activamos el sistema de permisos */
         $this->setAccessUsingPermissions();
+
+        // Aplicar filtro de brand AQUÍ, no en el modelo
+        $this->applyBrandFilter();
     }
 
+    /**
+     * Aplica el filtro de brand para mostrar solo:
+     * - Roles de la brand actual
+     * - Roles generales (brand_id = null)
+     */
+    protected function applyBrandFilter()
+    {
+        $brandCapability = get_brand_capability();
+
+        // Si es engine, mostrar todos los roles
+        if ($brandCapability === 'engine') {
+            // Engine ve todo
+            return;
+        }
+
+        // Para otras brands, filtrar
+        $brandId = get_current_brand_id();
+
+        if ($brandId) {
+            $this->crud->addClause('where', function ($query) use ($brandId) {
+                $query->where('brand_id', $brandId)
+                    ->orWhereNull('brand_id');
+            });
+        } else {
+            // Si no hay brand actual, solo mostrar roles generales
+            $this->crud->addClause('whereNull', 'brand_id');
+        }
+    }
 
     public function setupListOperation()
     {
@@ -49,13 +76,23 @@ class RoleCrudController extends CrudController
         ]);
 
         /**
+         * Columna para mostrar si es un rol general o de brand específica
+         */
+        $this->crud->addColumn([
+            'name'  => 'brand_scope',
+            'label' => 'Ámbito',
+            'type'  => 'model_function',
+            'function_name' => 'getScopeLabel',
+            'wrapper' => [
+                'element' => 'span',
+                'class' => function ($crud, $column, $entry, $related_key) {
+                    return $entry->brand_id ? 'badge badge-info' : 'badge badge-success';
+                },
+            ],
+        ]);
+
+        /**
          * Show a column with the number of users that have that particular role.
-         *
-         * Note: To account for the fact that there can be thousands or millions
-         * of users for a role, we did not use the `relationship_count` column,
-         * but instead opted to append a fake `user_count` column to
-         * the result, using Laravel's `withCount()` method.
-         * That way, no users are loaded.
          */
         $this->crud->query->withCount('users');
         $this->crud->addColumn([
@@ -69,7 +106,6 @@ class RoleCrudController extends CrudController
             ],
             'suffix'    => ' ' . strtolower(trans('backpack::permissionmanager.users')),
         ]);
-
 
         /**
          * Show the exact permissions that role has.
@@ -90,7 +126,7 @@ class RoleCrudController extends CrudController
         $this->addFields();
         $this->crud->setValidation(StoreRequest::class);
 
-        //otherwise, changes won't have effect
+        // Limpiar caché de permisos
         app()->make(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
@@ -99,7 +135,7 @@ class RoleCrudController extends CrudController
         $this->addFields();
         $this->crud->setValidation(UpdateRequest::class);
 
-        //otherwise, changes won't have effect
+        // Limpiar caché de permisos
         app()->make(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
@@ -110,6 +146,27 @@ class RoleCrudController extends CrudController
             'label' => trans('backpack::permissionmanager.name'),
             'type'  => 'text',
         ]);
+
+        // Si NO es engine, asignar automáticamente el brand_id actual
+        if (get_brand_capability() !== 'engine') {
+            $this->crud->addField([
+                'name'  => 'brand_id',
+                'type'  => 'hidden',
+                'value' => get_current_brand_id(),
+            ]);
+        } else {
+            // Si es engine, puede elegir si crear rol general o para brand específica
+            $this->crud->addField([
+                'name'  => 'brand_id',
+                'label' => 'Brand (dejar vacío para rol general)',
+                'type'  => 'select2',
+                'entity' => 'brand',
+                'attribute' => 'name',
+                'model' => "App\Models\Brand",
+                'allows_null' => true,
+                'placeholder' => 'Rol general (todas las brands)',
+            ]);
+        }
 
         if (config('backpack.permissionmanager.multiple_guards')) {
             $this->crud->addField([
@@ -131,21 +188,13 @@ class RoleCrudController extends CrudController
         ]);
     }
 
-    /*
-     * Get an array list of all available guard types
-     * that have been defined in app/config/auth.php
-     *
-     * @return array
-     **/
     private function getGuardTypes()
     {
         $guards = config('auth.guards');
-
         $returnable = [];
         foreach ($guards as $key => $details) {
             $returnable[$key] = $key;
         }
-
         return $returnable;
     }
 }

@@ -1,4 +1,5 @@
 @extends('brands.cirvianum.emails.layout')
+
 @section('content')
 <p>
     Benvolgut/da {{ $cart->client->name ?? '{name}' }},<br>

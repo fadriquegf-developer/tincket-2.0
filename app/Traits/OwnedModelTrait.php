@@ -72,6 +72,7 @@ trait OwnedModelTrait
     public function checkBrandOwnership()
     {
         $brand = get_current_brand() ? get_current_brand() : request()->get('brand');
+
         if ($this->brand->id != $brand->id) {
             abort(404, 'This object does not belong to the current brand');
             throw new \Exception("This object does not belong to the current brand");
@@ -84,6 +85,7 @@ trait OwnedModelTrait
 
         return $this;
     }
+
     public function checkBrandPartnership()
     {
         if (is_null($this->getPartnershipedBrandsId()) || !in_array($this->brand->id, $this->getPartnershipedBrandsId())) {
@@ -115,16 +117,23 @@ trait OwnedModelTrait
         return null;
     }
 
+    /**
+     * Obtiene los IDs de las marcas permitidas (marca actual + sus hijos)
+     * 
+     * @return array
+     */
     private function getPartnershipedBrandsId()
     {
-        $brands_id = brand_setting('base.brand.partnershiped_ids', []);
+        // Obtener la marca actual
+        $currentBrand = get_current_brand() ?: request()->get('brand');
 
-        if (is_string($brands_id))
-            $brands_id = explode(",", $brands_id);
+        // Inicializar con el ID de la marca actual
+        $brandsId = collect([$currentBrand->id]);
 
-        // add id current brand. To show events from current brand not only events from partners
-        $brands_id[] = get_current_brand() ? get_current_brand()->id : request()->get('brand')->id;
+        // Agregar los IDs de las marcas hijas
+        $brandsId = $brandsId->merge($currentBrand->children->pluck('id'));
 
-        return $brands_id;
+        // Retornar array único de IDs
+        return $brandsId->unique()->values()->toArray();
     }
 }

@@ -26,8 +26,10 @@ class AssignatedRate extends BaseModel
 
     protected $casts = [
         'validator_class' => 'array',
+        'is_public' => 'boolean',
+        'is_private' => 'boolean',
     ];
-    
+
     public $timestamps = false;
 
     public function rate()
@@ -40,5 +42,42 @@ class AssignatedRate extends BaseModel
     public function getFormIDAttribute()
     {
         return $this->rate->form_id ?? null;
+    }
+
+    /**
+     * Calcula las posiciones libres para esta tarifa asignada
+     */
+    public function getCountFreePositionsAttribute()
+    {
+        if (!$this->session_id || !$this->max_on_sale) {
+            return 0;
+        }
+
+        $session = Session::find($this->session_id);
+        if (!$session) {
+            return 0;
+        }
+
+        $car_ttl = $session->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE);
+
+        // Inscripciones confirmadas
+        $confirmed = Inscription::where('session_id', $this->session_id)
+            ->where('rate_id', $this->rate_id)
+            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
+            ->whereNotNull('carts.confirmation_code')
+            ->count();
+
+        // Carritos no expirados
+        $notExpired = Inscription::where('session_id', $this->session_id)
+            ->where('rate_id', $this->rate_id)
+            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
+            ->where('carts.expires_on', '>', \Carbon\Carbon::now()->subMinutes($car_ttl))
+            ->whereNull('carts.confirmation_code')
+            ->count();
+
+        $blocked = $confirmed + $notExpired;
+        $available = $this->max_on_sale - $blocked;
+
+        return min([$session->getFreePositions(), max(0, $available)]);
     }
 }

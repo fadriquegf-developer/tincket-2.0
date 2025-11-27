@@ -40,7 +40,8 @@ return [
      */
     'styles' => [
         base_path('vendor/backpack/theme-tabler/resources/assets/css/color-adjustments.css'),
-        base_path('vendor/backpack/theme-tabler/resources/assets/css/colors.css'),
+        //base_path('vendor/backpack/theme-tabler/resources/assets/css/colors.css'),
+        base_path('public/assets/css/admin/colors.css'),
         base_path('public/assets/css/admin/custom.css'),
     ],
 

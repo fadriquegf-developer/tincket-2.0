@@ -18,6 +18,7 @@ use Intervention\Image\Encoders\WebpEncoder;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Intervention\Image\Laravel\Facades\Image;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
+use App\Models\Setting;
 
 class Event extends BaseModel
 {
@@ -59,6 +60,7 @@ class Event extends BaseModel
         'gift_card_legal_text', // t
         'gift_card_footer_text',
         'validate_all_event',
+        'is_active',
         'brand_id',
         'user_id',
     ];
@@ -81,6 +83,7 @@ class Event extends BaseModel
     protected $casts = [
         'images' => 'array',
         'validate_all_event' => 'boolean',
+        'is_active' => 'boolean',
         'tags' => 'array',
     ];
 
@@ -134,8 +137,20 @@ class Event extends BaseModel
             ->join('sessions', 'sessions.id', '=', 'stats_sales.session_id')
             ->leftJoin('clients', 'clients.id', '=', 'stats_sales.client_id')
             ->leftJoin('carts', 'carts.id', '=', 'inscriptions.cart_id')
+            ->leftJoin('rates', 'rates.id', '=', 'inscriptions.rate_id')
             ->where('stats_sales.event_id', $this->id)
-            ->select('stats_sales.*', 'inscriptions.*', 'clients.email', 'clients.phone', 'carts.confirmation_code as cart_confirmation_code', 'sessions.starts_on as session_start')
+            ->select(
+                'stats_sales.*',
+                'inscriptions.id as inscription_id',
+                'inscriptions.price_sold',
+                'clients.email',
+                'clients.phone',
+                'clients.mobile_phone',
+                'carts.confirmation_code as cart_confirmation_code',
+                'carts.seller_type',
+                'sessions.starts_on as session_start',
+                'rates.name as rate_name'
+            )
             ->orderBy('stats_sales.created_at', 'DESC')
             ->get();
     }
@@ -195,9 +210,20 @@ class Event extends BaseModel
 
     public function getRedirectToAttribute()
     {
-        $brand_id = get_current_brand()->id ?? null;
+        // Si ya se calculó, devolverlo
+        if (isset($this->attributes['redirect_to'])) {
+            return $this->attributes['redirect_to'];
+        }
 
-        if ($this->brand_id != $brand_id) {
+        // Obtener brand del request
+        $currentBrand = request()->get('brand');
+
+        if (!$currentBrand) {
+            return null;
+        }
+
+        // Si el evento pertenece a un brand diferente al actual
+        if ($this->brand_id != $currentBrand->id) {
             return $this->getRedirectTo();
         }
 
@@ -205,18 +231,39 @@ class Event extends BaseModel
     }
 
     /**
-     * Get url event "client.frontend.url"
+     * Get url event from the event's own brand frontend
      * 
-     * @return string
+     * @return string|null
      */
     public function getRedirectTo()
     {
-        $brand = get_current_brand();
-        if (
-            get_brand_capability() == 'basic'
-            && $frontend_url = Setting::where('brand_id', $brand->id)->where('key', 'clients.frontend.url')->first()
-        ) {
-            return sprintf("%s/%s", trim($frontend_url->value, '/'), "redirect/event/$this->id");
+        $eventBrand = $this->brand;
+
+        if (!$eventBrand) {
+            return null;
+        }
+
+        // Cargar capability si no está cargada
+        if (!$eventBrand->relationLoaded('capability')) {
+            $eventBrand->load('capability');
+        }
+
+        $capability = $eventBrand->capability;
+
+        // Verificar el capability del brand DEL EVENTO
+        if ($capability && $capability->code_name === 'basic') {
+            $frontend_url = Setting::withoutGlobalScope(BrandScope::class)
+                ->where('brand_id', $eventBrand->id)
+                ->where('key', 'clients.frontend.url')
+                ->first();
+
+            if ($frontend_url) {
+                return sprintf(
+                    "%s/redirect/event/%s",
+                    rtrim($frontend_url->value, '/'),
+                    $this->id
+                );
+            }
         }
 
         return null;
@@ -243,7 +290,7 @@ class Event extends BaseModel
 
         return '
             <a href="' . $url . '" class="btn btn-sm btn-link">
-                <i class="la la-plus"></i> Crear Sesión
+                <i class="la la-plus"></i> Crear ' . __('backend.session.session') . '
             </a>
         ';
     }
@@ -252,10 +299,11 @@ class Event extends BaseModel
     {
 
         $url = route('event.clone', ['id' => $this->id]);
+        $text = app()->getLocale() === 'en' ? 'Clone' : 'Clonar';
 
         return '<a href="' . $url . '" class="btn btn-sm btn-link pr-0" data-style="zoom-in">
                 <span class="ladda-label">
-                    <i class="la la-copy"></i> ' . 'Clonar' . '
+                    <i class="la la-copy"></i> ' . $text . '
                 </span>
             </a>';
     }
@@ -346,4 +394,59 @@ class Event extends BaseModel
         return [$dest, dirname($original)];
     }
 
+    public function getImageUrlAttribute(): string
+    {
+        if (!$this->image) {
+            return '';
+        }
+
+        // Si ya es URL completa
+        if (filter_var($this->image, FILTER_VALIDATE_URL)) {
+            return $this->image;
+        }
+
+        // Convertir a URL absoluta
+        $path = str_replace('\\', '/', $this->image);
+
+        if (str_starts_with($path, 'storage/')) {
+            return url($path);
+        }
+
+        if (str_starts_with($path, 'uploads/')) {
+            return url('storage/' . $path);
+        }
+
+        return url('storage/' . ltrim($path, '/'));
+    }
+
+    /**
+     * Obtener URL absoluta del banner para emails
+     */
+    public function getBannerUrlAttribute(): string
+    {
+        if (!$this->banner) {
+            return '';
+        }
+
+        if (filter_var($this->banner, FILTER_VALIDATE_URL)) {
+            return $this->banner;
+        }
+
+        if (str_starts_with($this->banner, 'storage/')) {
+            return url($this->banner);
+        }
+
+        return url('storage/' . ltrim($this->banner, '/'));
+    }
+
+    public function getTextWithVariables($text, $gift)
+    {
+        $vars = array(
+            '{$code}' => $gift->code,
+            '{$name}' => $this->name,
+            '{$friend}' => $gift->cart->client->name ?? ''
+        );
+
+        return strtr($text, $vars);
+    }
 }

@@ -38,7 +38,7 @@
       entities: (props.initial || []).map(i => ({
         uid         : makeUid(),
         embeded_type: i.embeded_type,
-        embeded_id  : i.embeded_id,
+        embeded_id  : i.embeded_id !== null ? String(i.embeded_id) : null,
         options     : [],
         loading     : true,
       })),
@@ -55,7 +55,7 @@
               <col style="width:10%">
             </colgroup>
             <thead>
-              <tr><th>Tipo</th><th>Entidad</th><th class="text-center"></th></tr>
+              <tr><th>{{ translations.type }}</th><th>{{ translations.entity }}</th><th class="text-center"></th></tr>
             </thead>
 
             <tbody ref="tbody">
@@ -67,9 +67,9 @@
                           style="width:100%"
                           @change.stop="changeType(item)">
                     <option disabled value="">Selecciona</option>
-                    <option value="App\\Models\\Event">Event</option>
-                    <option value="App\\Models\\Page">Page</option>
-                    <option value="App\\Models\\Post">Post</option>
+                    <option value="App\\Models\\Event">{{ translations.event }}</option>
+                    <option value="App\\Models\\Page">{{ translations.page }}</option>
+                    <option value="App\\Models\\Post">{{ translations.post }}</option>
                   </select>
                 </td>
 
@@ -82,7 +82,7 @@
                           @change.stop
                           @input.stop>
                     <option disabled :value="null">Selecciona</option>
-                    <option v-for="o in item.options" :key="o.id" :value="o.id">
+                    <option v-for="o in item.options" :key="o.id" :value="String(o.id)">
                       {{ o.label }}
                     </option>
                   </select>
@@ -111,7 +111,7 @@
           <button type="button"
                   class="btn btn-sm btn-primary mt-2"
                   @click.stop.prevent="add">
-            <i class="la la-plus"></i> Añadir
+            <i class="la la-plus"></i> {{ translations.add }}
           </button>
 
           <input type="hidden"
@@ -123,6 +123,8 @@
       setup() {
         /* ref al tbody para Sortable */
         const tbody = ref(null);
+
+         const translations = props.translations || {};
 
         /* JSON que viaja al backend */
         const jsonValue = computed(() =>
@@ -171,7 +173,7 @@
         const remove     = i    => state.entities.splice(i, 1);
         const changeType = item => { item.embeded_id = null; loadOptions(item); };
 
-        return { tbody, entities: state.entities, jsonValue, add, remove, changeType };
+        return { tbody, entities: state.entities, jsonValue, add, remove, changeType, translations };
       },
     };
 

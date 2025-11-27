@@ -13,7 +13,7 @@
             <div class="modal-content">
 
                 <div class="modal-header">
-                    <h5 class="modal-title">{{ __('tincket/backend.session.import_codes') }}</h5>
+                    <h5 class="modal-title">{{ __('backend.session.import_codes') }}</h5>
                     <button class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
 
@@ -22,7 +22,7 @@
                     onsubmit="document.getElementById('spin-{{ $modalId }}').classList.remove('d-none')">
                     @csrf
                     <div class="modal-body">
-                        <p>{!! __('tincket/backend.session.import_codes_info') !!}</p>
+                        <p>{!! __('backend.session.import_codes_info') !!}</p>
                         <p class="mb-2">Exemple CSV:</p>
                         <img src="/images/codis.png" class="mb-4 img-fluid">
                         <input type="file" name="csv" class="form-control" accept=".csv" required>

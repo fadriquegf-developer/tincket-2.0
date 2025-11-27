@@ -234,9 +234,9 @@
       </div>
       <div class="col-10">
         <div class="pl">
-          <h4 class="p-0 m-0 font-heavy">
+          {{-- <h4 class="p-0 m-0 font-heavy">
             {{ $inscription->cart->brand->name }}
-          </h4>
+          </h4> --}}
         </div>
       </div>
     </div>
@@ -262,8 +262,8 @@
               setlocale(LC_TIME, "ca_ES.utf8");
               @endphp
               {{ sprintf("%s, %s h",
-                                      ucfirst($inscription->session->starts_on->formatLocalized('%A')),
-                                      $inscription->session->starts_on->formatLocalized('%d/%m %H:%M')) }}
+                                      ucfirst($inscription->session->starts_on->translatedFormat('l')),
+                                      $inscription->session->starts_on->translatedFormat('d/m H:i')) }}
               <div class=""></div>
               <span>
               {{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}
@@ -295,7 +295,7 @@
                   @endif
                 <br>
                 {{ $inscription->session->space->location->address }}
-                {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->town->name }}
+                {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->city->name }}
               </div>
               @endif
             </div>
@@ -313,11 +313,6 @@
 
   <div class="col-10 text-extra-small" style="position: absolute; bottom: 10px; left: 0px;">
       <p class="text-small">No es permetrà l'entrada un cop iniciat l'espectacle.</p>
-      @if($inscription->session->event->custom_text)
-        <div class="p-0 m-0">
-          {{ mb_strimwidth(strip_tags($inscription->session->event->custom_text), 0, 145, "...") }}
-        </div>
-      @endif
   </div>
 
 </body>

@@ -49,7 +49,13 @@ class PackCrudController extends CrudController
 
         CRUD::addColumn([
             'name' => 'name',
-            'label' => __('backend.pack.packname')
+            'label' => __('backend.pack.packname'),
+            'wrapper' => [
+                'element' => 'span',
+                'title' => function ($crud, $column, $entry, $related_key) {
+                    return $entry->name;
+                },
+            ]
         ]);
 
         CRUD::addColumn([
@@ -123,12 +129,8 @@ class PackCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'starts_on',
-            'type' => 'datetime_picker',
+            'type' => 'datetime',
             'label' => __('backend.pack.startson'),
-            'date_picker_options' => [
-                'format' => 'DD/MM/YYYY HH:mm',
-                'language' => 'ca'
-            ],
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
             ],
@@ -137,13 +139,8 @@ class PackCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'ends_on',
-            'type' => 'datetime_picker',
+            'type' => 'datetime',
             'label' => __('backend.pack.endson'),
-            'date_picker_options' => [
-                'format' => 'DD/MM/YYYY HH:mm',
-                'language' => 'ca',
-                'weekStart' => 4
-            ],
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
             ],
@@ -154,7 +151,7 @@ class PackCrudController extends CrudController
             'name' => 'description',
             'label' => __('backend.pack.packdescription'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'tab' => 'Basic'
         ]);
     }

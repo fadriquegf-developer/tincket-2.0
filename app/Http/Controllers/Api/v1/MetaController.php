@@ -113,7 +113,6 @@ class MetaController extends \App\Http\Controllers\Api\ApiController
         return response()->json([
             'message' => 'Configuration not allowed or does not exist'
         ], 404);
-
     }
 
     /**
@@ -123,12 +122,42 @@ class MetaController extends \App\Http\Controllers\Api\ApiController
      */
     public function getSettings()
     {
-        $brand = get_current_brand();
+        $brand = get_current_brand() ?: request()->get('brand');
+        $settings = $this->getSettingsData($brand);
+        return $this->json($settings);
+    }
+
+    public function getMenu()
+    {
+        $tree = MenuItem::getTree();
+
+        return $this->json($tree);
+    }
+
+    public function getInitialConfig(Request $request)
+    {
+        $brand = $request->get('brand');
+
         if (!$brand) {
-            $brand = request()->get('brand');
+            return response()->json(['error' => 'Brand not found'], 404);
         }
+
+        // Obtener todas las configuraciones de una vez
+        $settings = $this->getSettingsData($brand);
+
+        return $this->json([
+            'locale' => config('app.locale'),
+            'fallback_locale' => config('app.fallback_locale'),
+            'laravellocalization' => config('laravellocalization'),
+            'brand_id' => $brand->id,
+            'settings' => $settings
+        ]);
+    }
+
+    // Extraer la lógica de getSettings a un método privado
+    private function getSettingsData($brand)
+    {
         $brand->disableTranslations();
-        
 
         $extra_config = array_merge((array) $brand->extra_config, [
             'alert' => (array) $brand->alert,
@@ -140,7 +169,6 @@ class MetaController extends \App\Http\Controllers\Api\ApiController
             'cookies_policy' => (array) $brand->cookies_policy,
             'general_conditions' => (array) $brand->general_conditions,
             'gdpr_text' => (array) $brand->gdpr_text,
-            // we want to deliver null if logo not provided
             'logo' => $brand->getAttributes()['logo'] ? $brand->logo : null,
             'brand_color' => $brand->brand_color,
             'custom_script' => $brand->custom_script,
@@ -177,17 +205,6 @@ class MetaController extends \App\Http\Controllers\Api\ApiController
             'general_maintance'
         ];
 
-        $public_settings = Arr::only((array) $extra_config, $accessible_properties);
-
-        return $this->json($public_settings);
+        return \Illuminate\Support\Arr::only((array) $extra_config, $accessible_properties);
     }
-
-    public function getMenu()
-    {
-        $tree = MenuItem::getTree();
-
-        return $this->json($tree);
-    }
-
-
 }

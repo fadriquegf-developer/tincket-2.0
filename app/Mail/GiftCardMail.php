@@ -7,7 +7,6 @@ use App\Models\GiftCard;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Queue\ShouldQueue;
 
 class GiftCardMail extends Mailable
 {
@@ -61,8 +60,8 @@ class GiftCardMail extends Mailable
         $this->view('core.emails.gift_card', ['gift' => $this->gift, 'brand' => $this->gift->brand]);
 
         // attatch gift card
-        if ($this->gift->pdf) {
-            $this->attach(base_path() . \Storage::url($this->gift->pdf), ['mime' => 'application/pdf']);
+        if ($this->gift->pdf && \Storage::disk('local')->exists($this->gift->pdf)) {
+            $this->attach(\Storage::disk('local')->path($this->gift->pdf), ['mime' => 'application/pdf']);
         }
     }
 }

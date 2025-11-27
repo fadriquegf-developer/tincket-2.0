@@ -259,8 +259,8 @@
               setlocale(LC_TIME, "gl_ES.utf8");
               @endphp
               {{ sprintf("%s, %s h",
-                                      ucfirst($inscription->session->starts_on->formatLocalized('%A')),
-                                      $inscription->session->starts_on->formatLocalized('%d/%m %H:%M')) }}
+                  ucfirst($inscription->session->starts_on->translatedFormat('l')),
+                  $inscription->session->starts_on->translatedFormat('d/m H:i')) }}
               <div class=""></div>
               <span>
               {{ sprintf("%s - %s €", $inscription->rate->getTranslation('name', 'gl'), number_format($inscription->price_sold, 2)) }}
@@ -292,7 +292,7 @@
                   @endif
                 <br>
                 {{ $inscription->session->space->location->address }}
-                {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->town->name }}
+                {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->city->name }}
               </div>
               @endif
             </div>

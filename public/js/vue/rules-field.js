@@ -58,7 +58,6 @@
                       v-model.number="rule.number_sessions" 
                       class="form-control form-control-sm"
                       min="1"
-                      placeholder="Núm. sesiones"
                     />
                   </div>
                   <div class="form-check form-switch">
@@ -109,7 +108,7 @@
                     :disabled="rules.length === 1"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
-                    :title="rules.length === 1 ? 'Debe haber al menos una regla' : 'Eliminar regla'"
+                    :title="rules.length === 1 ? '' : 'Eliminar regla'"
                   >
                     <i class="la la-trash"></i>
                   </button>

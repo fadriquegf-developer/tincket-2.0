@@ -6,7 +6,7 @@ use App\Models\Session;
 use App\Models\Slot;
 use App\Models\SessionSlot;
 use App\Models\Space;
-use App\Services\Api\SlotCacheService;
+use App\Services\RedisSlotsService;
 
 class SessionSlotInitializerService
 {
@@ -52,6 +52,6 @@ class SessionSlotInitializerService
         SessionSlot::insert($data);
 
         // Regenerar la caché
-        (new SlotCacheService($session))->regenerateCache();
+        (new RedisSlotsService($session))->regenerateCache();
     }
 }

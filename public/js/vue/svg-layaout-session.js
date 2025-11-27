@@ -36,9 +36,12 @@
                 statusColor: STATUS_COLORS,
                 zoneColorMap: {},
                 changed: {},
+                popoverEl: null,
+                currentPopoverNode: null,
+                popoverTimeout: null,
+                hasSingleZone: false,
             };
         },
-
         methods: {
             toggleNode(node, sel) {
                 const id = +node.dataset.slotId;
@@ -65,6 +68,9 @@
                 if (e.button !== 0) return;
                 e.preventDefault();
 
+                // Ocultar popover al iniciar drag
+                this.hidePopover();
+
                 // si quedara alguno colgado, límpialo antes
                 if (this.dragRectEl) {
                     try {
@@ -88,13 +94,16 @@
                 });
                 this.$refs.canvas.appendChild(this.dragRectEl);
 
+                // 🆕 Guardar selección previa para restaurar si es necesario
+                this.previewSelection = new Set();
+
                 window.addEventListener("mousemove", this.onDrag, {
                     passive: true,
                 });
                 window.addEventListener("mouseup", this.stopDrag, {
                     passive: true,
                 });
-                // salidas “raras”
+                // salidas "raras"
                 window.addEventListener("blur", this.stopDrag, {
                     passive: true,
                 });
@@ -123,6 +132,44 @@
                     top: y + "px",
                     width: w + "px",
                     height: h + "px",
+                });
+
+                // 🆕 Actualizar preview de selección en tiempo real
+                const rect = this.dragRectEl.getBoundingClientRect();
+
+                // Limpiar preview anterior
+                this.previewSelection.forEach((id) => {
+                    const node = this.nodesById[id];
+                    if (node && !this.selected.has(id)) {
+                        node.classList.remove("preview-selected");
+                    }
+                });
+                this.previewSelection.clear();
+
+                // Marcar nuevos candidatos
+                this.nodesArray.forEach((node) => {
+                    const id = +node.dataset.slotId;
+                    const slot = this.slotById[id];
+
+                    // No previsualizar las vendidas
+                    if (slot.status_id === 2) return;
+
+                    const b = node.getBoundingClientRect();
+                    const intersects = !(
+                        b.right < rect.left ||
+                        b.left > rect.right ||
+                        b.bottom < rect.top ||
+                        b.top > rect.bottom
+                    );
+
+                    if (intersects) {
+                        this.previewSelection.add(id);
+                        if (!this.selected.has(id)) {
+                            node.classList.add("preview-selected");
+                        }
+                    } else if (!this.selected.has(id)) {
+                        node.classList.remove("preview-selected");
+                    }
                 });
             },
             _visStopDrag() {
@@ -154,12 +201,21 @@
 
                     this.nodesArray.forEach((node) => {
                         const b = node.getBoundingClientRect();
-                        const inside =
-                            b.left >= rect.left &&
-                            b.right <= rect.right &&
-                            b.top >= rect.top &&
-                            b.bottom <= rect.bottom;
-                        if (inside) this.toggleNode(node, true);
+
+                        // Detectar intersección parcial
+                        const intersects = !(
+                            b.right < rect.left ||
+                            b.left > rect.right ||
+                            b.bottom < rect.top ||
+                            b.top > rect.bottom
+                        );
+
+                        if (intersects) {
+                            this.toggleNode(node, true);
+                        }
+
+                        // 🆕 Limpiar clase de preview
+                        node.classList.remove("preview-selected");
                     });
 
                     try {
@@ -168,7 +224,139 @@
                     this.dragRectEl = null;
                 }
 
+                // 🆕 Limpiar previewSelection
+                this.previewSelection.clear();
+
                 this.writeHidden();
+            },
+
+            // Métodos para el popover
+            createPopover() {
+                if (!this.popoverEl) {
+                    this.popoverEl = document.createElement("div");
+                    this.popoverEl.className = "slot-popover";
+                    this.popoverEl.style.cssText = `
+                        position: fixed;
+                        background: rgba(0, 0, 0, 0.9);
+                        color: white;
+                        padding: 10px 15px;
+                        border-radius: 6px;
+                        font-size: 13px;
+                        line-height: 1.5;
+                        pointer-events: none;
+                        z-index: 10000;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                        max-width: 250px;
+                        word-wrap: break-word;
+                        display: none;
+                    `;
+                    document.body.appendChild(this.popoverEl);
+                }
+            },
+
+            showPopover(node, e) {
+                if (this.isDragging) return;
+
+                const sid = +node.dataset.slotId;
+                const slot = this.slotById[sid];
+
+                if (!slot) return;
+
+                this.createPopover();
+
+                // Construir contenido del popover
+                let content = "";
+
+                // Obtener el color del estado
+                const stId = slot.status_id;
+                const statusColor =
+                    stId === null
+                        ? AVAILABLE_STROKE
+                        : this.statusColor[stId] || "#666";
+
+                if (slot.name) {
+                    content += `<div style="font-weight: 600; margin-bottom: 5px;">
+                        <span style="color: ${statusColor};">●</span> ${this.escapeHtml(
+                        slot.name
+                    )}
+                    </div>`;
+                }
+
+                // Si está vendida (status_id === 2) y tiene cart_id, mostrar código
+                if (stId === 2 && slot.confirmation_code) {
+                    const locale = window.currentLocale || "es";
+                    const clickToCopy =
+                        window.sessionTranslations?.click_to_copy?.[locale] ||
+                        "Click para copiar";
+
+                    content += `<div style="color: #ffffff; font-size: 13px; font-weight: 600; margin-bottom: 5px;">
+                        🛒 <span>${this.escapeHtml(
+                            slot.confirmation_code
+                        )}</span>
+                        <div style="font-size: 11px; color: #aaa; margin-top: 4px;">${clickToCopy}</div>
+                    </div>`;
+                }
+
+                if (slot.comment) {
+                    content += `<div style="color: #e0e0e0; font-size: 12px;">
+                        ${this.escapeHtml(slot.comment)}
+                    </div>`;
+                }
+
+                // Si no hay ni nombre ni comentario, no mostrar popover
+                if (!content) return;
+
+                this.popoverEl.innerHTML = content;
+                this.currentPopoverNode = node;
+
+                // Posicionar el popover
+                this.positionPopover(e);
+
+                // Mostrar con delay
+                clearTimeout(this.popoverTimeout);
+                this.popoverTimeout = setTimeout(() => {
+                    if (this.popoverEl && this.currentPopoverNode === node) {
+                        this.popoverEl.style.display = "block";
+                    }
+                }, 300);
+            },
+
+            positionPopover(e) {
+                if (!this.popoverEl) return;
+
+                const offset = 15;
+                let left = e.clientX + offset;
+                let top = e.clientY + offset;
+
+                // Obtener dimensiones del popover sin ocultarlo
+                const rect = this.popoverEl.getBoundingClientRect();
+
+                // Ajustar si se sale de la ventana por la derecha
+                if (left + rect.width > window.innerWidth) {
+                    left = e.clientX - rect.width - offset;
+                }
+
+                // Ajustar si se sale de la ventana por abajo
+                if (top + rect.height > window.innerHeight) {
+                    top = e.clientY - rect.height - offset;
+                }
+
+                this.popoverEl.style.left = left + "px";
+                this.popoverEl.style.top = top + "px";
+            },
+
+            hidePopover() {
+                clearTimeout(this.popoverTimeout);
+                if (this.popoverEl) {
+                    this.popoverEl.style.display = "none";
+                }
+                this.currentPopoverNode = null;
+            },
+
+            escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text;
+                return div.innerHTML;
             },
 
             openEditModal() {
@@ -216,7 +404,7 @@
                     $("#set-slot-id").val("Múltiples");
                 }
 
-                // Si hay estado común, ponlo; si no, deja "null" o una opción “variado”
+                // Si hay estado común, ponlo; si no, deja "null" o una opción "variado"
                 if (!mixedStatus) {
                     $("#set-slot-status").val(
                         commonStatus === null ? "null" : String(commonStatus)
@@ -251,10 +439,22 @@
                     slot.status_id = newStatus;
                     slot.comment = newComment;
 
-                    node.style.stroke =
+                    const newStatusColor =
                         newStatus === null
                             ? AVAILABLE_STROKE
                             : this.statusColor[newStatus] ?? "#666";
+                    node.style.fill = newStatusColor;
+
+                    // Actualizar stroke según número de zonas
+                    if (this.hasSingleZone) {
+                        node.style.stroke = newStatusColor;
+                        node.style.strokeWidth = STROKE_WIDTH;
+                    } else {
+                        const zoneColor =
+                            this.zoneColorMap[slot.zone_id] || "#cccccc";
+                        node.style.stroke = zoneColor;
+                        node.style.strokeWidth = 1;
+                    }
 
                     this.changed[id] = {
                         id,
@@ -290,12 +490,21 @@
 
             // si se abre un modal/escape, limpia
             document.addEventListener("keydown", (e) => {
-                if (e.key === "Escape") this.stopDrag(e);
+                if (e.key === "Escape") {
+                    this.stopDrag(e);
+                    this.hidePopover();
+                }
             });
 
             this.zoneColorMap = Object.fromEntries(
                 this.zones.map((z) => [z.id, z.color])
             );
+
+            const uniqueZones = new Set(
+                this.slots.map((s) => s.zone_id).filter((zid) => zid != null)
+            );
+
+            this.hasSingleZone = uniqueZones.size === 1;
 
             fetch(this.svgUrl)
                 .then((r) => r.text())
@@ -315,22 +524,145 @@
                             this.slotById[sid] ??
                             (this.slotById[sid] = { id: sid });
 
-                        const fillColor =
-                            this.zoneColorMap[slot.zone_id] || "#cccccc";
-                        node.style.fill = fillColor;
-
                         const stId = slot.status_id;
                         const free = stId == null;
-                        node.style.stroke = free
+                        const statusColor = free
                             ? AVAILABLE_STROKE
                             : this.statusColor[stId] ?? "#666";
-                        node.style.strokeWidth = STROKE_WIDTH;
+                        node.style.fill = statusColor;
+
+                        // STROKE: Depende del número de zonas
+                        if (this.hasSingleZone) {
+                            // Una zona: stroke verde o del estado si está bloqueado
+                            node.style.stroke = free
+                                ? AVAILABLE_STROKE
+                                : statusColor;
+                            node.style.strokeWidth = STROKE_WIDTH;
+                        } else {
+                            // Múltiples zonas: stroke = color de zona
+                            const zoneColor =
+                                this.zoneColorMap[slot.zone_id] || "#cccccc";
+                            node.style.stroke = zoneColor;
+                            node.style.strokeWidth = 1;
+                        }
 
                         node.style.cursor =
                             slot.status_id === 2 ? "not-allowed" : "pointer";
 
+                        // Event listeners para el popover
+                        node.addEventListener("mouseenter", (e) => {
+                            this.showPopover(node, e);
+                        });
+
+                        node.addEventListener("mousemove", (e) => {
+                            // Solo actualizar posición, no volver a mostrar
+                            if (
+                                this.currentPopoverNode === node &&
+                                this.popoverEl
+                            ) {
+                                this.positionPopover(e);
+                            }
+                        });
+
+                        node.addEventListener("mouseleave", () => {
+                            // Solo ocultar si realmente estamos saliendo de este nodo
+                            if (this.currentPopoverNode === node) {
+                                this.hidePopover();
+                            }
+                        });
+
                         node.addEventListener("click", (ev) => {
-                            if (this.isDragging || slot.status_id === 2) return;
+                            if (this.isDragging) return;
+
+                            // 🔥 Si es vendida, copiar al portapapeles
+                            if (
+                                slot.status_id === 2 &&
+                                slot.confirmation_code
+                            ) {
+                                ev.stopPropagation();
+                                this.hidePopover();
+
+                                // Método de copiar con fallback
+                                const copyToClipboard = (text) => {
+                                    if (
+                                        navigator.clipboard &&
+                                        navigator.clipboard.writeText
+                                    ) {
+                                        return navigator.clipboard.writeText(
+                                            text
+                                        );
+                                    }
+
+                                    // Fallback
+                                    return new Promise((resolve, reject) => {
+                                        const textArea =
+                                            document.createElement("textarea");
+                                        textArea.value = text;
+                                        textArea.style.position = "fixed";
+                                        textArea.style.left = "-999999px";
+                                        textArea.style.top = "-999999px";
+                                        document.body.appendChild(textArea);
+                                        textArea.focus();
+                                        textArea.select();
+
+                                        try {
+                                            const successful =
+                                                document.execCommand("copy");
+                                            document.body.removeChild(textArea);
+                                            if (successful) {
+                                                resolve();
+                                            } else {
+                                                reject(
+                                                    new Error(
+                                                        "execCommand failed"
+                                                    )
+                                                );
+                                            }
+                                        } catch (err) {
+                                            document.body.removeChild(textArea);
+                                            reject(err);
+                                        }
+                                    });
+                                };
+
+                                copyToClipboard(slot.confirmation_code)
+                                    .then(() => {
+                                        const locale =
+                                            window.currentLocale || "es";
+                                        const successMsg =
+                                            window.sessionTranslations
+                                                ?.code_copied?.[locale] ||
+                                            "Código copiado";
+
+                                        new Noty({
+                                            type: "success",
+                                            text: `<strong>${successMsg}:</strong> ${slot.confirmation_code}`,
+                                        }).show();
+                                    })
+                                    .catch((err) => {
+                                        console.error(
+                                            "❌ Error copiando:",
+                                            err
+                                        );
+
+                                        const locale =
+                                            window.currentLocale || "es";
+                                        const errorMsg =
+                                            window.sessionTranslations
+                                                ?.copy_error?.[locale] ||
+                                            "Error al copiar";
+
+                                        new Noty({
+                                            type: "error",
+                                            text: `<strong>${errorMsg}.</strong> `,
+                                        }).show();
+                                    });
+                                return;
+                            }
+
+                            // Ocultar popover al hacer click
+                            this.hidePopover();
+
                             if (ev.shiftKey && this.lastIndex !== null) {
                                 const [from, to] =
                                     this.lastIndex < idx
@@ -394,6 +726,14 @@
                     }
                 })
                 .catch(console.error);
+        },
+        beforeUnmount() {
+            // Limpiar popover al destruir el componente
+            if (this.popoverEl) {
+                this.popoverEl.remove();
+                this.popoverEl = null;
+            }
+            clearTimeout(this.popoverTimeout);
         },
     };
 

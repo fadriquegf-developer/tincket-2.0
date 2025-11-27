@@ -4,26 +4,32 @@ namespace App\Models;
 
 use App\Models\Cart;
 use App\Models\Session;
+use App\Scopes\BrandScope;
 use App\Traits\LogsActivity;
 use App\Traits\OwnedModelTrait;
+use App\Traits\SetsBrandOnCreate;
 use App\Observers\InscriptionObserver;
+use App\Repositories\InscriptionRepository;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 
 class Inscription extends BaseModel
 {
-
     use OwnedModelTrait;
     use CrudTrait;
     use SoftDeletes;
     use LogsActivity;
+    use SetsBrandOnCreate;
 
     protected $dates = ['checked_at'];
+    protected $with = ['session', 'rate', 'slot'];
 
     protected $fillable = [
         'cart_id',
+        'brand_id',
         'session_id',
         'rate_id',
         'gift_card_id',
@@ -56,6 +62,14 @@ class Inscription extends BaseModel
         Inscription::observe(InscriptionObserver::class);
     }
 
+    protected static function booted()
+    {
+        // Aplicar BrandScope automáticamente solo si existe brand_id
+        if (get_brand_capability() !== 'engine' && Schema::hasColumn('inscriptions', 'brand_id')) {
+            static::addGlobalScope(new BrandScope());
+        }
+    }
+
     public function __construct(array $attributes = array())
     {
         parent::__construct($attributes);
@@ -68,7 +82,14 @@ class Inscription extends BaseModel
 
     public function session()
     {
-        return $this->belongsTo(Session::class)->withTrashed();
+        return $this->belongsTo(Session::class)
+            ->withoutGlobalScope(BrandScope::class)
+            ->withTrashed();
+    }
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class);
     }
 
     public function group_pack()
@@ -83,61 +104,44 @@ class Inscription extends BaseModel
 
     public function rate()
     {
-        return $this->belongsTo(Rate::class)->withTrashed();
+        return $this->belongsTo(Rate::class)
+            ->withoutGlobalScope(BrandScope::class)
+            ->withTrashed();
     }
-
-
 
     public function slot()
     {
-        return $this->belongsTo(Slot::class, 'slot_id', 'id')
-            ->select('slots.*')
-            ->selectRaw('? as pivot_session_id', [$this->session_id]);
+        return $this->belongsTo(Slot::class);
     }
 
+    // VERSIÓN OPTIMIZADA: Ya no necesita hacer JOIN con sessions para filtrar por brand
     public function scopeForBrand(Builder $q, Brand $brand): Builder
     {
         return $q->with(['cart.confirmedPayment'])
-            ->when(
-                get_brand_capability() == 'basic',
-                fn($q) => $q->whereHas(
-                    'cart',
-                    fn($c) =>
-                    $c->where('brand_id', $brand->id)
-                ),
-                fn($q) => $q->whereHas(
-                    'session',
-                    fn($s) =>
-                    $s->where('brand_id', $brand->id)
-                )
-            )
+            ->where('inscriptions.brand_id', $brand->id)
             ->whereHas(
                 'cart.confirmedPayment',
-                fn($p) =>
-                $p->whereNotNull('paid_at')
+                fn($p) => $p->whereNotNull('paid_at')
             )
             ->select('inscriptions.*');
     }
 
+    // VERSIÓN SÚPER OPTIMIZADA: Usando brand_id directo sin necesidad de verificar sessions
     public function scopeForBrandFast(Builder $q, Brand $brand): Builder
     {
-        
         return $q
-            ->join('sessions', 'sessions.id', '=', 'inscriptions.session_id')
-            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
             ->join('payments', function ($j) {
                 $j->on('payments.cart_id', '=', 'inscriptions.cart_id')
                     ->whereNull('payments.deleted_at')
                     ->whereNotNull('payments.paid_at');
             })
-            ->where('sessions.brand_id', $brand->id)
-            ->distinct('inscriptions.id'); // evita duplicados por múltiples payments
+            ->where('inscriptions.brand_id', $brand->id)
+            ->distinct('inscriptions.id');
     }
 
-
-    public function scopePaid($query)
+    public static function withJoinedData($filters = [])
     {
-        return $query->whereHas('cart.confirmedPayment');
+        return app(InscriptionRepository::class)->getWithJoinedData($filters);
     }
 
     public function isGift()
@@ -161,23 +165,37 @@ class Inscription extends BaseModel
 
     public function getBanner()
     {
-        //Pack > Session > Event
-        if (isset($this->group_pack) && $this->group_pack->pack->banner) {
-            return $this->group_pack->pack->banner;
-        } elseif ($this->session->banner != NULL) {
-            return $this->session->banner;
-        } elseif ($this->session->event->banner != NULL) {
-            return $this->session->event->banner;
-        } else {
-            return $this->cart->brand->banner;
+        // Cargar todo de una vez si no está cargado
+        $this->loadMissing([
+            'group_pack.pack',
+            'session.event',
+            'brand'
+        ]);
+
+        $banner = $this->group_pack?->pack?->banner
+            ?? $this->session?->banner
+            ?? $this->session?->event?->banner
+            ?? $this->brand?->banner;
+
+        // Si existe un banner, asegurar que tenga /storage/
+        if ($banner && !str_starts_with($banner, 'storage/') && !str_starts_with($banner, '/storage/')) {
+            $banner = '/storage/' . ltrim($banner, '/');
         }
+
+        return $banner;
     }
 
     public function getPdfNameAttribute($value)
     {
         if (!$value) {
             // filename has pattern: "BRANDID"-"YYYYMMDD OF SESSION"-"CONFIRM ORDER CODE"-"SUBSTR(INSCRIPTION BARCODE, 8)".pdf
-            $value = sprintf("%s-%s-%s-%s.pdf", $this->cart->brand->id, $this->session->starts_on->format('Ymd'), $this->cart->confirmation_code, strtoupper(substr($this->barcode, 0, 8)));
+            $value = sprintf(
+                "%s-%s-%s-%s.pdf",
+                $this->brand_id, // Usar brand_id directamente
+                $this->session->starts_on->format('Ymd'),
+                $this->cart->confirmation_code,
+                strtoupper(substr($this->barcode, 0, 8))
+            );
         }
 
         return $value;
@@ -185,7 +203,7 @@ class Inscription extends BaseModel
 
     public function getLogo()
     {
-        $cartBrand = $this->cart->brand;
+        $cartBrand = $this->brand; // Usar relación brand directamente
         $defaultLogo = $cartBrand->logo;
 
         // check if event has custom logo
@@ -193,9 +211,90 @@ class Inscription extends BaseModel
 
         // priority logo who sell event(cart owner)
         if (!$customLogo || $cartBrand->id !== $this->session->event->brand->id) {
+            if (!str_starts_with($defaultLogo, 'storage/') && !str_starts_with($defaultLogo, '/storage/')) {
+                $defaultLogo = '/storage/' . ltrim($defaultLogo, '/');
+            }
             return $defaultLogo;
         }
 
-        return brand_asset(\Storage::url('uploads/' . $customLogo), $this->cart->brand);
+        return brand_asset(\Storage::url('uploads/' . $customLogo), $cartBrand);
+    }
+
+    // Añadir en Inscription.php
+
+    /**
+     * Scope para cargar todas las relaciones necesarias de forma eficiente
+     */
+    public function scopeWithFullDetails($query)
+    {
+        return $query->with([
+            'session' => function ($q) {
+                $q->select('id', 'name', 'starts_on', 'event_id');
+            },
+            'session.event' => function ($q) {
+                $q->select('id', 'name');
+            },
+            'cart' => function ($q) {
+                $q->select('id', 'confirmation_code', 'client_id', 'brand_id');
+            },
+            'cart.client' => function ($q) {
+                $q->select('id', 'name', 'surname', 'email');
+            },
+            'rate' => function ($q) {
+                $q->select('id', 'name');
+            },
+            'slot' => function ($q) {
+                $q->select('id', 'name', 'zone_id');
+            }
+        ]);
+    }
+
+    /**
+     * Scope para inscripciones pagadas
+     */
+    public function scopePaid($query)
+    {
+        return $query->whereHas('cart', function ($q) {
+            $q->withoutGlobalScope(BrandScope::class)
+                ->whereNotNull('confirmation_code');
+        });
+    }
+
+    /**
+     * Scope para inscripciones pendientes
+     */
+    public function scopePending($query)
+    {
+        return $query->whereHas('cart', function ($q) {
+            $q->whereNull('confirmation_code')
+                ->where('expires_on', '>', now());
+        });
+    }
+
+    /**
+     * Obtener slot con session_id como pivot
+     * Solo usar cuando realmente necesites pivot_session_id
+     */
+    public function getSlotWithPivotAttribute()
+    {
+        if (!$this->slot) {
+            return null;
+        }
+
+        $slot = clone $this->slot;
+        $slot->pivot_session_id = $this->session_id;
+        return $slot;
+    }
+
+    /**
+     * text used in app validation
+     */
+    public function apiTextRateName()
+    {
+        $isPack = $this->group_pack_id !== null;
+        $name = $isPack ? $this->group_pack->pack->name : $this->rate->name;
+        $type = $isPack ? trans('backend.pack.pack') : trans('backend.rate.rate');
+
+        return '<br><b>' . $type . '</b>: ' . $name;
     }
 }

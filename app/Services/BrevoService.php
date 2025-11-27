@@ -2,13 +2,15 @@
 
 namespace App\Services;
 
+use Brevo\Client\ApiException;
 use Brevo\Client\Configuration;
 use Brevo\Client\Api\ContactsApi;
+use Brevo\Client\ObjectSerializer;
+use Illuminate\Support\Facades\Log;
 use Brevo\Client\Model\CreateContact;
 use GuzzleHttp\Client as GuzzleClient;
-use Illuminate\Support\Facades\Log;
 
-class BrevoService //instalar composer require getbrevo/brevo-php:^1.0
+class BrevoService
 {
     protected ContactsApi $api;
     protected int|string $listId;
@@ -26,21 +28,37 @@ class BrevoService //instalar composer require getbrevo/brevo-php:^1.0
         $this->api = new ContactsApi(new GuzzleClient(), $config);
     }
 
-    public function subscribeUser(string $email, array $attributes = []): void
-    {
-        $contact = new CreateContact([
-            'email'         => $email,
-            'attributes'    => $attributes,
-            'listIds'       => [(int) $this->listId],
-            'updateEnabled' => true,
+    public function subscribeUser(string $email, array $attributes = []): array
+{
+    $contact = new CreateContact([
+        'email'         => $email,
+        'attributes'    => $attributes,
+        'listIds'       => [(int) $this->listId],
+        'updateEnabled' => true,
+    ]);
+
+    try {
+        [$body, $status, $headers] = $this->api->createContactWithHttpInfo($contact);
+
+        $bodyArr = is_object($body)
+            ? ObjectSerializer::sanitizeForSerialization($body)
+            : $body;
+
+        return ['ok' => true, 'status' => $status, 'headers' => $headers, 'body' => $bodyArr];
+    } catch (ApiException $e) {
+        $respBody = $e->getResponseBody();
+        $respArr  = is_string($respBody) ? json_decode($respBody, true) : $respBody;
+
+        \Log::error('Brevo subscribe error', [
+            'status'  => $e->getCode(),
+            'headers' => $e->getResponseHeaders(),
+            'body'    => $respArr,
+            'message' => $e->getMessage(),
         ]);
 
-        try {
-            $this->api->createContact($contact);
-        } catch (\Throwable $e) {
-            Log::error("Brevo subscribe error: {$e->getMessage()}");
-        }
+        return ['ok' => false, 'status' => $e->getCode(), 'headers' => $e->getResponseHeaders(), 'body' => $respArr, 'message' => $e->getMessage()];
     }
+}
 
     public function deleteUser(string $email): void
     {
@@ -51,5 +69,3 @@ class BrevoService //instalar composer require getbrevo/brevo-php:^1.0
         }
     }
 }
-
-// Este service se puede eliminar, se llama en ClientCrud y ClientApi pero no se le pasa nunca la apikey

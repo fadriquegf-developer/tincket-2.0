@@ -13,6 +13,7 @@
         "async-aws/ses": "^1.12",
         "backpack/activity-log": "^2.0",
         "backpack/crud": "^6.8",
+        "backpack/filemanager": "^3.0",
         "backpack/language-switcher": "^2.0",
         "backpack/logmanager": "^5.0",
         "backpack/menucrud": "^4.0",
@@ -21,12 +22,16 @@
         "backpack/pro": "^2.2",
         "backpack/theme-tabler": "^1.2",
         "barryvdh/laravel-dompdf": "^3.1",
+        "barryvdh/laravel-snappy": "^1.0",
+        "consoletvs/charts": "6.*",
         "cviebrock/eloquent-sluggable": "^12.0",
         "doctrine/dbal": "^4.2",
+        "getbrevo/brevo-php": "1.0",
         "html2text/html2text": "^4.3",
         "intervention/image": "^3.11",
         "intervention/image-laravel": "^1.5",
         "laravel/framework": "^12.0",
+        "laravel/passport": "^13.0",
         "laravel/tinker": "^2.10.1",
         "league/omnipay": "^3.1",
         "maatwebsite/excel": "^3.1",
@@ -34,9 +39,11 @@
         "milon/barcode": "^12.0",
         "patronbase/omnipay-redsys": "^3.0",
         "php-http/guzzle7-adapter": "^1.1",
+        "predis/predis": "^3.2",
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6",
         "spatie/laravel-pdf": "^1.5",
+        "spatie/laravel-permission": "^6.22",
         "spatie/laravel-translatable": "^6.11",
         "symfony/amazon-mailer": "^7.3",
         "symfony/http-client": "^7.3",
@@ -71,6 +78,14 @@
         }
     },
     "scripts": {
+        "test": "@php artisan test",
+        "test-critical": "@php artisan test --testsuite=Critical --stop-on-failure",
+        "test-smoke": "@php artisan test --testsuite=Smoke",
+        "pre-deploy": [
+            "@test-critical",
+            "@php artisan config:clear",
+            "@php artisan cache:clear"
+        ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"

@@ -1,84 +1,97 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
-    <title>Inscripciones — {{ $session->event->name }}</title>
+    <title>Inscripciones – {{ $session->event->name }}</title>
     <style>
-        /* Márgenes de página reducidos */
         @page {
             margin: 10mm;
+            size: A4 landscape;
         }
-        /* Forzar tamaño de fuente más pequeño */
+
         body {
-            font-family: sans-serif;
-            font-size: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 9px;
             margin: 0;
             padding: 0;
         }
-        h1, h2, h3, h4, h5 {
-            margin: .2em 0;
+
+        h2 {
+            margin: 5px 0 10px 0;
+            font-size: 14px;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;                /* distribución fija de columnas */
-            word-wrap: break-word;              /* forzar salto de palabra */
+            table-layout: fixed;
         }
+
         thead th {
             border: 1px solid #000;
-            padding: 4px;
-            background: #eee;
-            font-size: 9px;
-        }
-        tbody td {
-            border: 1px solid #000;
             padding: 3px;
-            font-size: 9px;
+            background: #ddd;
+            font-size: 8px;
+            font-weight: bold;
         }
-        /* Opcional: alternar fondo en impresión (zebra) */
+
+        tbody td {
+            border: 1px solid #ccc;
+            padding: 2px;
+            font-size: 8px;
+            word-wrap: break-word;
+        }
+
         tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
     </style>
 </head>
+
 <body>
-    <h2>Inscripciones — {{ $session->event->name }}</h2>
+    <h2>{{ $session->event->name }} – {{ $session->starts_on->format('d/m/Y H:i') }}</h2>
     <table>
         <thead>
             <tr>
-                <th>Nombre</th>
-                <th>Apellidos</th>
-                <th>Email</th>
-                <th>Teléfono</th>
-                <th>Confirmación</th>
-                <th>Plataforma</th>
-                <th>Tarifa</th>
-                <th>Posición</th>
-                <th>Código de barras</th>
-                <th>Validado</th>
-                <th>DNI</th>
-                <th>Creado</th>
+                <th style="width: 8%;">Nombre</th>
+                <th style="width: 10%;">Apellidos</th>
+                <th style="width: 15%;">Email</th>
+                <th style="width: 8%;">Teléfono</th>
+                <th style="width: 8%;">Código</th>
+                <th style="width: 6%;">Gateway</th>
+                <th style="width: 10%;">Tarifa</th>
+                <th style="width: 8%;">Butaca</th>
+                <th style="width: 12%;">Barcode</th>
+                <th style="width: 5%;">Valid.</th>
+                <th style="width: 10%;">Fecha</th>
             </tr>
         </thead>
         <tbody>
-            @foreach($inscriptions as $i)
-                @php($c = optional(optional($i->cart)->client))
+            @foreach ($inscriptions as $i)
                 <tr>
-                    <td>{{ $c->name }}</td>
-                    <td>{{ $c->surname }}</td>
-                    <td>{{ $c->email }}</td>
-                    <td>{{ $c->phone }}</td>
-                    <td>{{ optional($i->cart)->confirmation_code }}</td>
-                    <td>{{ optional($i->cart->payment)->gateway }}</td>
-                    <td>{{ optional($i->rate)->name }}</td>
-                    <td>{{ optional($i->slot)->name ?? 'n/a' }}</td>
+                    <td>{{ $i->cart->client->name ?? '-' }}</td>
+                    <td>{{ $i->cart->client->surname ?? '-' }}</td>
+                    <td>{{ $i->cart->client->email ?? '-' }}</td>
+                    <td>{{ $i->cart->client->phone ?? '-' }}</td>
+                    <td>{{ $i->cart->confirmation_code ?? '-' }}</td>
+                    <td>{{ $i->cart->confirmedPayment->gateway ?? '-' }}</td>
+                    <td>{{ $i->rate->name ?? '-' }}</td>
+                    <td>
+                        @if ($i->slot)
+                            {{ $i->slot->zone->name ?? '' }} {{ $i->slot->name }}
+                        @else
+                            -
+                        @endif
+                    </td>
                     <td>{{ $i->barcode }}</td>
                     <td>{{ $i->checked_at ? 'Sí' : 'No' }}</td>
-                    <td>{{ data_get(json_decode($i->metadata, true), 'dni', 'n/a') }}</td>
-                    <td>{{ optional($i->cart)->created_at?->format('d/m/Y H:i') }}</td>
+                    <td>{{ $i->cart->created_at?->format('d/m/y H:i') }}</td>
                 </tr>
             @endforeach
         </tbody>
     </table>
+    <p style="margin-top: 10px; font-size: 8px;">Total: {{ count($inscriptions) }} inscripciones</p>
 </body>
+
 </html>

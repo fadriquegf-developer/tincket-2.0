@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Event;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -31,6 +32,9 @@ class EventObserver
     public function saved(Event $event)
     {
         $this->processImages($event);
+
+        // Invalidar caché de listado de eventos
+        $this->invalidateEventsCache($event);
     }
 
     public static function processImages(Event $event): void
@@ -56,8 +60,16 @@ class EventObserver
         }
 
         $oldPaths = $event->getOriginal('images') ?? [];
-        $oldPaths = array_values($oldPaths);
-        $newPaths = array_values($newPaths);
+
+        if (is_string($oldPaths)) {
+            $decoded = json_decode($oldPaths, true);
+            $oldPaths = is_array($decoded) ? array_values($decoded) : [];
+        } elseif (is_array($oldPaths)) {
+            $oldPaths = array_values($oldPaths);
+        } else {
+            $oldPaths = [];
+        }
+
 
         $finalPaths = [];
 
@@ -86,7 +98,7 @@ class EventObserver
                 Storage::disk('public')->put($finalPath, $img->encode(new WebpEncoder(quality: 80)));
 
                 // Versión md
-                $mdPath  = $basePath . "md-{$filename}";
+                $mdPath = $basePath . "md-{$filename}";
                 $mdImage = Image::read($fullTempPath);
                 if ($mdImage->width() > 996) {
                     $mdImage = $mdImage->scale(width: 996);
@@ -115,7 +127,7 @@ class EventObserver
         foreach ($removed as $removedPath) {
             Storage::disk('public')->delete($removedPath);
 
-            $dir  = pathinfo($removedPath, PATHINFO_DIRNAME);
+            $dir = pathinfo($removedPath, PATHINFO_DIRNAME);
             $file = pathinfo($removedPath, PATHINFO_BASENAME);
 
             Storage::disk('public')->delete("{$dir}/sm-{$file}");
@@ -129,8 +141,6 @@ class EventObserver
         }
     }
 
-
-
     public function deleted(Event $event)
     {
         $event->sessions->each(function ($session) {
@@ -141,6 +151,34 @@ class EventObserver
         $dir = "uploads/{$brand}/event/{$event->id}";
 
         Storage::disk('public')->deleteDirectory($dir);
+
+        // Invalidar caché de listado de eventos
+        $this->invalidateEventsCache($event);
     }
 
+    /**
+     * Invalidar caché de eventos después de guardar o eliminar
+     */
+    private function invalidateEventsCache(Event $event): void
+    {
+        try {
+            $brandsToInvalidate = [$event->brand_id];
+
+            // Si el brand tiene padre (es hijo/partner), también invalidar el caché del padre
+            if ($event->brand && $event->brand->parent_id) {
+                $brandsToInvalidate[] = $event->brand->parent_id;
+            }
+
+            // Invalidar caché para cada brand afectado
+            foreach ($brandsToInvalidate as $brandId) {
+                Cache::forget("events:all_next:{$brandId}:has_partners:true");
+                Cache::forget("events:all_next:{$brandId}:has_partners:false");
+            }
+        } catch (\Exception $e) {
+            Log::error("EventObserver: Error invalidating events cache", [
+                'event_id' => $event->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
 }

@@ -76,7 +76,7 @@
                             <div class="row">
                                 <div class="col-xs-12">
                                     <p class="confirmation-code text-right">{{ $inscription->cart->confirmation_code }}</p>
-                                    <p>{{ $inscription->session->starts_on->formatLocalized('%d/%m/%Y %H:%M') }}</p>
+                                    <p>{{ $inscription->session->starts_on->translatedFormat('d/m/Y H:i') }}</p>
                                     <p>{{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}</p>
                                     @if(isset($inscription->group_pack->pack->name))
                                     <p><i>{{ $inscription->group_pack->pack->name }}</i></p>
@@ -85,7 +85,7 @@
                             </div>
 
                             <div class="bar-code" style="background-color:white;">
-                                <img width="50%" style="border: 1px solid white;" src="{{ sprintf('data:image/png;base64,%s',  DNS1D::getBarcodePNG(strtoupper($inscription->barcode), "C39", 3, 90)) }}" class="img-fluid img-responsive" />
+                                <img width="50%" style="border: 1px solid white;" src="{{ sprintf('data:image/png;base64,%s',  (DNS1D::getBarcodePNG(strtoupper($inscription->barcode), "C39", 3, 90))) }}" class="img-fluid img-responsive" />
                                 <span>{{ strtoupper($inscription->barcode) }}</span>
                             </div>
                         </div>

@@ -254,8 +254,8 @@ p {
                                   setlocale(LC_TIME, "ca_ES.utf8");
                                   @endphp
                                   {{ sprintf("%s, %s h",
-                                      ucfirst($inscription->session->starts_on->formatLocalized('%A')),
-                                      $inscription->session->starts_on->formatLocalized('%d/%m %H:%M')) }}
+                                      ucfirst($inscription->session->starts_on->translatedFormat('l')),
+                                      $inscription->session->starts_on->translatedFormat('d/m H:i')) }}
                               <div class="spacer "></div>
                                       <span class="text-muted">
                                       {{ sprintf("Preu: %s €", number_format($inscription->price_sold, 2)) }}
@@ -285,7 +285,7 @@ p {
     @endif
 
     <div class="col-10 text-extra-small" style="position: absolute; bottom: 10px; left: 0px;">
-      {{ __('tincket/tickets.footer-text') }}
+      {{ __('tickets.footer-text') }}
     </div>
 
 </body>

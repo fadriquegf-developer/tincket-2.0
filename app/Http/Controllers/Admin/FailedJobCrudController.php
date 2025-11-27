@@ -25,7 +25,7 @@ class FailedJobCrudController extends CrudController
     {
         CRUD::setModel(\App\Models\FailedJob::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/failed-job');
-        CRUD::setEntityNameStrings(__('backend.menu.failed_job'), __('backend.menu.failed_jobs'));
+        CRUD::setEntityNameStrings(__('menu.failed_job'), __('menu.failed_jobs'));
     }
 
     /**

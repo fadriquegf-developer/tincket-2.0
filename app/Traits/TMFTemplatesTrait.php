@@ -10,7 +10,7 @@ trait TMFTemplatesTrait
             'name' => 'content',
             'label' => trans('backpack::pagemanager.content'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
         ]);
     }
@@ -45,7 +45,7 @@ trait TMFTemplatesTrait
             'name' => 'present',
             'label' => 'Presenta',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -55,7 +55,7 @@ trait TMFTemplatesTrait
             'name' => 'sinopsis',
             'label' => 'Sinópsis',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -65,7 +65,7 @@ trait TMFTemplatesTrait
             'name' => 'content',
             'label' => trans('backpack::pagemanager.content'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
         ]);
     }
@@ -77,7 +77,7 @@ trait TMFTemplatesTrait
             'name' => 'fundacio',
             'label' => 'La Fundacio',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -87,7 +87,7 @@ trait TMFTemplatesTrait
             'name' => 'patronat',
             'label' => 'El Patronat',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -97,7 +97,7 @@ trait TMFTemplatesTrait
             'name' => 'history',
             'label' => 'La història',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -107,7 +107,7 @@ trait TMFTemplatesTrait
             'name' => 'formen_part',
             'label' => 'Formen Part',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras'
@@ -126,7 +126,7 @@ trait TMFTemplatesTrait
                 'name' => 'premio_' . $film,
                 'label' => 'Premis Pelicula ' . $film,
                 'type' => 'ckeditor',
-                'extraPlugins' => ['oembed'],
+                //'extraPlugins' => ['oembed'],
                 'placeholder' => trans('backpack::pagemanager.content_placeholder'),
                 'fake' => true,
                 'store_in' => 'extras'
@@ -199,7 +199,7 @@ trait TMFTemplatesTrait
                 'name' => 'descripcio_jurat_' . $jurat,
                 'label' => 'Descripció Jurat ' . $jurat,
                 'type' => 'ckeditor',
-                'extraPlugins' => ['oembed'],
+                //'extraPlugins' => ['oembed'],
                 'placeholder' => trans('backpack::pagemanager.content_placeholder'),
                 'fake' => true,
                 'store_in' => 'extras'
@@ -213,7 +213,7 @@ trait TMFTemplatesTrait
             'name' => 'content',
             'label' => trans('backpack::pagemanager.content'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
         ]);
 
@@ -336,7 +336,7 @@ trait TMFTemplatesTrait
                 'name' => 'palmares' . $edicio,
                 'label' => 'Palmares',
                 'type' => 'ckeditor',
-                'extraPlugins' => ['oembed'],
+                //'extraPlugins' => ['oembed'],
                 'placeholder' => trans('backpack::pagemanager.content_placeholder'),
                 'fake' => true,
                 'store_in' => 'extras',
@@ -411,7 +411,7 @@ trait TMFTemplatesTrait
             'name' => 'content',
             'label' => 'Palmares',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
         ]);
     }
@@ -455,7 +455,7 @@ trait TMFTemplatesTrait
             'name' => 'content',
             'label' => 'Contingut',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'tab' => 'Principal'
         ]);
@@ -488,7 +488,7 @@ trait TMFTemplatesTrait
             'name' => 'content_2',
             'label' => 'Contingut Final',
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'placeholder' => trans('backpack::pagemanager.content_placeholder'),
             'fake' => true,
             'store_in' => 'extras',
@@ -554,7 +554,7 @@ trait TMFTemplatesTrait
                     'name' => 'content_bloque_' . $tab . '_' . $bloque,
                     'label' => 'Contingut ' . $bloque,
                     'type' => 'ckeditor',
-                    'extraPlugins' => ['oembed'],
+                    //'extraPlugins' => ['oembed'],
                     'placeholder' => trans('backpack::pagemanager.content_placeholder'),
                     'tab' => 'Bloque ' . $tab,
                     'fake' => true,
@@ -621,7 +621,7 @@ trait TMFTemplatesTrait
                     'name' => 'content_bloque_' . $tab . '_' . $bloque,
                     'label' => 'Contingut ' . $bloque,
                     'type' => 'ckeditor',
-                    'extraPlugins' => ['oembed'],
+                    //'extraPlugins' => ['oembed'],
                     'placeholder' => trans('backpack::pagemanager.content_placeholder'),
                     'tab' => 'Bloque ' . $tab,
                     'fake' => true,

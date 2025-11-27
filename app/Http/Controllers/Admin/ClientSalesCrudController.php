@@ -18,35 +18,32 @@ class ClientSalesCrudController extends CrudController
     {
         CRUD::setModel(Client::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/statistics/client-sales');
-        CRUD::setEntityNameStrings(__('backend.menu.client'), __('backend.menu.clients'));
+        CRUD::setEntityNameStrings(__('menu.client'), __('menu.clients'));
         $this->setAccessUsingPermissions();
 
         CRUD::enableExportButtons();
 
-        // ───────────────────────────────
-        // Subconsulta: inscripciones agregadas por carrito (rápido de sumar por cliente)
-        // ───────────────────────────────
-        $insPerCart = DB::table('inscriptions')
-            ->selectRaw('
-                cart_id,
-                SUM(CASE WHEN group_pack_id IS NULL  THEN 1 ELSE 0 END) AS n_ins,
-                SUM(CASE WHEN group_pack_id IS NOT NULL THEN 1 ELSE 0 END) AS n_ins_packs,
-                COUNT(DISTINCT group_pack_id) AS n_packs,
-                COUNT(*) AS total
-            ')
-            ->whereNull('deleted_at')
-            ->groupBy('cart_id');
+        // Validación de contexto de brand
+        $currentBrand = get_current_brand();
+        if (!$currentBrand) {
+            abort(403, 'No brand context available');
+        }
 
-        $q = $this->crud->query;
+        // Validación de capability
+        if (!in_array($currentBrand->capability->code_name, ['basic', 'promoter', 'engine'])) {
+            abort(403, 'This feature is not available for your brand capability');
+        }
+    }
 
-        // Query base: cliente → carritos confirmados → agregados por carrito
-        $q->from('clients')
-            ->join('carts', 'clients.id', '=', 'carts.client_id')
-            ->join(DB::raw('(' . $insPerCart->toSql() . ') as ic'), 'ic.cart_id', '=', 'carts.id')
-            ->mergeBindings($insPerCart)
-            ->whereNotNull('carts.confirmation_code')
-            ->whereNull('carts.deleted_at')
-            // SELECT finales (todo sale de la agregación por carrito)
+    protected function setupListOperation()
+    {
+        $currentBrand = get_current_brand();
+        if (!$currentBrand) {
+            abort(403, 'No brand context');
+        }
+
+        // Modificar query base con una aproximación más simple
+        $this->crud->query = Client::query()
             ->select([
                 'clients.id',
                 'clients.name',
@@ -54,84 +51,64 @@ class ClientSalesCrudController extends CrudController
                 'clients.email',
                 'clients.postal_code',
                 'clients.city',
-                DB::raw('SUM(ic.n_ins) AS n_inscriptions'),
-                DB::raw('SUM(ic.n_ins_packs) AS n_inscriptions_packs'),
-                DB::raw('SUM(ic.n_packs) AS n_packs'),
-                DB::raw('SUM(ic.total) AS total'),
+                DB::raw('(
+                    SELECT COUNT(DISTINCT i.id) 
+                    FROM inscriptions i
+                    JOIN carts c ON i.cart_id = c.id
+                    WHERE c.client_id = clients.id 
+                    AND c.confirmation_code IS NOT NULL
+                    AND c.deleted_at IS NULL
+                    AND i.deleted_at IS NULL
+                    AND i.group_pack_id IS NULL
+                ) as n_inscriptions'),
+                DB::raw('(
+                    SELECT COUNT(DISTINCT i.id) 
+                    FROM inscriptions i
+                    JOIN carts c ON i.cart_id = c.id
+                    WHERE c.client_id = clients.id 
+                    AND c.confirmation_code IS NOT NULL
+                    AND c.deleted_at IS NULL
+                    AND i.deleted_at IS NULL
+                    AND i.group_pack_id IS NOT NULL
+                ) as n_inscriptions_packs'),
+                DB::raw('(
+                    SELECT COUNT(DISTINCT i.group_pack_id) 
+                    FROM inscriptions i
+                    JOIN carts c ON i.cart_id = c.id
+                    WHERE c.client_id = clients.id 
+                    AND c.confirmation_code IS NOT NULL
+                    AND c.deleted_at IS NULL
+                    AND i.deleted_at IS NULL
+                    AND i.group_pack_id IS NOT NULL
+                ) as n_packs'),
+                DB::raw('(
+                    SELECT COUNT(DISTINCT i.id) 
+                    FROM inscriptions i
+                    JOIN carts c ON i.cart_id = c.id
+                    WHERE c.client_id = clients.id 
+                    AND c.confirmation_code IS NOT NULL
+                    AND c.deleted_at IS NULL
+                    AND i.deleted_at IS NULL
+                ) as total')
             ])
-            ->groupBy(
-                'clients.id',
-                'clients.name',
-                'clients.surname',
-                'clients.email',
-                'clients.postal_code',
-                'clients.city'
-            );
-    }
-
-    /**
-     * DataTables server-side con optimizaciones:
-     * - búsqueda limitada a columnas indexadas
-     * - conteo barato por DISTINCT client_id
-     * - límite de página
-     */
-    public function search(Request $request)
-    {
-        CRUD::hasAccessOrFail('list');
-
-        // ─ Búsqueda: solo en columnas indexables
-        if ($term = trim((string) $request->input('search.value'))) {
-            $this->crud->query->where(function ($q) use ($term) {
-                $q->where('clients.email', 'like', "%{$term}%")
-                    ->orWhere('clients.surname', 'like', "%{$term}%")
-                    ->orWhere('clients.name', 'like', "%{$term}%");
+            ->where('clients.brand_id', $currentBrand->id)
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('carts')
+                    ->whereColumn('carts.client_id', 'clients.id')
+                    ->whereNotNull('carts.confirmation_code')
+                    ->whereNull('carts.deleted_at');
             });
-        }
 
-        // ─ Conteo barato: DISTINCT clients.id sin GROUP/ORDER
-        $countQ = clone $this->crud->query;
-        $countQ->getQuery()->orders = null;
-        $countQ->getQuery()->groups = null;
-
-        $totalRows = $filteredRows = (int) DB::query()
-            ->fromSub(
-                $countQ->select('clients.id')->distinct(),
-                't'
-            )
-            ->selectRaw('COUNT(*) AS n')
-            ->value('n');
-
-        // ─ Paginación con tope
-        if ($request->filled('start')) {
-            CRUD::skip((int) $request->input('start'));
-        }
-        $length = (int) $request->input('length', 50);
-        CRUD::take(min(max($length, 1), 1000));
-
-        // ─ Orden
-        if ($request->input('order')) {
-            $colNo = (int) $request->input('order.0.column');
-            $dir = $request->input('order.0.dir', 'asc');
-            $col = CRUD::findColumnById($colNo);
-            if (($col['tableColumn'] ?? false)) {
-                $this->crud->query->getQuery()->orders = null;
-                CRUD::orderBy($col['name'], $dir);
+        // Si es promotor, incluir brands hijos
+        if ($currentBrand->capability->code_name === 'promoter') {
+            $childBrandIds = $currentBrand->children->pluck('id')->toArray();
+            if (!empty($childBrandIds)) {
+                $this->crud->query->orWhereIn('clients.brand_id', $childBrandIds);
             }
-        } else {
-            $this->crud->query->orderBy('total', 'DESC');
         }
 
-        $entries = CRUD::getEntries();
-
-        return CRUD::getEntriesAsJsonForDatatables($entries, $totalRows, $filteredRows);
-    }
-
-    /**
-     * Listado + filtro por rango de FECHA DE VENTA (paid_at).
-     * Implementado con EXISTS sobre payments para aprovechar índice.
-     */
-    protected function setupListOperation()
-    {
+        // Filtro de fecha
         CRUD::addFilter(
             [
                 'type'  => 'date_range',
@@ -140,46 +117,132 @@ class ClientSalesCrudController extends CrudController
             ],
             false,
             function ($value) {
-                $d = json_decode($value);
-                if (!$d) {
+                try {
+                    $d = json_decode($value, true, 512, JSON_THROW_ON_ERROR);
+                } catch (\JsonException $e) {
                     return;
                 }
 
-                $from = !empty($d->from) ? ($d->from . ' 00:00:00') : null;
-                $to   = !empty($d->to)   ? ($d->to  . ' 23:59:59') : null;
+                if (!is_array($d) || (!isset($d['from']) && !isset($d['to']))) {
+                    return;
+                }
 
-                CRUD::addClause(function ($q) use ($from, $to) {
-                    $q->whereExists(function ($qq) use ($from, $to) {
-                        $qq->from('payments as p')
-                            ->selectRaw('1')
-                            ->whereColumn('p.cart_id', 'carts.id')
-                            ->whereNull('p.deleted_at');
+                $from = !empty($d['from']) ? $d['from'] . ' 00:00:00' : null;
+                $to = !empty($d['to']) ? $d['to'] . ' 23:59:59' : null;
 
-                        if ($from) {
-                            $qq->where('p.paid_at', '>=', $from);
-                        }
-                        if ($to) {
-                            $qq->where('p.paid_at', '<=', $to);
-                        }
+                if ($from || $to) {
+                    CRUD::addClause(function ($q) use ($from, $to) {
+                        $q->whereExists(function ($qq) use ($from, $to) {
+                            $qq->select(DB::raw(1))
+                                ->from('carts')
+                                ->join('payments', 'payments.cart_id', '=', 'carts.id')
+                                ->whereColumn('carts.client_id', 'clients.id')
+                                ->whereNotNull('payments.paid_at')
+                                ->whereNull('payments.deleted_at');
+
+                            if ($from) {
+                                $qq->where('payments.paid_at', '>=', $from);
+                            }
+                            if ($to) {
+                                $qq->where('payments.paid_at', '<=', $to);
+                            }
+                        });
                     });
-                });
+                }
             }
         );
 
+        // Columnas
         CRUD::addColumn([
             'name'  => 'id',
-            'label' => __('backend.menu.client') . ' Id',
+            'label' => __('menu.client') . ' Id',
             'type'  => 'view',
             'view'  => 'core.statistics.client-sales.link',
+            'searchLogic' => false,
+            'orderable' => true,
         ]);
-        CRUD::addColumn(['name' => 'email', 'label' => __('backend.client.email')]);
-        CRUD::addColumn(['name' => 'surname', 'label' => __('backend.client.surname')]);
-        CRUD::addColumn(['name' => 'name', 'label' => __('backend.client.name')]);
-        CRUD::addColumn(['name' => 'postal_code', 'label' => __('backend.client.postal_code')]);
-        CRUD::addColumn(['name' => 'city', 'label' => __('backend.client.city')]);
-        CRUD::addColumn(['name' => 'n_inscriptions', 'label' => __('backend.statistics.client-sales.n_inscriptions')]);
-        CRUD::addColumn(['name' => 'n_inscriptions_packs', 'label' => __('backend.statistics.client-sales.n_inscriptions_packs')]);
-        CRUD::addColumn(['name' => 'n_packs', 'label' => __('backend.statistics.client-sales.n_packs')]);
-        CRUD::addColumn(['name' => 'total', 'label' => __('backend.statistics.client-sales.total')]);
+
+        CRUD::addColumn([
+            'name' => 'email',
+            'label' => __('backend.client.email'),
+            'searchLogic' => function ($query, $column, $searchTerm) {
+                $query->orWhere('clients.email', 'like', '%' . $searchTerm . '%');
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'surname',
+            'label' => __('backend.client.surname'),
+            'searchLogic' => function ($query, $column, $searchTerm) {
+                $query->orWhere('clients.surname', 'like', '%' . $searchTerm . '%');
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'name',
+            'label' => __('backend.client.name'),
+            'searchLogic' => function ($query, $column, $searchTerm) {
+                $query->orWhere('clients.name', 'like', '%' . $searchTerm . '%');
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'postal_code',
+            'label' => __('backend.client.postal_code'),
+            'searchLogic' => false
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'city',
+            'label' => __('backend.client.city'),
+            'searchLogic' => false
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'n_inscriptions',
+            'label' => __('backend.statistics.client-sales.n_inscriptions'),
+            'type' => 'number',
+            'searchLogic' => false,
+            'orderLogic' => function ($query, $column, $columnDirection) {
+                return $query->orderBy('n_inscriptions', $columnDirection);
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'n_inscriptions_packs',
+            'label' => __('backend.statistics.client-sales.n_inscriptions_packs'),
+            'type' => 'number',
+            'searchLogic' => false,
+            'orderLogic' => function ($query, $column, $columnDirection) {
+                return $query->orderBy('n_inscriptions_packs', $columnDirection);
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'n_packs',
+            'label' => __('backend.statistics.client-sales.n_packs'),
+            'type' => 'number',
+            'searchLogic' => false,
+            'orderLogic' => function ($query, $column, $columnDirection) {
+                return $query->orderBy('n_packs', $columnDirection);
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'total',
+            'label' => __('backend.statistics.client-sales.total'),
+            'type' => 'number',
+            'searchLogic' => false,
+            'orderLogic' => function ($query, $column, $columnDirection) {
+                return $query->orderBy('total', $columnDirection);
+            }
+        ]);
+
+        // Configuración de DataTables
+        $this->crud->setDefaultPageLength(25);
+        $this->crud->setPageLengthMenu([[10, 25, 50, 100, -1], [10, 25, 50, 100, 'All']]);
+
+        // Ordenamiento por defecto
+        $this->crud->orderBy('total', 'desc');
     }
 }

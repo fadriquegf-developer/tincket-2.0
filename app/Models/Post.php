@@ -89,7 +89,6 @@ class Post extends BaseModel
     public function taxonomies()
     {
         return $this->morphToMany(Taxonomy::class, 'classifiable');
-
     }
 
     public function getDates()
@@ -132,51 +131,98 @@ class Post extends BaseModel
 
     protected function relocateTempUploads(): void
     {
-        if (!$this->id || empty($this->image))
-            return;
+        // Este método ya no es necesario si guardamos directamente en la ruta final
+        // Las rutas en BD son del tipo: "uploads/tmf/post/post-image-xxx.webp"
+        // Sin embargo, lo dejamos por si acaso hay algún caso edge
 
+        if (!$this->id || empty($this->image)) {
+            return;
+        }
+
+        // Si la imagen ya está en la ruta correcta, no hacer nada
+        // Las rutas correctas son: "uploads/{brand}/post/post-image-xxx.webp"
+        if (!str_contains($this->image, '/temp/') && !str_contains($this->image, 'backpack/temp/')) {
+            return;
+        }
+
+        // Si por alguna razón hay una imagen temporal, moverla
         $brand = get_current_brand()->code_name;
         $disk = Storage::disk('public');
 
-        // Normaliza lo justo: backslashes -> slashes y quita prefijos "storage/"
         $path = str_replace('\\', '/', (string) $this->image);
-        if (str_starts_with($path, 'storage/')) {
-            $path = substr($path, 8); // "storage/" => rutas relativas al disk 'public'
-        } elseif (str_starts_with($path, '/storage/')) {
-            $path = substr($path, 9);
-        }
-
-        // Solo actuamos si viene de __TEMP__
-        if (stripos($path, '/post/temp/') === false)
-            return;
-
-        $baseDir = "uploads/{$brand}/post/{$this->id}";
-        $srcDir = dirname($path);
         $filename = basename($path);
-        $dest = "{$baseDir}/{$filename}";
+        $finalPath = "uploads/{$brand}/post/{$filename}";
 
-        $disk->makeDirectory($baseDir);
+        if ($disk->exists($path) && $path !== $finalPath) {
+            $disk->move($path, $finalPath);
 
-        // Mover principal
-        if ($disk->exists($path)) {
-            $disk->move($path, $dest);
-        } else {
-            return;
-        }
-
-        // Mover variantes md- y sm- si existen
-        foreach (['md-', 'sm-'] as $pre) {
-            $srcVar = "{$srcDir}/{$pre}{$filename}";
-            if ($disk->exists($srcVar)) {
-                $disk->move($srcVar, "{$baseDir}/{$pre}{$filename}");
+            // Mover variantes si existen
+            $dir = dirname($path);
+            foreach (['md-', 'sm-'] as $prefix) {
+                $varPath = "{$dir}/{$prefix}{$filename}";
+                if ($disk->exists($varPath)) {
+                    $disk->move($varPath, "uploads/{$brand}/post/{$prefix}{$filename}");
+                }
             }
-        }
 
-        // Actualiza el campo sin re-disparar eventos
-        if ($this->image !== $dest) {
-            $this->image = $dest;
+            $this->image = $finalPath;
             $this->saveQuietly();
         }
     }
 
+    /**
+     * Obtener URL absoluta de la imagen para emails
+     */
+    public function getImageUrlAttribute(): string
+    {
+        if (!$this->image) {
+            return url('images/default-post-image.jpg');
+        }
+
+        // Si ya es una URL completa, devolverla
+        if (filter_var($this->image, FILTER_VALIDATE_URL)) {
+            return $this->image;
+        }
+
+        // Si ya tiene el prefijo "storage/", devolverla como está
+        if (str_starts_with($this->image, 'storage/')) {
+            return url($this->image);
+        }
+
+        // Para rutas del tipo "uploads/tmf/post/post-image-xxx.webp"
+        // Solo añadir el prefijo "storage/"
+        return url('storage/' . ltrim($this->image, '/'));
+    }
+
+    /**
+     * Mutator para limpiar la ruta de la imagen antes de guardar
+     * Previene duplicación de rutas cuando Backpack añade prefijos
+     */
+    public function setImageAttribute($value)
+    {
+        if (empty($value)) {
+            $this->attributes['image'] = null;
+            return;
+        }
+
+        // Si es una URL completa, guardarla tal cual
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            $this->attributes['image'] = $value;
+            return;
+        }
+
+        // Normalizar barras
+        $value = str_replace('\\', '/', $value);
+
+        // Eliminar prefijos storage/ o /storage/ si existen
+        $value = preg_replace('#^/?storage/#', '', $value);
+
+        // Eliminar duplicaciones de ruta
+        // Si la ruta contiene "uploads/X/post/uploads/X/post/", limpiarla
+        if (preg_match('#(uploads/[^/]+/post/).*?(uploads/[^/]+/post/)#', $value)) {
+            $value = preg_replace('#^.*?(uploads/[^/]+/post/)#', '$1', $value);
+        }
+
+        $this->attributes['image'] = $value;
+    }
 }

@@ -1,22 +1,28 @@
 @extends('brands.tmf.emails.layout')
 @section('content')
-<p>
-    Hola {{ $cart->client->name ?? '{name}' }},
-</p>
-<p>
-    En este correo encontrarás adjuntas las entradas para asistir al Festival. Recuerda imprimirlas o llevarlas descargadas en tu móvil. Podrás acceder a la sala a partir de 15 minutos antes del inicio de la sesión.<br>
-    Si tienes cualquier duda, puedes ponerte en contacto con nosotros en esta dirección de correo: <a href="mailto:info@torellomountainfilm.cat">info@torellomountainfilm.cat</a>.
-</p>
-<p>
-    Tu código de compra es: <span style="font-weight: bold;">{{ $cart->confirmation_code ?? '{code}' }}</span>
-</p>
-<p>
-    ¿Tienes previsto comer algo antes de entrar al cine? ¿Vas con el tiempo justo? ¿O prefieres comer o beber tranquilamente mientras esperas a que comience la proyección?
-</p>
-<p>
-    En <b>Camp Base</b> encontrarás servicio de barra con nuestros amigos de Animal Bar. Nos ofrecerán diferentes opciones de pinchos, tanto calientes como fríos, y algunos bocadillos de autor, con opción vegetariana. No faltará buena música y buen ambiente.
-</p>
-<p>
-    Abierto del 18 al 22 todos los días de 18:00 a 22:30.
-</p>
+    <p>
+        Hello {{ $cart->client->name or '{name}' }},
+    </p>
+    <p>
+        In this email you will find attached the tickets to attend the Festival. Remember to print
+        them or have them downloaded on your mobile phone. You will be able to access the theater quickly from 15 minutes
+        before the session starts.<br>
+        If you have any questions you can contact us at this email address:
+        <a href="mailto:info@torellomountainfilm.cat">info@torellomountainfilm.cat</a>.
+    </p>
+    <p>
+        Your purchase code is: <span style="font-weight: bold;">{{ $cart->confirmation_code or '{code}' }}</span>
+    </p>
+    <p>
+        Are you planning to eat something before entering the cinema? Are you short on time? Or would you
+        prefer to eat or drink leisurely while waiting for the screening to begin?
+    </p>
+    <p>
+        At <b>Camp Base</b> you will find a bar service with our friends from Animal Bar. They will bring us
+        different options of snacks, both hot and cold, and some gourmet sandwiches, with a
+        vegetarian option. There will be great music and a good atmosphere.
+    </p>
+    <p>
+        From the 17th to the 21st, open every day from 6:00 PM to 10:30 PM
+    </p>
 @endsection

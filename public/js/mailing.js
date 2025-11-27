@@ -8,14 +8,32 @@ jQuery(document).ready(function ($) {
     };
 
     $(".btn-load-emails").click(function () {
+
         var button = $(this);
         var emails_target = $($(this).data("emails-target"));
         var interests = [];
+
         loading(button.find(".la"));
 
-        $(".interest-checkbox").each(function () {
+        // Buscar todos los checkboxes de intereses
+        var checkboxes = $(".interest-checkbox, input[name^='interests[']");
+
+        checkboxes.each(function (index) {
             if ($(this).is(":checked")) {
-                interests.push($(this).data("interest"));
+                var interest = $(this).data("interest");
+
+                // Si no tiene data-interest, intentar extraer del name
+                if (!interest) {
+                    var name = $(this).attr("name");
+                    var match = name.match(/interests\[([^\]]+)\]/);
+                    if (match) {
+                        interest = match[1];
+                    }
+                }
+
+                if (interest) {
+                    interests.push(interest);
+                }
             }
         });
 
@@ -29,8 +47,18 @@ jQuery(document).ready(function ($) {
         }
 
         $.get(endpoint, function (data) {
-            emails_target.val(data.map((user) => user.email));
+            var emails = data.map((user) => user.email).join(",");
+            emails_target.val(emails);
+
             ready(button.find(".la"));
+        }).fail(function (xhr, status, error) {
+            console.error("[MAILING DEBUG] Error en petición:", {
+                status: status,
+                error: error,
+                response: xhr.responseText,
+            });
+            ready(button.find(".la"));
+            alert("Error al cargar emails: " + error);
         });
     });
 });

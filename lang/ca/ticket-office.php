@@ -13,6 +13,7 @@ return [
     'slot' => 'Posició en mapa',
     'add_inscription' => 'Afegir Inscripció',
     'there_is_only' => 'Només hi ha ',
+    'zoom_help' => 'Per fer zoom, utilitza la roda del ratolí, i es farà zoom sobre la zona que estiguis marcant amb el ratolí',
     'free_slots_in_session' => ' butaques lliures en la sessió.',
     'tickets_sold' => 'Entrades venudes',
     'add_to_cart' => 'Afegir la cistella',
@@ -21,7 +22,7 @@ return [
     'packs' => 'Paquets',
     'pack' => 'Paquet',
     'inscriptions' => 'Inscripcions',
-    'new_pack' => 'Nou paquet',
+    'new_pack' => 'Afegir paquet',
     'select_the_pack' => 'Selecciona el paquet',
     'show_all_packs' => 'Mostrar tots els packs',
     'select_the_sessions' => 'Selecciona les sessions que estaran en el paquet',
@@ -75,5 +76,83 @@ return [
             'disability' => 'Mobilitat reduïda'
         ],
         'help' => 'Pots seleccionar múltiples butaques mantenint premut Ctrl (Cmd en Mac) mentre fas clic, o arrossegant per crear una selecció.'
+    ],
+    // Generales que faltan
+    'loading' => 'Carregant...',
+    'next' => 'Següent',
+    'previous' => 'Anterior',
+    'close' => 'Tancar',
+    'save' => 'Guardar',
+    'cancel' => 'Cancel·lar',
+
+    // Modal específicos
+    'select_session' => 'Selecciona una sessió',
+    'layout_modal' => [
+        'title' => 'Seleccionar assentaments',
+        'session_info' => 'Informació de la sessió',
+        'selection_help' => 'Ajuda per a la selecció'
+    ],
+
+    // Pack modal específicos que pueden faltar
+    'pack_modal' => [
+        'title' => 'Configurar paquet',
+        'step_1' => 'Pas 1: Seleccionar paquet',
+        'step_2' => 'Pas 2: Seleccionar sessions',
+        'step_3' => 'Pas 3: Seleccionar assentaments'
+    ],
+
+    // Gift card específicos
+    'gift_card' => [
+        'gift_cards' => 'Targetes regal',
+        'validate' => 'Validar',
+        'code' => 'Codi',
+        'select_the_sessions' => 'Selecciona la sessió',
+        // NUEVOS:
+        'validation_error' => 'Error de validació',
+        'code_already_in_cart' => 'Ja tens aquest codi a la cistella',
+        'code_not_found' => 'No s\'ha trobat el codi o ja s\'ha reclamat',
+        'validating' => 'Validant...'
+    ],
+
+    // Estados de carga
+    'loading_states' => [
+        'loading_app' => 'Carregant aplicació...',
+        'loading_sessions' => 'Carregant sessions...',
+        'loading_layout' => 'Carregant mapa...',
+        'validating_code' => 'Validant codi...',
+        'processing' => 'Processant...'
+    ],
+
+    // Errores comunes
+    'errors' => [
+        'generic' => 'S\'ha produït un error',
+        'network' => 'Error de xarxa',
+        'loading_failed' => 'Error en carregar',
+        'session_not_found' => 'Sessió no trobada',
+        'slot_not_available' => 'Aquest assentament ja no està disponible'
+    ],
+
+    // Mensajes de confirmación
+    'confirmations' => [
+        'remove_inscription' => 'Estàs segur que vols eliminar aquesta inscripció?',
+        'remove_pack' => 'Estàs segur que vols eliminar aquest paquet?',
+        'clear_selection' => 'Estàs segur que vols reiniciar la selecció?'
+    ],
+
+    // Accesibilidad
+    'accessibility' => [
+        'close_modal' => 'Tancar modal',
+        'previous_session' => 'Sessió anterior',
+        'next_session' => 'Sessió següent',
+        'zoom_in' => 'Fer zoom',
+        'zoom_out' => 'Reduir zoom',
+        'reset_zoom' => 'Reiniciar zoom'
+    ],
+
+    // Información de ayuda
+    'help' => [
+        'multiple_selection' => 'Mantén premut Ctrl per seleccionar múltiples assentaments',
+        'drag_selection' => 'Arrossega per seleccionar múltiples assentaments',
+        'zoom_controls' => 'Utilitza els controls de zoom per navegar pel mapa'
     ]
 ];

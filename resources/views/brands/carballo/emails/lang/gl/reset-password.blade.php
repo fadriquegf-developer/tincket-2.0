@@ -3,7 +3,7 @@
 
 @section('content')
 <p>
-    Querido/a {{ $client->name or '{name}' }},<br>
+    Querido/a {{ $client->name ?? '{name}' }},<br>
     <br>
     Enviámosche este correo electrónico xa que solicitaches un cambio de contrasinal.<br/>
     <br>

@@ -1,114 +1,17 @@
 <?php
 
 return [
-    "menu" => [
-        "brand" => "Client",
-        "brands" => "Clients",
-        "brand_settings" => "Conf. personalitzada",
-        "brands_settings" => "Conf. personalitzades",
-
-        "setting_advanced" => "Conf. avançada",
-        "settings_advanced" => "Conf. avançades",
-
-        "setting_tpv" => "Conf. TPV",
-        "settings_tpv" => "Conf. TPVs",
-
-        "user" => "Usuari",
-        "users" => "Usuaris",
-
-        "capability" => "Tipus de Client",
-        "capabilities" => "Tipus de Clients",
-
-        'advanced' => 'Avançat',
-        'administration' => 'Administració',
-        'engine' => 'Motor',
-        'box_office' => 'Taquilla',
-        'statistics' => 'Estadístiques',
-
-        'application' => 'Clau Aplicació',
-        'applications' => 'Clau Aplicacións',
-
-        'update_notification' => 'Notificació d\'actualització',
-        'update_notifications' => 'Notificació d\'actualitzacions',
-
-        'job' => 'Tasca',
-        'jobs' => 'Tasques',
-
-        'failed_job' => 'Tasca fallida',
-        'failed_jobs' => 'Tasques fallides',
-
-        'client' => 'Client',
-        'clients' => 'Clients',
-
-        'form' => 'Formulari',
-        'forms' => 'Formularis',
-
-        'form_field' => 'Camp de formulari',
-        'form_fields' => 'Camps de formulari',
-
-        'post' => 'Publicació',
-        'posts' => 'Publicacions',
-
-        'page' => 'Pàgina',
-        'pages' => 'Pàgines',
-
-        'menu_item' => 'Menú',
-        'menu_items' => 'Menús',
-
-        'taxonomy' => 'Classificació',
-        'taxonomies' => 'Classificacions',
-
-        'location' => 'Localització',
-        'locations' => 'Localitzacions',
-
-        'space' => 'Espai',
-        'spaces' => 'Espais',
-
-        'rates' => 'Tarifes',
-        'rate' => 'Tarifa',
-
-        'zone' => 'Zona',
-        'zones' => 'Zones',
-
-        'events' => 'Esdeveniments',
-        'event' => 'Esdeveniment',
-
-        'session' => 'Sessió',
-        'sessions' => 'Sessions',
-
-        'inscription' => 'Inscripció',
-        'inscriptions' => 'Inscripcions',
-
-        'cart' => 'Cistella',
-        'carts' => 'Cistelles',
-
-        'gift_card' => 'Targeta Regal',
-        'gift_cards' => 'Targetes Regal',
-
-        'censu' => 'Empadronament',
-        'census' => 'Empadronaments',
-
-        'mail' => 'Enviament',
-        'mails' => 'Enviaments',
-
-        'validation' => 'Validació',
-        'validations' => 'Validacions',
-
-        'client_sale' => 'Venda de Client',
-        'client_sales' => 'Vendes de Clients',
-
-        'balance' => 'Resum Caixa',
-        'sales' => 'Vendes',
-
-        'codes' => 'Codis Promotors',
-
-        'input' => 'Camp Registre',
-        'inputs' => 'Camps Registre',
-    ],
-
     'create_at' => 'Creat a',
     'updated_at' => 'Actualitzat a',
     'deleted_at' => 'Eliminat a',
+    "deleted_by" => "Eliminat per",
+    'yes' => 'Sí',
+    'no' => 'No',
+    'edit' => 'Editar',
+    'view' => 'Veure',
+    'actions' => 'Accions',
+    'created_at' => 'Creat',
+    'showing_first_n' => 'Mostrant els primers :n de',
 
     "dashboard" => [
         "basic_statics" => "Estadístiques bàsiques",
@@ -122,7 +25,18 @@ return [
         "last_updates" => "Darreres actualitzacions",
         "mark_all_show" => "Marcar tot com llegit",
         "mark_show" => "Marcar com llegit",
-        "history_update" => "Historail d'actualitzacions",
+        "history_update" => "Historial d'actualitzacions",
+        "client_vs_sales" => "Clients vs Vendes (últims 12 mesos)",
+        "client" => "Client",
+        "sales" => "Vendes",
+        "total_clients" => "Total de clients",
+        "total_sales" => "Vendes últim any",
+        "historic" => "Acumulat històric",
+        "confirmed" => "confirmades en 12 mesos",
+        'box_office' => "Venta d'Entrades",
+        'events' => 'Llista Events',
+        'sessions' => 'Properes Sessions',
+        'carts' => 'Cistelles venudes'
     ],
 
     'user' => [
@@ -131,7 +45,38 @@ return [
         'password' => 'Contrasenya',
         'password_confirmation' => 'Confirmar contrasenya',
         'brand' => 'Client',
-        'info_password' => 'La contrasenya ha de tenir almenys 8 caràcters, incloure una lletra majúscula, una minúscula, un número i un símbol, i coincidir amb la confirmació.'
+        'info_password' => 'La contrasenya ha de tenir almenys 8 caràcters, incloure una lletra majúscula, una minúscula, un número i un símbol, i coincidir amb la confirmació.',
+        'validation' => [
+            // Nom
+            'name_required' => 'El nom és obligatori.',
+            'name_invalid' => 'El nom només pot contenir lletres, espais, guions i punts.',
+            'name_min' => 'El nom ha de tenir almenys :min caràcters.',
+            'name_max' => 'El nom no pot tenir més de :max caràcters.',
+
+            // Email
+            'email_required' => 'El correu electrònic és obligatori.',
+            'email_invalid' => 'El correu electrònic ha de ser una adreça vàlida i existent.',
+            'email_unique' => 'Aquest correu electrònic ja està registrat.',
+
+            // Contrasenya
+            'password_required' => 'La contrasenya és obligatòria.',
+            'password_min' => 'La contrasenya ha de tenir almenys :min caràcters.',
+            'password_mixed_case' => 'La contrasenya ha de contenir majúscules i minúscules.',
+            'password_numbers' => 'La contrasenya ha de contenir almenys un número.',
+            'password_symbols' => 'La contrasenya ha de contenir almenys un símbol especial.',
+            'password_compromised' => 'Aquesta contrasenya ha estat compromesa en filtracions de dades conegudes. Si us plau, tria una altra.',
+            'password_confirmed' => 'La confirmació de la contrasenya no coincideix.',
+            'password_no_spaces' => 'La contrasenya no pot contenir espais.',
+            'password_contains_email' => 'La contrasenya no pot contenir part del teu correu electrònic.',
+            'password_contains_name' => 'La contrasenya no pot contenir el teu nom.',
+            'password_common_pattern' => 'La contrasenya conté un patró massa comú.',
+            'password_keyboard_pattern' => 'La contrasenya conté seqüències de teclat predictibles.',
+
+            // IPs
+            'invalid_ip_format' => 'Format d\'IP invàlid. Utilitza format: 192.168.1.1 o 192.168.1.0/24',
+        ],
+        'password_hint_update' => 'Deixar en blanc per mantenir la contrasenya actual',
+        'newsletter_hint' => 'El client rebrà comunicacions promocionals i novetats',
     ],
 
     'capability' => [
@@ -144,13 +89,16 @@ return [
         "allowed_host" => "Domini client",
         "parent_id" => "Client pare (només per a promotors)",
         'capability' => 'Tipo de client',
-        'parent_id_list' => 'Client pare'
+        'parent_id_list' => 'Client pare',
+        'code_name_hint' => 'Identificador únic sense espais ni caràcters especials (ex: meva_marca)',
+        'enable_tpv' => 'Activar TPV (Terminal Punt de Venda)',
     ],
 
     "brand_settings" => [
         //BrandTab
         "logo" => "Logotip",
         "banner" => "Banner Publicitari",
+        'banner_hint' => 'Aquest bàner apareixerà a l’entrada de tots els esdeveniments, només per als clients la plantilla dels quals ho permeti.',
         "color" => "Color",
         "description" => "Descripció",
         "footer" => "Peu de pàgina",
@@ -158,7 +106,7 @@ return [
         "aux_code" => "Codi auxiliar",
         'google_recaptcha_secret_key' => 'Google ReCaptcha Secret Key',
         "google_recaptcha_site_key" => "Google ReCaptcha Site Key",
-        'link_politica_privacidad' => 'Link pàgina política de privacitat',
+        'link_politica_privacidad' => 'Enllaç pàgina política de privacitat',
         'barra_de_cerca_filtre_comarca' => 'Barra de cerca : filtre per comarca',
         "mantenimiento" => "Posar la web en manteniment",
 
@@ -186,6 +134,10 @@ return [
         "cartTTL" => "Minuts inicials per finalitzar la cistella",
         "maxCartTTL" => "Minuts màxims per finalitzar la cistella",
 
+        //Registro Tab
+        'active' => 'Actiu',
+        'required' => 'Requerit',
+
         //LegalTab
         "legal_notice" => "Avís Legal",
         "privacy_policy" => "Política de privacitat",
@@ -196,6 +148,23 @@ return [
         "responsable_tratamiento" => "Responsable de tractament",
         "delegado_proteccion" => "Delegat de protecció de dades",
 
+        // Sección Categorías
+        'main_category' => 'Categoria principal',
+        'main_category_hint' => 'Categoria base per classificar els events. Es mostraran les subcategories.',
+
+        'news_category' => 'Categoria de notícies',
+        'news_category_hint' => 'Categoria que s\'utilitzarà per classificar posts i notícies.',
+
+        'hidden_categories' => 'Categories ocultes',
+        'hidden_categories_hint' => 'Selecciona quines categories NO es mostraran al frontend.',
+
+        // Sección Temporadas
+        'seasons_category' => 'Categoria de temporades',
+        'seasons_category_hint' => 'Categoria que conté les temporades per agrupar events per períodes.',
+
+        'enable_seasons_grouping' => 'Activar agrupació per temporades',
+        'enable_seasons_grouping_hint' => 'Mostra els events agrupats per temporades al frontend.',
+
         "tabs" => [
             "brand" => "Client",
             "alert" => "Alerta",
@@ -204,14 +173,56 @@ return [
             "cart" => "Cistella",
             "register" => "Registre",
             "legal" => "Pàgines legals",
+            'categories' => 'Categories',
+            'seasons' => 'Temporades',
+        ],
+        'validation' => [
+            'logo_max' => 'El logotip no pot superar els 2MB',
+            'banner_max' => 'El banner no pot superar els 5MB',
+            'brand_color_regex' => 'El color ha de ser un codi hexadecimal vàlid (ex: #FF0000)',
+            'link_politica_privacidad_url' => 'L\'enllaç ha de ser una URL vàlida',
+            'custom_script_prohibited' => 'No tens permisos per modificar scripts personalitzats',
+            'aux_code_prohibited' => 'No tens permisos per modificar codi auxiliar',
+            'cart_ttl_min' => 'El TTL del carretó ha de ser almenys 1 minut',
+            'cart_ttl_max' => 'El TTL del carretó no pot superar 24 hores (1440 minutos)',
+            'max_cart_ttl_min' => 'El TTL màxim del carretó ha de ser almenys 1 minut',
+            'max_cart_ttl_max' => 'El TTL màxim del carretó no pot superar 48 hores (2880 minutos)',
+            'main_taxonomy_exists' => 'La categoria seleccionada no existeix o no pertany a aquesta marca',
+            'posting_taxonomy_exists' => 'La categoria de notícies seleccionada no existeix o no pertany a aquesta marca',
+            'seasons_taxonomy_exists' => 'La categoria de temporades seleccionada no existeix o no pertany a aquesta marca',
+            'default_tpv_exists' => 'El TPV seleccionat no existeix o no pertany a aquesta marca',
+            'hidden_taxonomies_exists' => 'Algunes de les categories seleccionades no existeixen o no pertanyen a aquesta marca',
+        ],
+        'custom_script_placeholder' => '<!-- Només codi JavaScript/HTML verificat -->',
+        'custom_script_warning' => '<div class="alert alert-danger"><i class="la la-exclamation-triangle"></i> <strong>ATENCIÓ:</strong> Aquest camp permet codi JavaScript sense restriccions. Només utilitzar codi verificat i de fonts fiables.</div>',
+        'aux_code_warning' => '<div class="alert alert-warning"><i class="la la-info-circle"></i> Camp per a codi auxiliar. Utilitzar amb precaució.</div>',
+        'mantenimiento_warning' => '⚠️ Activar el mode manteniment bloquejarà l\'accés públic al lloc',
+        'no_tpvs_available' => 'No hi ha TPVs configurats per a aquesta marca. Si us plau, crea\'n un primer.',
+        'cartTTL_hint' => 'Temps en minuts (1-1440)',
+        'maxCartTTL_hint' => 'Temps màxim en minuts (1-2880)',
+
+        'errors' => [
+            'access_denied' => 'Accés denegat. Només superusuaris poden accedir.',
+            'brand_not_found' => 'No s\'ha trobat una marca per al domini actual.',
+            'unauthorized_brand_edit' => 'No autoritzat per editar aquesta marca',
         ],
 
-
+        'messages' => [
+            'update_success' => 'Configuració actualitzada correctament',
+            'update_error' => 'Error al desar: :error',
+        ],
+        'no_categories_available' => 'No hi ha categories disponibles per a aquesta marca.',
+        'select_all' => 'Seleccionar tot',
+        'deselect_all' => 'Deseleccionar tot',
     ],
 
     "settings_advanced" => [
         "key" => "Clau",
         "value" => "Valor",
+        'single' => 'Opció avançada',
+        'plural' => 'Opcions avançades',
+        'key_hint' => 'Identificador únic per a aquesta configuració. Utilitza el format snake_case (exemple: api_timeout, max_upload_size)',
+        'value_hint' => 'Valor de la configuració. Pot ser text, número, JSON o qualsevol format necessari per a l\'aplicació',
     ],
 
     "settings_tpv" => [
@@ -221,12 +232,18 @@ return [
         "key" => "Clau",
         "value" => "Valor",
         "new_item_label" => "Afegir paràmetre",
+        'key_regex' => 'La clau només pot contenir lletres, números, punts i guions baixos',
+        'key_unique' => 'Aquesta clau ja existeix per a la teva marca',
+        'key_required' => 'La clau és obligatòria',
+        'key_max' => 'La clau no pot superar els :max caràcters',
+        'value_max' => 'El valor no pot superar els :max caràcters',
+        'category_max' => 'La categoria no pot superar els :max caràcters',
     ],
 
     "job" => [
         "queue" => "Cua",
         "payload" => "Càrrega útil",
-        "attempts" => "Intentos",
+        "attempts" => "Intents",
         "reserved_at" => "Reservat a",
         "available_at" => "Disponible a",
         "created_at" => "Creat a",
@@ -266,7 +283,7 @@ return [
         "province" => "Província",
         "city" => "Ciutat",
         "brand_id" => "Client de",
-        'num_session' => 'Sessions asistides',
+        'num_session' => 'Sessions assistides',
         "date_birth" => 'Data de naixement',
         'locale' => 'Idioma',
         'created_at' => 'Des de',
@@ -279,7 +296,13 @@ return [
         'newsletter' => 'Bulletí',
         'ca' => 'Català',
         'es' => 'Castellà',
-        'gl' => 'Gallec'
+        'gl' => 'Gallec',
+        'info' => 'Informació del Client',
+        'custom_fields' => 'Camps Addicionals',
+        'carts' => 'Cistelles',
+        'no_carts' => 'Aquest client no té cistelles.',
+        'inscriptions' => 'Inscripcions',
+        'no_inscriptions' => 'Aquest client no té inscripcions confirmades.',
     ],
 
     "modal" => [
@@ -292,7 +315,7 @@ return [
         "import_client" => [
             "error" => "Error durant la importació de clients",
             "success" => "Clients importats correctament",
-            "csv" => "El archiu no es CSV",
+            "csv" => "L'arxiu no és CSV",
         ],
     ],
 
@@ -334,15 +357,15 @@ return [
     'page' => [
         'open' => 'Obrir',
         'template' => 'Plantilla',
-        'page_name' => 'Nombre de la página (visible solo para administradores)',
+        'page_name' => 'Nombre de la pàgina (visible solo para administradores)',
         'page_title' => 'Títol de la pàgina',
-        'page_slug' => '"Slug" de la página (URL)',
+        'page_slug' => '"Slug" de la pàgina (URL)',
         'content' => 'Contingut',
         'meta_title' => 'Meta títol de la pàgina',
         'meta_description' => 'Meta descripció de la pàgina',
         'page_slug_hint' => 'Es generarà automàticament des del títol, si es deixa buit.',
-
-
+        'title' => 'Important: Temps de publicació',
+        'intro' => 'Els canvis que facis aquí es publicaran automàticament en un màxim de 60 minuts. Aquest petit retard permet que la web carregui molt més ràpid per als teus usuaris.'
     ],
 
     'menu_item' => [
@@ -354,7 +377,7 @@ return [
     'taxonomy' => [
         'name' => 'Nom',
         'slug' => 'Text URL per a SEO',
-        'active' => 'Sessió activa/visible',
+        'active' => 'Classificació activa/visible',
     ],
 
     'location' => [
@@ -373,10 +396,10 @@ return [
         'description' => 'Descripció',
         'create_space' => 'Crear un espai amb aquesta localització automaticament',
         'iframe_gmaps' => 'URL Iframe Google Maps',
-        'iframe_gmaps_info' => "Per introduir el mapa iframe a l'esdeveniment, haureu d'agafar la url que apareix dins de l'atribut 'src' i introduir-la. Exemple: /iframe src='https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1...' width='600' height='450' style='border:0;' allowfullscreen='' loading='lazy' / Domes agafar lo que hi ha dins 'src', que sería'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1....' (sense cometes)"
+        'iframe_gmaps_info' => "Per introduir el mapa iframe a l'esdeveniment, haureu d'agafar la url que apareix dins de l'atribut 'src' i introduir-la. Exemple: /iframe src='https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1...' width='600' height='450' style='border:0;' allowfullscreen='' loading='lazy' / Només agafar lo que hi ha dins 'src', que sería'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1....' (sense cometes)"
     ],
 
-    'space' => [
+    'spaces' => [
         'spacename' => 'Nom espai',
         'location' => 'Localització',
         'spacecapacity' => 'Capacitat de l\'espai',
@@ -384,10 +407,42 @@ return [
         'space_description' => 'Descripció del espai',
         'created-by' => 'Creat per',
         'hide' => 'Ocultar',
-        'zoom' => 'Habilitar zoom'
+        'zoom' => 'Habilitar zoom',
+        'zones_info' => [
+            'label' => 'Zones configurades',
+            'none' => 'Sense zones',
+            'zones' => 'zona(es)',
+            'slots' => 'butaques',
+        ],
+        'layout_instructions' => [
+            'title' => 'Configuració del mapa de butaques',
+            'how' => [
+                'title' => 'Com funciona?',
+                'step1' => '<strong>Selecció:</strong> Fes clic a les butaques per seleccionar-les',
+                'step2' => '<strong>Selecció múltiple:</strong> Mantén Ctrl/Cmd i clic, o arrossega per seleccionar-ne diverses',
+                'step3' => '<strong>Edició:</strong> Usa el botó del llapis per modificar les butaques seleccionades',
+                'step4' => '<strong>Zones:</strong> Assigna cada butaca a una zona per organitzar preus i colors',
+            ],
+            'states' => [
+                'title' => 'Estats de les butaques:',
+                'available' => 'Disponible',
+                'sold' => 'Venuda',
+                'reserved' => 'Reservada',
+                'blocked' => 'Blocada',
+            ],
+            'help' => [
+                'title' => 'Necessites ajuda?',
+                'intro' => 'Si és la primera vegada que configures l’espai:',
+                'step1' => 'Crea primer les zones a <a href=":url" target="_blank">CRM > Zones</a>',
+                'step2' => 'Torna aquí per assignar butaques a cada zona',
+                'step3' => 'Configura els preus per zona a les sessions',
+            ],
+        ],
     ],
 
     'rate' => [
+        'rates' => 'Tarifes',
+        'rate' => 'Tarifa',
         'msg_session_rate' => 'La sessió s\'ha d\'emmagatzemar abans de configurar les tarifes',
         'totalavailablity' => 'Disponibilitat total',
         'availabilityperinscription' => 'Disponibilitat per inscripció',
@@ -406,9 +461,15 @@ return [
         'validator_class' => 'Validator class code',
         'name' => 'Nom',
         'form' => 'Formulari',
-        'has_rule' => 'Té regla?',
-        'rule_parameters' => 'Paràmetres de la regla',
-        'code' => 'Limitacions compra'
+        'has_rule' => 'Vendre en paquets',
+        'rule_parameters' => 'Mida del paquet',
+        'code' => 'Limitacions compra',
+        'discount_code' => 'Codi de descompte',
+        'max_per_user' => 'Màx. per usuari',
+        'needs_code_hint' => 'Si està activat, aquesta tarifa només es pot utilitzar introduint un codi vàlid.',
+        'form_hint' => 'Si s\'selecciona un formulari, el client haurà d\'omplir-lo durant el procés de compra.',
+        'has_rule_hint' => 'Agrupa aquesta tarifa en paquets de N unitats. En eliminar una entrada s’elimina tot el paquet.',
+        'rule_parameters_hint' => 'Escriu need:N (ex.: need:4). Fes servir un enter major a 1.',
     ],
 
     'svg_layout' => [
@@ -433,15 +494,36 @@ return [
             'booked' => 'Reservades',
             'covid19' => 'Separació Covid19',
             'hidden' => 'Ocultes',
-            'disability' => 'Movilitat reduïda',
+            'disability' => 'Mobilitat reduïda',
             'booked_packs' => 'Reservades per packs',
         ],
     ],
 
-    'zone' => [
+    'zones' => [
         'name' => 'Nom',
         'color' => 'Color',
         'space' => 'Espai',
+        'title' => 'Què són les Zones?',
+        'intro' => 'Les <strong>zones</strong> divideixen el teu espai en àrees diferenciades (ex: Platea, Amfiteatre, Llotges). Cada zona pot tenir:',
+        'list' => [
+            'color' => '<strong>Color distintiu:</strong> Per identificar visualment les butaques al mapa',
+            'prices' => '<strong>Preus diferents:</strong> Cada zona pot tenir tarifes específiques',
+            'config' => '<strong>Configuracions especials:</strong> Restriccions o característiques úniques',
+        ],
+        'tip' => '💡 <strong>Consell:</strong> Crea primer totes les zones abans de configurar les butaques a l’espai.',
+    ],
+
+    'zone_explanation' => [
+        'title' => 'Guia ràpida:',
+        'steps' => [
+            'space' => '<strong>Espai:</strong> Selecciona el teatre/sala on és aquesta zona',
+            'name' => '<strong>Nom:</strong> Ex.: "Platea", "Amfiteatre", "Llotja VIP"',
+            'color' => '<strong>Color:</strong> Apareixerà al mapa de butaques per identificar la zona',
+        ],
+        'next' => [
+            'title' => 'Pròxim pas:',
+            'text' => 'Després de crear les zones, ves a l’espai per assignar butaques a cada zona.',
+        ],
     ],
 
     'events' => [
@@ -453,7 +535,7 @@ return [
         'dades_esdeveniment' => "Dades de l'esdeveniment",
         'add_event_agile' => "Entrada àgil d'esdeveniments",
         'optimize_images' => 'Optimitzar imatges esdeveniments',
-        'show_until_end_session' => 'Veure event fins a final de la sessió',
+        'show_until_end_session' => 'Veure esdeveniment fins a final de la sessió',
         'show_calendar' => 'Veure calendari de sessions',
         'full_width_calendar' => 'Calendari amplada completa',
         'hide_exhausted_sessions' => 'Amagar sessions exhaurides al calendari',
@@ -462,6 +544,8 @@ return [
         'events' => 'Esdeveniments',
         'event' => 'Esdeveniment',
         'published' => 'Publicat',
+        'is_active' => 'Esdeveniment actiu',
+        'is_active_hint' => 'Si està desactivat, l\'esdeveniment no serà visible al front i retornarà 404',
         'eventname' => 'Nom esdeveniment',
         'publish_on' => 'Data publicació',
         'firstsession' => 'Primera sessió',
@@ -489,13 +573,13 @@ return [
         'help-seasons-select' => 'Esculli tantes temporades com desitji per aquest esdeveniment',
         'show-incoming-events' => 'Propers esdeveniments',
         'show-incoming-sessions' => 'Properes sessions',
-        'banner' => 'Banner publicitari inscripció',
-        'custom_logo' => 'Logotip personalitzat(entrada)',
-        'custom_text' => 'Text personalitzat(entrada)',
+        'banner' => 'Banner publicitari (ticket)',
+        'custom_logo' => 'Logotip personalitzat (ticket)',
+        'custom_text' => 'Text personalitzat (ticket)',
         'remove_filters' => 'Eliminar filtres',
         'filters' => 'Filtres',
-        'banner_info' => "L'amplada del banner ha de ser mínim de 1200px d'amplada per a una visualització correcta",
-        'image' => "L'amplada de l'Imatge promocional principal ha de ser mínim de 1200px d'amplada per a una visualització correcta",
+        'banner_info' => "L'amplada del banner ha de ser mínim de 1400px d'amplada per a una visualització correcta",
+        'image' => "L'amplada de l'Imatge promocional principal ha de ser mínim de 1400px d'amplada per a una visualització correcta",
         'enable_gift_cards' => 'Targetes regal',
         'price_gift_card' => 'Preu targetes regal',
         'gift_card_text' => 'Text targetes regal',
@@ -510,9 +594,9 @@ return [
         'tab_extra' => 'Extra',
         'tab_ticket' => 'Entrada',
         'tab_gift' => 'Targeta Regal',
-        'tab_calendar' => 'Calendario',
-        'tab_inscriptions' => 'Inscripcions',
-        'validate_all_event' => 'Validació de cualsevol sessió',
+        'tab_calendar' => 'Calendari',
+        'tab_validation' => 'Validacions',
+        'validate_all_event' => 'Validació de qualsevol sessió',
         'validate_all_event_hint' => "<p><strong>Explicació del funcionament d’aquesta opció:</strong></p>
             <p>En marcar aquesta opció, qualsevol sessió derivada d’aquest esdeveniment podrà validar inscripcions d’altres sessions associades al mateix esdeveniment.</p>
             <p><strong>Exemple:</strong></p>
@@ -525,21 +609,22 @@ return [
                 </li>
             </ul>",
         'sales' => 'Vendes',
-        'sessions' => 'Sessions',
+        'sessions' => 'Sesions',
         'cart' => 'Cistella',
         'start_on' => 'Data inici',
         'created_at' => 'Creat a',
         'updated_at' => 'Actualitzat a',
         'deleted_at' => 'Eliminat a',
-        'minWidth' => "L'amplada mínima de cada imatge ha de ser de 1200px.",
+        'minWidth' => "L'amplada mínima de cada imatge ha de ser de 1400px.",
         'gallery' => 'Galeria',
+        'save_and_create_session' => 'Desar i crear sessió',
     ],
 
     'session' => [
         'session_color' => 'Color sessió',
-        'session_bg_color' => 'Color fons (entrada)',
-        'custom_logo' => 'Logotip personalitzat (entrada)',
-        'banner' => 'Banner publicitari (entrada)',
+        'session_bg_color' => 'Color fons (ticket)',
+        'custom_logo' => 'Logotip personalitzat (ticket)',
+        'banner' => 'Banner publicitari (ticket)',
         'session' => 'Sessió',
         'sessions' => 'Sessions',
         'sessions_temporada' => 'Sessions diaries de temporada',
@@ -557,14 +642,16 @@ return [
         'weekday_5' => 'Divendres',
         'weekday_6' => 'Dissabte',
         'weekday_0' => 'Diumenge',
-        'sessionname' => 'Nom de la sessió',
+        'sessionname' => 'Nom sessió (resum)',
+        'sessionfullname' => 'Nom sessió (complet)',
         'inscriptions' => 'Inscripcions',
         'liquidation' => 'Liquidació',
         'confirm_unliquidate' => '¿Segur que vol desliquidar aquesta sessió?',
         'confirm_liquidate' => '¿Segur que vol liquidar aquesta sessió?',
         'regenerate' => 'Regenerar cache slot',
         'confirm_regenerate' => '¿Segur que vol regenerar el cache de slots d\'aquesta sessió?',
-        'event' => 'Esdeveniment',
+        'event' => 'Esdeveniment (resum)',
+        'event_fullname' => 'Esdeveniment (complet)',
         'space' => 'Espai',
         'visibility' => 'Sessió activa/visible',
         'no-visibility' => 'Sessió desactivada/amagada',
@@ -586,11 +673,17 @@ return [
         'extraimages' => 'Imatges adicionals',
         'inscriptionsdaterange' => 'Inici i final d\'inscripcions',
         'maximumplaces' => 'Places màximes',
-        'occupiedplaces' => 'Places oupades',
+        'occupiedplaces' => 'Places ocupades',
         'numbered' => 'Numerat',
         'nonumbered' => 'No numerat',
         'external_url' => 'URL de venda a plataformes alienes',
         'sessionstartson' => 'Inici de la sessió',
+        'sessionendson' => 'Fi de la sessió',
+        'inscriptionstartson' => 'Inici d\'inscripcions',
+        'inscriptionendson' => 'Fi d\'inscripcions',
+        'clone_multiple_sessions' => 'Clonar múltiples sessions',
+        'number_clone' => 'Número de sessions a clonar',
+        'clone_sessions' => 'Clonar sessions',
         'autolock_type' => 'Patró de bloqueig',
         'limit_x_100' => 'Limit aforament',
         'autolock_n' => 'N bloqueig',
@@ -625,7 +718,9 @@ return [
         'minWidth' => "L'amplada mínima del Logotip ha de ser de 120px.",
         'marked_as_liquidated' => 'Marcada com a liquidada correctament',
         'marked_as_unliquidated' => 'Marcada com a no liquidada correctament',
-
+        'hint_no_space' => 'No tens cap espai creat?',
+        'private_url' => 'Accés privat via URL',
+        'session_info' => 'Informació de la sessió',
     ],
 
     'cart' => [
@@ -633,7 +728,7 @@ return [
         'carts' => 'Cistelles',
         'confirmationcode' => 'Codi Confirmació',
         'client' => 'Client',
-        'created' => 'Creado',
+        'created' => 'Creat',
         'modified' => 'Modificat',
         'amount' => 'Quantitat',
         'confirmed' => 'Confirmat',
@@ -646,6 +741,7 @@ return [
         'send_mail_payment' => 'Enviar email per realitzar Pagament',
         'payment_ticket_office' => 'Realitzar pagament a taquilla',
         'card' => 'Targeta de crèdit',
+        'card_simple' => 'Targeta',
         'cash' => 'Efectiu',
         'select_gateway' => 'Selecciona la plataforma de pagament',
         'close' => 'Tancar',
@@ -671,7 +767,7 @@ return [
             'options' => 'Opcions',
             'preview' => 'Previsualitzar',
             'gateway_response' => 'Resposta TPV',
-            'show_detail' => 'Ver detalles'
+            'show_detail' => 'Veure detalls'
         ],
         'error' => [
             'msg_pdf_not_rendered' => 'El PDF encara no s\'ha imprès, torneu-ho a intentar en una estona',
@@ -685,9 +781,14 @@ return [
         'changeGateway' => 'Canviar plataforma de pagament',
         'changeClient' => 'Canviar client de la cistella',
         'searchBy' => 'Cercar per nom, cognom o email',
-        'edit' => 'Modificar tarifa y preu',
+        'edit' => 'Modificar tarifa i preu',
         'price' => 'Preu',
         'rate' => 'Tarifa',
+        'gift_card' => 'Regal',
+        'status' => 'Estat',
+        'total' => 'Total',
+        'pending' => 'Pendent',
+        'deleted' => 'Eliminat',
     ],
 
     'ticket' => [
@@ -715,7 +816,7 @@ return [
         'select_the_pack' => 'Selecciona el paquet',
         'show_all_packs' => 'Mostrar tots els packs',
         'select_the_sessions' => 'Selecciona les sessions que estaran en el paquet',
-        'select_slots_for' => 'Selecciona butacas per a',
+        'select_slots_for' => 'Selecciona butaques per a',
         'select_at_least' => 'Selecciona, com a mínim ',
         'sessions_to_sell_this_pack' => 'sessions par a vendre en aquest paquet',
         'pendent' => 'Pendent',
@@ -760,6 +861,7 @@ return [
         'sold_ticket_office' => 'Venut per taquilla',
         'sold_web' => 'Venut per web',
         'list_title' => 'Llistat de Registres de Entrades',
+        'date_range' => 'Rang de dades'
     ],
 
     'statistics' => [
@@ -825,6 +927,7 @@ return [
         'validated_out' => 'Total Validades Sortida',
         'space' => 'Espai',
         'starts_on' => 'Data Inici',
+        'ends_on' => 'Data fi',
         'validate' => 'Validar',
         'you_are_validating' => 'Estàs validant les entrades per a...',
         'session' => 'Sessió',
@@ -869,10 +972,19 @@ return [
         'title' => 'Títol',
         'start_time' => 'Hora inici',
         'end_time' => 'Hora fi',
-        'create_multiple' => 'Crear Sessions per Temporada',
+        'create_multiple' => 'Crear Sessions multiples',
         'msg_end_after_start' => 'L’hora fi ha de ser posterior a l’hora inici.',
         'alert_inscription_before' => 'La data d’inici de venda ha de ser el mateix dia o anterior a l’inici de la temporada.',
-        'add_season' => 'Afegir per Temporada',
+        'add_season' => 'Afegir Multiples Sesions',
+        'creation_mode' => 'Mode de creació',
+        'mode_season' => 'Temporada',
+        'mode_season_desc' => 'Rang de dates + dies de la setmana',
+        'mode_specific' => 'Dates específiques',
+        'mode_specific_desc' => 'Seleccionar dies concrets individuals',
+        'season_config' => 'Configuració de temporada',
+        'specific_dates_title' => 'Sessions individuals',
+        'date' => 'Data',
+        'session_name' => 'Nom de la sessió',
     ],
 
     'pack' => [
@@ -887,7 +999,7 @@ return [
         'configuration' => 'Configuració',
         'minpercart' => 'Mínim per cistella',
         'maxpercart' => 'Màxim per cistella',
-        'rules' => 'Reglas',
+        'rules' => 'Regles',
         'discounts' => 'Descomptes',
         'discount' => 'Descompte',
         'sessionamounts' => 'Quantitat de sessions',
@@ -895,20 +1007,29 @@ return [
         'color' => 'Color Pack',
         'extra' => 'Extra',
         'config' =>
-            [
-                'round-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
-                'round-nearest' => 'Activar factor d\'arrodoniment per als packs amb %',
-                'one-session-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
-                'one-session-x-event' => 'Activar per permetre només una sessió per esdeveniment',
-                'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
-                'cart_rounded' => 'Activar arrodonir el preu total del pack o packs',
-            ]
+        [
+            'round-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
+            'round-nearest' => 'Activar factor d\'arrodoniment per als packs amb %',
+            'one-session-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
+            'one-session-x-event' => 'Activar per permetre només una sessió per esdeveniment',
+            'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
+            'cart_rounded' => 'Activar arrodonir el preu total del pack o packs',
+        ],
+        'available_sessions' => 'Sessions disponibles',
+        'no_available' => 'No hi ha sessions disponibles',
+        'add_to_pack' => 'Afegir al pack',
+        'add_all' => 'Afegir totes',
+        'drag_or_buttons' => 'Arrossega o fes servir<br>els botons',
+        'selected_sessions' => 'Sessions al pack',
+        'no_selected' => 'No hi ha sessions seleccionades',
+        'remove_from_pack' => 'Treure del pack',
+        'remove_all' => 'Treure totes',
     ],
 
     'gift_card' => [
         'gift_card' => 'Targeta regal',
         'gift_cards' => 'Targetes regal',
-        'code' => 'Código',
+        'code' => 'Codi',
         'validate' => 'Validar',
         'claimed' => 'Reclamat',
         'select_the_sessions' => 'Selecciona la sessió',
@@ -931,10 +1052,15 @@ return [
         'extra_content' => 'Contingut adicional',
         'status' => 'Estat',
         'is_sent' => 'Enviat',
-        'test_it' => 'Envia una prova a (CSV)',
+        'test_it' => 'Envia una prova',
         'interests' => 'Interessos',
         'show_emails' => 'Mostrar correus electrònics',
         'send' => 'Enviar',
+        'type' => 'Tipus',
+        'entity' => 'Entitat',
+        'recipients' => 'Destinataris',
+        'sent_at' => 'Enviat el',
+        'confirm_send' => 'Segur que vols enviar aquest correu?',
     ],
 
     'code' => [
@@ -950,5 +1076,9 @@ return [
         'title' => 'Titol',
         'name_form' => 'Name Input',
         'type' => 'Tipus'
+    ],
+
+    'partner' => [
+        'created_successfully' => 'Promotor creat correctament',
     ],
 ];

@@ -3,9 +3,8 @@
 return [
     'inscription' => [
         'view' => [
-            'ticket' => 'core.inscription.ticket.ticket'
+            'ticket' => 'core.inscription.ticket.ticket-qr'
         ],
-        'pdf_folder' => 'pdf/inscriptions', // inside storage/app
         'ticket-office-params' => [
             'ph' => 80,
             'pw' => 170,
@@ -13,8 +12,8 @@ return [
             'mt' => 5,
             'ml' => 5,
             'mr' => 5,
-            'zoom' => 1.28, //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
-            'dpi' => 70 //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
+            'zoom' => 1.20, //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
+            'dpi' => 140 //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
         ],
         'ticket-web-params' => [
             'ph' => 80,
@@ -23,18 +22,9 @@ return [
             'mt' => 5,
             'ml' => 5,
             'mr' => 5,
-            'zoom' => 1.28, //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
-            'dpi' => 70 //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
+            'zoom' => 1.20, //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
+            'dpi' => 140 //Extra para la nueva version de wkhtmltopdf, sino no se ve igual que la version anterior
         ]
-    ],
-    'inscription_set' => [
-        'pdf_folder' => 'pdf/orders', // inside storage/app
-    ],
-    'packs' => [
-        'pdf_folder' => 'pdf/packs', // inside storage/app
-    ],
-    'gift_card' => [
-        'pdf_folder' => 'pdf/gift_card', // inside storage/app
     ],
     'cart' => [
         'views' => [

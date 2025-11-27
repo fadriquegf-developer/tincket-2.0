@@ -6,6 +6,8 @@ use App\Models\Cart;
 use App\Models\Pack;
 use App\Models\Client;
 use App\Models\Session;
+use App\Models\Inscription;
+use App\Services\InscriptionService;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
 use App\Http\Requests\TicketOfficeRequest;
@@ -15,13 +17,18 @@ use Illuminate\Http\Request;
 
 class TicketOfficeController extends Controller
 {
+    public function index()
+    {
+        return redirect()->route('ticket-office.create');
+    }
+
     /**
      * Show the form for creating a new resource.
      */
     public function create(Request $request): View
     {
         $entry = new Cart();
-        $builder = Session::query()->with('rates', 'event', 'space')
+        $builder = Session::query()->with(['allRates.rate', 'event', 'space'])
             ->orderBy('starts_on');
 
         if (!$request->get('show_expired', false)) {
@@ -40,22 +47,21 @@ class TicketOfficeController extends Controller
                 });
         }
 
-        $packs = $builder_packs->get();
+        $packs = $builder_packs->orderBy('starts_on')->get();
 
         $sessions->each(function ($s) {
-            $s->rates->map(function ($rate) {
-                $rate->setAttribute('rate_name', $rate->name);
-                return $rate;
+            $s->allRates->map(function ($assignatedRate) {
+                if ($assignatedRate->rate) {
+                    $assignatedRate->rate->setAttribute('rate_name', $assignatedRate->rate->name);
+                }
+                return $assignatedRate;
             });
         });
 
-        // Procesar datos antiguos si existen
         $old_data = $this->processOldData($request);
-
-        // Calcular si debemos obtener posiciones libres
         $calculeFreePositions = $sessions->count() < 100;
-
         $json_sessions = $this->prepareSessionsJson($sessions, $calculeFreePositions);
+        $translations = __('ticket-office');
 
         return view('core.ticket-office.create', compact(
             'entry',
@@ -63,7 +69,8 @@ class TicketOfficeController extends Controller
             'packs',
             'old_data',
             'calculeFreePositions',
-            'json_sessions'
+            'json_sessions',
+            'translations'
         ));
     }
 
@@ -102,22 +109,33 @@ class TicketOfficeController extends Controller
     private function prepareSessionsJson($sessions, bool $calculeFreePositions): \Illuminate\Support\Collection
     {
         return $sessions->map(function ($session) use ($calculeFreePositions) {
+            $rates = $session->allRates()
+                ->with('rate')
+                ->get()
+                ->map(function ($assignatedRate) use ($calculeFreePositions) {
+                    $max_per_order = $calculeFreePositions ? $assignatedRate->count_free_positions : 0;
+
+                    return [
+                        'id' => $assignatedRate->rate->id ?? '',
+                        'name' => $assignatedRate->rate->name ?? '',
+                        'available' => max(0, $max_per_order),
+                        'price' => $assignatedRate->price ?? 0,
+                        'max_per_order' => $assignatedRate->max_per_order ?? 1,
+                    ];
+                });
+
             return [
                 'id' => $session->id,
-                'name' => sprintf("%s %s (%s)", $session->event->name, $session->name, $session->starts_on->format('d/m/Y H:i')),
+                'name' => sprintf(
+                    "%s %s (%s)",
+                    $session->event->name,
+                    $session->name,
+                    $session->starts_on->format('d/m/Y H:i')
+                ),
                 'is_numbered' => $session->is_numbered,
                 'is_past' => $session->ends_on < \Carbon\Carbon::now(),
-                'rates' => $session->rates->map(function ($rate) use ($calculeFreePositions) {
-                    $max_per_order = $calculeFreePositions ? $rate->count_free_positions : 0;
-                    return [
-                        'id' => $rate->id,
-                        'name' => [
-                            config('app.locale') => $rate->name
-                        ],
-                        'available' => max(0, $max_per_order),
-                        'price' => $rate->pivot->price
-                    ];
-                }),
+                'rates' => $rates,
+                'free_positions' => $calculeFreePositions ? $session->getFreePositions() : 0,
                 'space' => [
                     'layout' => $session->space?->svg_path ? asset(\Storage::url($session->space->svg_path)) : '',
                     'zoom' => $session->space?->zoom ?? false
@@ -153,7 +171,7 @@ class TicketOfficeController extends Controller
 
         \Illuminate\Support\Facades\Session::flash('download_all_inscriptions', true);
 
-        return redirect()->route('crud.cart.show', ['id' => $cart->id]);
+        return redirect()->route('cart.show', ['id' => $cart->id]);
     }
 
     private function associateClient(TicketOfficeRequest $request, Cart $cart): void
@@ -166,13 +184,18 @@ class TicketOfficeController extends Controller
                 ->first();
 
             if (!$client) {
+                // 🔧 FIX: Obtener brand correctamente
+                $brand = get_current_brand()
+                    ?? $request->attributes->get('brand')
+                    ?? $request->get('brand');
+
                 $client = new Client([
                     'email' => $email,
                     'name' => $request->input('client.firstname'),
                     'surname' => $request->input('client.lastname'),
                     'locale' => config('app.locale')
                 ]);
-                $client->brand()->associate($request->get('brand'));
+                $client->brand()->associate($brand);
                 $client->save();
             }
 
@@ -180,181 +203,248 @@ class TicketOfficeController extends Controller
         }
     }
 
+    /**
+     * 🔧 FIX: Reescrito completamente para usar InscriptionService correctamente
+     */
     private function createInscriptions(TicketOfficeRequest $request, Cart $cart): void
     {
-        $inscription_service = new \App\Services\Api\InscriptionService();
-        $inscription_service->enablePrivateUsage();
-
-        $params = [];
+        $inscriptionService = new InscriptionService();
 
         try {
-            // Agrupar inscripciones por sesión para prevenir bloqueos
-            foreach ($request->input('inscriptions.session_id', []) as $index => $value) {
-                if ($value) {
-                    if (array_key_exists($value, $params)) {
-                        // Incrementar slots
-                        if ($params[$value]['is_numbered']) {
-                            // Numerada
-                            $params[$value]['inscriptions'][] = [
-                                'is_numbered' => $params[$value]['is_numbered'],
-                                'rate_id' => $request->input("inscriptions.rate_id")[$index],
-                                'slot_id' => $request->input("inscriptions.slot_id")[$index],
-                                'quantity' => 1
-                            ];
-                        } else {
-                            // No numerada
-                            $rateId = $request->input("inscriptions.rate_id")[$index];
-                            $aux = array_search($rateId, array_column($params[$value]['inscriptions'], 'rate_id'));
+            // Agrupar inscripciones por sesión
+            $inscriptionsBySession = [];
 
-                            if ($aux === false) {
-                                // Nueva tarifa
-                                $params[$value]['inscriptions'][] = [
-                                    'is_numbered' => $params[$value]['is_numbered'],
-                                    'rate_id' => $rateId,
-                                    'quantity' => 1
-                                ];
-                            } else {
-                                // Incrementar cantidad
-                                $params[$value]['inscriptions'][$aux]['quantity']++;
-                            }
-                        }
-                    } else {
-                        // Nueva sesión
-                        $session = Session::query()->findOrFail($value);
-                        $params[$value] = [
-                            'cart_id' => $cart->id,
-                            'session_id' => $value,
-                            'is_numbered' => (bool) $session->is_numbered,
-                            'inscriptions' => [
-                                [
-                                    'is_numbered' => (bool) $session->is_numbered,
-                                    'rate_id' => $request->input("inscriptions.rate_id")[$index],
-                                    'slot_id' => $request->input("inscriptions.slot_id")[$index],
-                                    'quantity' => 1
-                                ]
-                            ]
-                        ];
-                    }
+            foreach ($request->input('inscriptions.session_id', []) as $index => $sessionId) {
+                if (!$sessionId) {
+                    continue;
                 }
-            }
 
-            // Crear todas las inscripciones para cada sesión
-            foreach ($params as $param) {
-                $inscription_service->createNewInscriptionsSet($param);
-            }
-        } catch (\Exception $e) {
-            throw $e;
-        }
-    }
-
-    private function createPacks(TicketOfficeRequest $request, Cart $cart): void
-    {
-        $cart_service = new \App\Services\Api\CartService();
-        $cart_service->enablePrivateUsage();
-
-        $groupPacks = [];
-        $params = [];
-
-        try {
-            // Agrupar packs para prevenir bloqueos
-            foreach ($request->input('packs', []) as $index => $rawPack) {
-                if ($rawPack) {
-                    $pack = json_decode($rawPack);
-
-                    if (array_key_exists($pack->pack_id, $groupPacks)) {
-                        $groupPacks[$pack->pack_id]['pack_multiplier']++;
-                    } else {
-                        $groupPacks[$pack->pack_id]['pack_multiplier'] = 1;
-                        $groupPacks[$pack->pack_id]['selection'] = [];
-                    }
-
-                    foreach ($pack->selection as $s) {
-                        if (!array_key_exists($s->session_id, $groupPacks[$pack->pack_id]['selection'])) {
-                            $groupPacks[$pack->pack_id]['selection'][$s->session_id]['is_numbered'] = Session::find($s->session_id)->is_numbered;
-                        }
-
-                        if ($s->slot_id != null) {
-                            $groupPacks[$pack->pack_id]['selection'][$s->session_id]['slots'][] = $s->slot_id;
-                        } else {
-                            $groupPacks[$pack->pack_id]['selection'][$s->session_id]['slots'] = null;
-                        }
-                    }
+                if (!isset($inscriptionsBySession[$sessionId])) {
+                    $inscriptionsBySession[$sessionId] = [];
                 }
-            }
 
-            // Preparar parámetros
-            foreach ($groupPacks as $pack_id => $p) {
-                $params[$pack_id] = [
-                    'pack_id' => $pack_id,
-                    'pack_multiplier' => $p['pack_multiplier'],
-                    'selection' => []
+                $inscriptionsBySession[$sessionId][] = [
+                    'rate_id' => $request->input("inscriptions.rate_id")[$index],
+                    'slot_id' => $request->input("inscriptions.slot_id")[$index] ?? null,
                 ];
+            }
 
-                foreach ($p['selection'] as $session_id => $session) {
-                    $params[$pack_id]['selection'][] = [
-                        'session_id' => $session_id,
-                        'is_numbered' => $session['is_numbered'],
-                        'slots' => $session['slots'],
-                        'quantity' => 1
-                    ];
+            // Procesar cada sesión
+            foreach ($inscriptionsBySession as $sessionId => $inscriptionsData) {
+                $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->findOrFail($sessionId);
+
+                if ($session->is_numbered) {
+                    // 🔧 SESIÓN NUMERADA: Usar reserveSlot para cada slot
+                    foreach ($inscriptionsData as $data) {
+                        if (!$data['slot_id']) {
+                            throw new \Exception("Slot ID requerido para sesión numerada {$sessionId}");
+                        }
+
+                        $slot = \App\Models\Slot::findOrFail($data['slot_id']);
+
+                        $inscriptionService->reserveSlot(
+                            $session,
+                            $slot,
+                            $cart,
+                            $data['rate_id'],
+                            [],
+                            true
+                        );
+                    }
+                } else {
+                    // 🔧 SESIÓN NO NUMERADA: Crear inscripciones directamente
+                    foreach ($inscriptionsData as $data) {
+                        $rateId = $data['rate_id'];
+
+                        // Obtener precio de la tarifa
+                        $assignatedRate = $session->allRates()
+                            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->where('rate_id', $rateId)
+                            ->first();
+
+                        if (!$assignatedRate) {
+                            throw new \Exception("Tarifa {$rateId} no válida para sesión {$sessionId}");
+                        }
+
+                        // Crear inscripción sin slot
+                        Inscription::create([
+                            'session_id' => $session->id,
+                            'cart_id' => $cart->id,
+                            'rate_id' => $rateId,
+                            'brand_id' => $session->brand_id,
+                            'price' => $assignatedRate->price,
+                            'price_sold' => $assignatedRate->price,
+                            'barcode' => $this->generateUniqueBarcode(),
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                    }
                 }
             }
-
-            foreach ($params as $param) {
-                $request->merge($param);
-                $cart_service->setPack($cart, $request);
-            }
         } catch (\Exception $e) {
+            \Log::error('Error creating inscriptions in ticket office', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage()
+            ]);
             throw $e;
         }
     }
 
     /**
-     * Create inscription related to gift card
+     * 🔧 FIX: Reescrito para usar CartService correctamente
      */
-    private function createGiftCarts(TicketOfficeRequest $request, Cart $cart): void
+    private function createPacks(TicketOfficeRequest $request, Cart $cart): void
     {
-        $inscription_service = new \App\Services\Api\InscriptionService();
-        $inscription_service->enablePrivateUsage();
-
-        $params = [];
+        if (!$request->has('packs') || empty($request->input('packs'))) {
+            return;
+        }
 
         try {
-            // Agrupar inscripciones por sesión
-            foreach ($request->input('gift_cards.session_id', []) as $index => $value) {
-                if ($value) {
-                    if (array_key_exists($value, $params)) {
-                        $params[$value]['inscriptions'][] = [
-                            'is_numbered' => $params[$value]['is_numbered'],
-                            'rate_id' => $params[$value]['inscriptions'][0]['rate_id'],
-                            'slot_id' => $request->input("gift_cards.slot_id")[$index],
-                            'gift_code' => $request->input("gift_cards.code")[$index],
-                            'quantity' => 1
+            $groupPacks = [];
+
+            foreach ($request->input('packs', []) as $rawPack) {
+                if (!$rawPack) {
+                    continue;
+                }
+
+                $pack = json_decode($rawPack);
+                $packId = $pack->pack_id;
+
+                if (!isset($groupPacks[$packId])) {
+                    $groupPacks[$packId] = [
+                        'pack_multiplier' => 0,
+                        'selection' => []
+                    ];
+                }
+
+                $groupPacks[$packId]['pack_multiplier']++;
+
+                foreach ($pack->selection as $s) {
+                    $sessionId = $s->session_id;
+
+                    if (!isset($groupPacks[$packId]['selection'][$sessionId])) {
+                        $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->find($sessionId);
+
+                        $groupPacks[$packId]['selection'][$sessionId] = [
+                            'is_numbered' => $session ? $session->is_numbered : false,
+                            'slots' => []
                         ];
-                    } else {
-                        $session = Session::query()->findOrFail($value);
-                        $params[$value] = [
-                            'cart_id' => $cart->id,
-                            'session_id' => $value,
-                            'is_numbered' => (bool) $session->is_numbered,
-                            'inscriptions' => [
-                                [
-                                    'is_numbered' => (bool) $session->is_numbered,
-                                    'rate_id' => $session->generalRate->rate_id,
-                                    'slot_id' => $request->input("gift_cards.slot_id")[$index],
-                                    'gift_code' => $request->input("gift_cards.code")[$index],
-                                    'quantity' => 1
-                                ]
-                            ]
-                        ];
+                    }
+
+                    if ($s->slot_id != null) {
+                        $groupPacks[$packId]['selection'][$sessionId]['slots'][] = $s->slot_id;
                     }
                 }
             }
 
-            foreach ($params as $param) {
-                $inscription_service->createNewInscriptionsSet($param);
+            // Crear cada pack usando CartService
+            $cartService = new \App\Services\Api\CartService();
+
+            foreach ($groupPacks as $packId => $packData) {
+                $selection = [];
+
+                foreach ($packData['selection'] as $sessionId => $sessionData) {
+                    $selection[] = [
+                        'session_id' => $sessionId,
+                        'is_numbered' => $sessionData['is_numbered'],
+                        'slots' => $sessionData['slots']
+                    ];
+                }
+
+                $packRequest = new Request([
+                    'pack_id' => $packId,
+                    'pack_multiplier' => $packData['pack_multiplier'],
+                    'selection' => $selection
+                ]);
+
+                $cartService->setPack($cart, $packRequest);
             }
         } catch (\Exception $e) {
+            \Log::error('Error creating packs in ticket office', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * 🔧 FIX: Simplificado para crear gift cards
+     */
+    private function createGiftCarts(TicketOfficeRequest $request, Cart $cart): void
+    {
+        if (!$request->has('gift_cards.session_id') || empty($request->input('gift_cards.session_id'))) {
+            return;
+        }
+
+        $inscriptionService = new InscriptionService();
+
+        try {
+            foreach ($request->input('gift_cards.session_id', []) as $index => $sessionId) {
+                if (!$sessionId) {
+                    continue;
+                }
+
+                $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->findOrFail($sessionId);
+
+                $code = $request->input("gift_cards.code")[$index];
+                $slotId = $request->input("gift_cards.slot_id")[$index] ?? null;
+
+                // Verificar que la gift card existe y es válida
+                $giftCard = \App\Models\GiftCard::where('code', $code)
+                    ->where('event_id', $session->event_id)
+                    ->whereDoesntHave('inscription')
+                    ->firstOrFail();
+
+                $rateId = $session->generalRate?->rate_id;
+
+                if (!$rateId) {
+                    throw new \Exception("Sesión {$sessionId} no tiene tarifa general configurada");
+                }
+
+                if ($session->is_numbered && $slotId) {
+                    // Sesión numerada
+                    $slot = \App\Models\Slot::findOrFail($slotId);
+
+                    $inscription = $inscriptionService->reserveSlot(
+                        $session,
+                        $slot,
+                        $cart,
+                        $rateId,
+                        ['code' => $code],
+                        true
+                    );
+                } else {
+                    // Sesión no numerada
+                    $assignatedRate = $session->allRates()
+                        ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                        ->where('rate_id', $rateId)
+                        ->first();
+
+                    $inscription = Inscription::create([
+                        'session_id' => $session->id,
+                        'cart_id' => $cart->id,
+                        'rate_id' => $rateId,
+                        'brand_id' => $session->brand_id,
+                        'code' => $code,
+                        'price' => $assignatedRate->price ?? 0,
+                        'price_sold' => $assignatedRate->price ?? 0,
+                        'barcode' => $this->generateUniqueBarcode(),
+                    ]);
+                }
+
+                // Asociar gift card a inscripción
+                $giftCard->inscription()->associate($inscription);
+                $giftCard->save();
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error creating gift cards in ticket office', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage()
+            ]);
             throw $e;
         }
     }
@@ -365,5 +455,17 @@ class TicketOfficeController extends Controller
         $payment_service->setPaymentType(request()->get('payment_type'));
         $payment_service->purchase($cart);
         $payment_service->confirmPayment();
+    }
+
+    /**
+     * 🔧 NUEVO: Generar barcode único
+     */
+    private function generateUniqueBarcode(): string
+    {
+        do {
+            $barcode = strtoupper(bin2hex(random_bytes(6)));
+        } while (Inscription::where('barcode', $barcode)->exists());
+
+        return $barcode;
     }
 }

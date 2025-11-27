@@ -5,25 +5,28 @@
  * of Inscription confirmation
  */
 
+use App\Http\Controllers\Open\v1\EventsController;
+use App\Http\Controllers\Open\v1\TaxonomyController;
+
 /*
   |--------------------------------------------------------------------------
   | Public Endpoints
   |--------------------------------------------------------------------------
  */
-Route::group([ 'prefix'=>'public', 'middleware' => ['setBrand']], function () {
-  Route::get('inscription/{inscription}',[\App\Http\Controllers\Open\InscriptionController::class, 'getInscriptionTicket'])->name('open.inscription.pdf');
-  /* Route::get('gift-card/{gift}', 'Open\GiftCardController@getPDF')->name('open.gitf_card.pdf');
-  Route::get('gift-card/{gift}/download', 'Open\GiftCardController@download')->name('open.gitf_card.download');
-  Route::get('order/{order}/download/{token}.pdf', 'Open\InscriptionsSetController@downloadOrderPdf')->name('open.order.download');*/
-  Route::get('cart/{cart}/download', [\App\Http\Controllers\Open\CartController::class,'download'])->name('open.cart.download'); 
+
+Route::group(['prefix' => 'public', 'middleware' => ['setBrand']], function () {
+  Route::get('inscription/{inscription}', [\App\Http\Controllers\Open\InscriptionController::class, 'getInscriptionTicket'])->name('open.inscription.pdf');
+  Route::get('gift-card/{gift}', [\App\Http\Controllers\Open\GiftCardController::class, 'getPDF'])->name('open.gift_card.pdf');
+  Route::get('gift-card/{gift}/download', [\App\Http\Controllers\Open\GiftCardController::class, 'download'])->name('open.gift_card.download');
+  Route::get('cart/{cart}/download', [\App\Http\Controllers\Open\CartController::class, 'download'])->name('open.cart.download');
 
   /*
   |--------------------------------------------------------------------------
   | Version 1
   |--------------------------------------------------------------------------
   */
-  /* Route::group(['prefix' => 'v1', 'namespace' => 'Open\v1', 'as' => 'open.api1.', 'middleware' => ['apiToken', 'cors', 'apilocalization']], function () {
-    Route::get('events', 'EventsController@index')->name('events.index');
-    Route::get('taxonomies', 'TaxonomyController@index')->name('taxonomies.index');
-  }); */
+  Route::group(['prefix' => 'v1', 'namespace' => 'Open\v1', 'as' => 'open.api1.', 'middleware' => ['apiToken', 'apilocalization']], function () {
+    Route::get('events', [EventsController::class, 'index'])->name('events.index');
+    Route::get('taxonomies', [TaxonomyController::class, 'index'])->name('taxonomies.index');
+  });
 });

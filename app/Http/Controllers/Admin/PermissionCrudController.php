@@ -26,9 +26,7 @@ class PermissionCrudController extends CrudController
 
         /* Solo superusuarios pueden crear nuevos permissos */
         $this->isSuperuser();
-        
-        /* Denegamos acceso a la edicion y eliminacion, evitamos que alguien los borre o modifique por error */
-        $this->crud->denyAccess(['update','delete']);
+
 
         $this->crud->setModel($permission_model);
         $this->crud->setEntityNameStrings(trans('backpack::permissionmanager.permission_singular'), trans('backpack::permissionmanager.permission_plural'));

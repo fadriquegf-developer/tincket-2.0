@@ -81,7 +81,7 @@
                             <div class="row">
                                 <div class="col-xs-12">
                                     <p class="confirmation-code text-right">{{ $inscription->cart->confirmation_code }}</p>
-                                    <p>{{ $inscription->session->starts_on->formatLocalized('%d/%m/%Y %H:%M') }}</p>
+                                    <p>{{ $inscription->session->starts_on->translatedFormat('d/m/Y H:i') }}</p>
                                     <p>{{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}</p>
                                     @if(isset($inscription->group_pack->pack->name))
                                     <p><i>{{ $inscription->group_pack->pack->name }}</i></p>
@@ -111,7 +111,7 @@
                     <div class="row mt-3">
                         <div class="col-xs-8 conditions">
                             <p>
-                            {{ __('tincket/tickets.footer-text') }}
+                            {{ __('tickets.footer-text') }}
                             </p>
                         </div>
                         <div class="col-xs-4 conditions text-right">
@@ -122,7 +122,7 @@
                             {{ $inscription->session->space->location->address }} <br>
                             </p>
                             <p>
-                            {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->town->name }}
+                            {{ $inscription->session->space->location->postal_code }} - {{ $inscription->session->space->location->city->name }}
                             </p>
                         </div>
                     </div>

@@ -1,3 +1,9 @@
+@php
+    // Si no llega $brand desde el Mailable, lo deducimos del $cart
+    $brand = $brand ?? (isset($cart)
+        ? optional($cart->allInscriptions->first()->session->event)->brand
+        : null);
+@endphp
 <!doctype html>
 <html class="no-js" lang="">
     <head>

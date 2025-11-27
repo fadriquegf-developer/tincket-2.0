@@ -5,14 +5,14 @@
     <div class="container-fluid d-flex justify-content-between my-3">
         <section class="header-operation animated fadeIn d-flex mb-2 align-items-baseline d-print-none"
             bp-section="page-header">
-            <h1 class="text-capitalize mb-0" bp-section="page-heading">{{ __('backend.menu.validations') }}</h1>
+            <h1 class="text-capitalize mb-0" bp-section="page-heading">{{ __('menu.validations') }}</h1>
             <p class="ms-2 ml-2 mb-0" bp-section="page-subheading">
-                {!! mb_ucfirst(trans('backpack::crud.preview')) . ' ' . __('backend.menu.validation')  !!}
+                {!! mb_ucfirst(trans('backpack::crud.preview')) . ' ' . __('menu.validation')  !!}
             </p>
             <p class="ms-2 ml-2 mb-0" bp-section="page-subheading-back-button">
                 <small><a href="{{ url('/validation') }}" class="font-sm"><i class="la la-angle-double-left"></i>
                         {{ trans('backpack::crud.back_to_all') }}
-                        <span>{{ __('backend.menu.validations') }}</span></a></small>
+                        <span>{{ __('menu.validations') }}</span></a></small>
             </p>
         </section>
         <a href="javascript: window.print();" class="btn float-right"><i class="la la-print"></i></a>
@@ -53,7 +53,7 @@
                             <p class="col-xs-6">{{ $session->starts_on }}</p>
 
                             <label class="col-xs-4">{{ __('backend.validation.validated') }}</label>
-                            <p class="col-xs-6" id="n_validated">{{ $session->count_validated }}</p>
+                            <p class="col-xs-6" id="n_validated">{{ $session->getValidatedCount() }}</p>
                         </div>
                     </div>
                     <div class="col-md-4 visible-md visible-lg">

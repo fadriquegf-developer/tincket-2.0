@@ -38,7 +38,7 @@
                     available_since: r.available_since ?? "",
                     available_until: r.available_until ?? "",
                     code: originalAttr.code || "",
-                    max_per_user: originalAttr.max_per_user || 0,
+                    max_per_user: originalAttr.max_per_user || "",
                 };
             }),
         });
@@ -49,20 +49,20 @@
           <table ref="table" class="table table-bordered table-striped">
             <thead>
               <tr>
-                <th v-if="zones.length && numbered">Zona</th>
-                <th>Tarifa</th>
-                <th>Total</th>
-                <th>Por inscripción</th>
-                <th>Precio</th>
+                <th v-if="zones.length && numbered">{{ translations.zone }}</th>
+                <th>{{ translations.rate }}</th>
+                <th>{{ translations.total }}</th>
+                <th>{{ translations.per_insc }}</th>
+                <th>{{ translations.price }}</th>
                 <th>Web</th>
-                <th>Privada</th>
-                <th>Acciones</th>
+                <th>Limitada</th>
+                <th>{{ translations.actions }}</th>
               </tr>
             </thead>
             <tbody ref="tbody">
               <tr v-for="(r,i) in rates" :key="r.uid" class="draggable">
                 <td v-if="zones.length && numbered">
-                  <select v-model="r.assignated_rate_id" class="form-control">
+                  <select v-model="r.assignated_rate_id" @change="onZoneChange(i)" class="form-control">
                     <option :value="null" disabled>Selecciona zona</option>
                     <option v-for="z in zones" :key="z.id" :value="z.id">{{ z.name }}</option>
                   </select>
@@ -74,16 +74,16 @@
                   </select>
                   <div v-if="r.rate && r.rate.needs_code===1" class="mt-2">
                     <input class="form-control mb-1"
-                           placeholder="Código de descuento"
-                           v-model="r.code">
+                          :placeholder=" translations.discount_code"
+                          v-model="r.code">
                     <input type="number" class="form-control"
-                           placeholder="Máx por usuario"
-                           v-model.number="r.max_per_user">
+                          :placeholder="translations.max_per_user"
+                          v-model.number="r.max_per_user">
                   </div>
                 </td>
                 <td><input class="form-control" v-model.number="r.max_on_sale"></td>
                 <td><input class="form-control" v-model.number="r.max_per_order"></td>
-                <td><input class="form-control" v-model.number="r.price" step="0.01"></td>
+                <td><input class="form-control" v-model.number="r.price" step="0.1"></td>
                 <td class="text-center"><input type="checkbox" v-model="r.is_public"></td>
                 <td class="text-center"><input type="checkbox" v-model="r.is_private" @change="onPrivateChange(i)"></td>
                 <td class="text-center">
@@ -112,27 +112,35 @@
             </tbody>
           </table>
           <button type="button" class="btn btn-sm btn-primary" @click.prevent="add">
-            <i class="la la-plus"></i> Añadir Tarifa
+            <i class="la la-plus"></i> {{ translations.add_rate }}
           </button>       
       </div>
       `,
             setup() {
-                const filteredRates = row =>
-  state.defined.filter(d => {
-    // 1) siempre dejamos la tarifa ya seleccionada para que aparezca en el <select>
-    if (row.rate?.id === d.id) return true;
+                const filteredRates = (row) =>
+                    state.defined.filter((d) => {
+                        // 1) Siempre dejamos la tarifa ya seleccionada en esta fila
+                        if (row.rate?.id === d.id) return true;
 
-    // 2) buscamos si en otra fila hay el mismo rate + misma zona
-    const conflict = state.rates.some(r2 =>
-      r2 !== row &&
-      r2.assignated_rate_id === row.assignated_rate_id &&
-      r2.rate?.id === d.id
-    );
-
-    // si hay conflicto en la misma zona, lo excluimos; si no, lo dejamos
-    return !conflict;
-  });
-
+                        // 2) Si hay sesión numerada con zonas
+                        if (state.numbered && state.zones.length > 0) {
+                            // Excluimos si hay otra fila con el mismo rate + misma zona
+                            const conflict = state.rates.some(
+                                (r2) =>
+                                    r2 !== row &&
+                                    r2.assignated_rate_id ===
+                                        row.assignated_rate_id &&
+                                    r2.rate?.id === d.id
+                            );
+                            return !conflict;
+                        } else {
+                            // 3) Sin zonas: excluimos si la tarifa ya está asignada en cualquier otra fila
+                            const alreadyUsed = state.rates.some(
+                                (r2) => r2 !== row && r2.rate?.id === d.id
+                            );
+                            return !alreadyUsed;
+                        }
+                    });
                 function add() {
                     state.rates.push({
                         uid: makeUid(),
@@ -147,7 +155,7 @@
                         available_since: "",
                         available_until: "",
                         code: "",
-                        max_per_user: 0,
+                        max_per_user: "",
                     });
                     state.dirty = true;
                 }
@@ -170,6 +178,21 @@
                 function onRateChange(i) {
                     state.dirty = true;
                 }
+                function onZoneChange(i) {
+                  const r = state.rates[i];
+                  // Si la combinación zona+tarifa ya existe en otra fila, limpiamos la tarifa
+                  if (r.rate && r.assignated_rate_id) {
+                      const conflict = state.rates.some((r2, idx) =>
+                          idx !== i &&
+                          r2.assignated_rate_id === r.assignated_rate_id &&
+                          r2.rate?.id === r.rate.id
+                      );
+                      if (conflict) {
+                          r.rate = null;
+                      }
+                  }
+                  state.dirty = true;
+                }
 
                 return {
                     ...state,
@@ -180,6 +203,7 @@
                     onPrivateChange,
                     openModal,
                     onRateChange,
+                    onZoneChange,
                 };
             },
             mounted() {
@@ -219,6 +243,7 @@
                     const e = {
                         uid: r.uid,
                         assignated_rate_id: r.assignated_rate_id,
+                        zone_id: r.assignated_rate_id,
                         rate: r.rate,
                         price: r.price,
                         max_on_sale: r.max_on_sale,

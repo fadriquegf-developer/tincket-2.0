@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Scopes\BrandScope;
 use App\Traits\LogsActivity;
 use App\Observers\CartObserver;
+use App\Services\InscriptionService;
 use App\Traits\OwnedModelTrait;
 use App\Traits\SetsBrandOnCreate;
 use Illuminate\Database\Eloquent\Model;
@@ -17,7 +18,7 @@ class Cart extends BaseModel
 {
 
     const DEFAULT_MINUTES_TO_EXPIRE = 5;
-    const DEFAULT_MINUTES_TO_COMPLETE = 60; //still not used. Time max for a Cart to be bought
+    const DEFAULT_MINUTES_TO_COMPLETE = 60;
 
     use CrudTrait;
     use SoftDeletes;
@@ -31,14 +32,25 @@ class Cart extends BaseModel
         'deleted_at',
         'expires_on',
     ];
+
     protected $fillable = [
         'expires_on',
         'brand_id',
+        'client_id',
         'confirmation_code',
+        'seller_id',
+        'seller_type',
     ];
 
     protected $appends = [
         'price_sold'
+    ];
+
+    protected $casts = [
+        'expires_on' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
     protected static function booted()
@@ -56,19 +68,24 @@ class Cart extends BaseModel
     }
 
     /**
-     * 
-     * Devuelvo todas las inscripciones que tenga el carrito, que no sean pack
-     * 
+     * Inscripciones que NO son de packs
+     * ✅ DESHABILITAR BrandScope para permitir inscripciones de brands hijos
      */
-
     public function inscriptions()
     {
-        return $this->HasMany(Inscription::class)->where('group_pack_id', NULL);
+        return $this->hasMany(Inscription::class)
+            ->withoutGlobalScope(BrandScope::class)
+            ->where('group_pack_id', NULL);
     }
 
+    /**
+     * TODAS las inscripciones (incluidas las de packs)
+     * ✅ DESHABILITAR BrandScope para permitir inscripciones de brands hijos
+     */
     public function allInscriptions()
     {
-        return $this->HasMany(Inscription::class);
+        return $this->hasMany(Inscription::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     public function brand()
@@ -86,14 +103,27 @@ class Cart extends BaseModel
         return $this->hasMany(Payment::class);
     }
 
+    /**
+     * ✅ DESHABILITAR BrandScope para permitir packs de brands hijos
+     */
     public function groupPacks()
     {
-        return $this->hasMany(GroupPack::class);
+        return $this->hasMany(GroupPack::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
+    /**
+     * ✅ DESHABILITAR BrandScope para permitir gift cards de brands hijos
+     */
     public function gift_cards()
     {
-        return $this->hasMany(GiftCard::class);
+        return $this->hasMany(GiftCard::class)
+            ->withoutGlobalScope(BrandScope::class);
+    }
+
+    public function deletedUser()
+    {
+        return $this->belongsTo(User::class, 'deleted_user_id');
     }
 
     public function seller()
@@ -137,52 +167,12 @@ class Cart extends BaseModel
      */
     public function getIsExpiredAttribute()
     {
-        /* Fadri: sabem perque consideram expirat un carrito, a partir del created_at? Aixo no dona error si el expires on es mayor? */
-        /* return $this->expires_on < \Carbon\Carbon::now() ||
-            $this->created_at->addMinutes($this->brand->config(Brand::EXTRA_CONFIG['CART_MAX_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_COMPLETE)) < \Carbon\Carbon::now(); */
         return $this->expires_on < \Carbon\Carbon::now();
     }
 
     public function getPriceSoldAttribute(): float
     {
-        // Usar load en lugar de loadMissing para forzar recarga
-        $this->load([
-            'groupPacks.pack',
-            'groupPacks.inscriptions',
-            'inscriptions',
-            'gift_cards',
-        ]);
-
-        // Separar GroupPacks por tipo de redondeo
-        [$rounded, $notRounded] = $this->groupPacks->partition(
-            fn($gp) => $gp->pack->cart_rounded
-        );
-
-        // Para packs con redondeo, redondear la suma total
-        $priceRounded = round(
-            $rounded->flatMap->inscriptions->sum('price_sold'),
-            0
-        );
-
-        // Para packs sin redondeo, mantener 2 decimales
-        $priceNotRounded = round(
-            $notRounded->flatMap->inscriptions->sum('price_sold'),
-            2
-        );
-
-        // Inscripciones directas (sin pack)
-        $priceInscriptions = round(
-            $this->inscriptions
-                ->whereNull('group_pack_id')
-                ->reject(fn($insc) => $insc->gift_card_id !== null)
-                ->sum('price_sold'),
-            2
-        );
-
-        // Gift cards
-        $priceGiftCards = $this->gift_cards->sum('price');
-
-        return $priceRounded + $priceNotRounded + $priceInscriptions + $priceGiftCards;
+        return app(InscriptionService::class)->calculateCartPrice($this);
     }
 
     /**
@@ -225,16 +215,24 @@ class Cart extends BaseModel
 
     public function extendTime()
     {
-        // if Cart is in DB, we check before if it is already expired
         if ($this->exists && $this->getIsExpiredAttribute())
             return false;
 
-        $this->expires_on = \Carbon\Carbon::now()->addMinutes($this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE));
+        $newExpiresOn = \Carbon\Carbon::now()->addMinutes(
+            $this->brand->getSetting(Brand::EXTRA_CONFIG['CART_TTL_KEY'], Cart::DEFAULT_MINUTES_TO_EXPIRE)
+        );
+
+        $this->expires_on = $newExpiresOn;
 
         // extend time sessionTempSlots
-        SessionTempSlot::where('cart_id', $this->id)->update(['expires_on' => $this->expires_on]);
+        SessionTempSlot::where('cart_id', $this->id)->update(['expires_on' => $newExpiresOn]);
 
-        return $this->save();
+        if ($this->save()) {
+            $this->refresh(); // Asegurar que se recarga con los casts correctos
+            return true;
+        }
+
+        return false;
     }
 
     public function expiredTime()

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Requests\UpdateNotificationRequest;
 use Illuminate\Http\Request;
 use App\Traits\AllowUsersTrait;
 use App\Models\UpdateNotification;
@@ -25,7 +26,7 @@ class UpdateNotificationCrudController extends CrudController
 
         CRUD::setModel(UpdateNotification::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/update-notification');
-        CRUD::setEntityNameStrings(__('backend.menu.update_notification'), __('backend.menu.update_notifications'));
+        CRUD::setEntityNameStrings(__('menu.update_notification'), __('menu.update_notifications'));
 
         $this->crud->query->withoutGlobalScope('user');
         $this->crud->query->withoutGlobalScope('brand');
@@ -49,12 +50,14 @@ class UpdateNotificationCrudController extends CrudController
 
     protected function setupCreateOperation(): void
     {
+        $this->crud->setValidation(UpdateNotificationRequest::class);
+
         CRUD::addField([
             'name' => 'version',
             'label' => __('backend.notification.version'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6 required',
+                'class' => 'form-group col-md-6',
             ],
         ]);
 
@@ -63,7 +66,7 @@ class UpdateNotificationCrudController extends CrudController
             'label' => __('backend.notification.subject'),
             'type' => 'text',
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-6 required',
+                'class' => 'form-group col-md-6',
             ],
         ]);
 
@@ -72,7 +75,7 @@ class UpdateNotificationCrudController extends CrudController
             'label' => __('backend.notification.content'),
             'type' => 'wysiwyg',
             'wrapperAttributes' => [
-                'class' => 'form-group required',
+                'class' => 'form-group',
             ],
         ]);
 

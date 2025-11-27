@@ -4,6 +4,7 @@
     setlocale(LC_TIME, 'es_ES.utf8');
     $emailInfo = config('ywt.contact_mail', 'info@yesweticket.com');
 @endphp
+
 @section('content')
     <p style="font-size: 16px; line-height: 1.5em; margin-top: 0; text-align: left;">
         Hola {{ $cart->client->name ?? '{name}' }},<br>
@@ -11,9 +12,11 @@
         <br>
         <b>Data d'operació</b>: {{ $cart->updated_at->format('d/m/Y') }}
         <span class="text-nowrap" style="white-space: nowrap;">{{ $cart->updated_at->format('h:m') }} h.</span><br>
-        <b>Codi de confirmació</b>: <span class="text-nowrap" style="white-space: nowrap;">{{ $cart->confirmation_code ?? '{code}' }}</span><br>
+        <b>Codi de confirmació</b>: <span class="text-nowrap"
+            style="white-space: nowrap;">{{ $cart->confirmation_code ?? '{code}' }}</span><br>
         <b>Import total de l'operació</b>:
-        <span class="text-nowrap" style="white-space: nowrap;">{{ sprintf('%s €', number_format($cart->priceSold, 2)) }}</span><br>
+        <span class="text-nowrap"
+            style="white-space: nowrap;">{{ sprintf('%s €', number_format($cart->priceSold, 2)) }}</span><br>
         <b>Client</b>: {{ $cart->client->name ?? '{name}' }} {{ $cart->client->surname ?? '' }}<br>
     </p>
 
@@ -29,7 +32,7 @@
                         <span class="text-uppercase"
                             style="text-transform: uppercase;">{{ $baseInscription->session->event->name }}</span><br>
                         <small>
-                            {{ $baseInscription->session->starts_on->formatLocalized('%d de %b de %Y %H:%M') }} h.
+                            {{ $baseInscription->session->starts_on->translatedFormat('d \d\e M \d\e Y H:i') }} h.
                         </small>
                         <br>
                     </th>
@@ -54,7 +57,7 @@
                             @if ($inscription->slot_id != null)
                                 {{ $inscription->slot->name }}
                             @else
-                                {{ trans('tincket/backend.session.nonumbered') }}
+                                {{ trans('backend.session.nonumbered') }}
                             @endif
                         </td>
                         <td width="40%">
@@ -93,8 +96,9 @@
                     <tr>
                         <td width="40%">
                             {{ $inscription->session->event->name }}<br>
-                            <small>{{ $inscription->session->starts_on->formatLocalized('%d de %b de %Y') }}
-                                <span class="text-nowrap" style="white-space: nowrap;">{{ $inscription->session->starts_on->formatLocalized('%H:%M') }}
+                            <small>{{ $inscription->session->starts_on->translatedFormat('d \d\e M \d\e Y') }}
+                                <span class="text-nowrap"
+                                    style="white-space: nowrap;">{{ $inscription->session->starts_on->translatedFormat('H:i') }}
                                     h.</span>
                             </small>
                             <br>
@@ -123,15 +127,15 @@
             <thead>
                 <tr align="left">
                     <th colspan="3">
-                        <span class="text-uppercase">{{ trans('tincket/backend.events.enable_gift_cards') }}</span><br>
+                        <span class="text-uppercase">{{ trans('backend.events.enable_gift_cards') }}</span><br>
                     </th>
                 </tr>
                 <tr>
                     <th align="left">
-                        {{ trans('tincket/backend.cart.inc.event') }}
+                        {{ trans('backend.cart.inc.event') }}
                     </th>
                     <th align="left">
-                        {{ trans('tincket/backend.gift_card.code') }}
+                        {{ trans('backend.gift_card.code') }}
                     </th>
                     <th align="right">
                         Preu
@@ -163,7 +167,8 @@
         </tbody>
     </table>
 
-    <table class="action" align="center" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin: 30px auto; padding: 0; text-align: center; width: 100%;">
+    <table class="action" align="center" width="100%" cellpadding="0" cellspacing="0" role="presentation"
+        style="margin: 30px auto; padding: 0; text-align: center; width: 100%;">
         <tbody>
             <tr>
                 <td align="center">
@@ -199,7 +204,7 @@
     </a><br>
     <br>
     <p style="font-size: 16px; line-height: 1.5em; margin-top: 0; text-align: left;">
-        A continuació t'adjuntem les teves entrades en un format òptim per portar-les al teu telèfon mòvil:
+        A continuació t'adjuntem les teves entrades en un format òptim per portar-les al teu telèfon mòbil:
     </p>
 
 
@@ -220,6 +225,7 @@
         Si tens qualsevol dubte o necessites assistència, pots contactar-nos a <a
             href="mailto:{{ $emailInfo }}">{{ $emailInfo }}</a>.<br>
         <br>
-        Gràcies per col.laborar en la visibilització i investigació de l'endometriosi! Esperem que disfrutis del festival! 🎟️<br>
+        Gràcies per col.laborar en la visibilització i investigació de l'endometriosi! Esperem que disfrutis del festival!
+        🎟️<br>
     </p>
 @endsection

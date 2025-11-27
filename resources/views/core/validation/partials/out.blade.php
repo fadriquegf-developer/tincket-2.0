@@ -12,7 +12,7 @@
 <div class="row">
     <div class="col-xs-12">
         <div class="alert alert-success">                        
-                {{ trans('tincket/backend.validation.inscription_is_valid_out') }}
+                {{ trans('backend.validation.inscription_is_valid_out') }}
         </div>
     </div>                    
 </div>
@@ -22,10 +22,10 @@
         <?php
             $session = $data['inscription']->session;                    
             if($session->id != request()->get('session_id'))
-                $message = trans('tincket/backend.validation.errors.incorrect_session');
+                $message = trans('backend.validation.errors.incorrect_session');
             if($data['inscription']->checked_at)
                 $message =  trans(
-                    'tincket/backend.validation.errors.already_scanned_out',
+                    'backend.validation.errors.already_scanned_out',
                     [
                         'date' => $data['inscription']->checked_at->format('d/m/Y'),
                         'time' => $data['inscription']->checked_at->format('H:i')
@@ -33,7 +33,7 @@
                 );
         ?>
     @else
-        <?php $message = trans('tincket/backend.validation.errors.not_found'); ?>
+        <?php $message = trans('backend.validation.errors.not_found'); ?>
     @endif
     <div class="row">
         <div class="col-xs-12">

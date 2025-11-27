@@ -41,10 +41,8 @@ class EventCrudController extends CrudController
     {
         CRUD::setModel(Event::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/event');
-        CRUD::setEntityNameStrings(__('backend.menu.event'), __('backend.menu.events'));
+        CRUD::setEntityNameStrings(__('menu.event'), __('menu.events'));
         $this->setAccessUsingPermissions();
-
-        CRUD::addClause('ordered');
 
         CRUD::addButtonFromModelFunction('line', 'create_session', 'getCreateSessionButton', 'end');
         CRUD::addButtonFromModelFunction('line', 'clone', 'getCloneButton', 'end');
@@ -57,8 +55,23 @@ class EventCrudController extends CrudController
         CRUD::setOperationSetting('lineButtonsAsDropdown', true);
 
         CRUD::addColumn([
+            'name' => 'is_active',
+            'label' => '',
+            'type' => 'closure',
+            'function' => function ($entry) {
+                if ($entry->is_active == 1) {
+                    return '<i class="la la-circle" title="' . __('backend.event.active') . '" aria-hidden="true" style="color:green;"></i>';
+                } else {
+                    return '<i class="la la-circle" title="' . __('backend.event.inactive') . '" aria-hidden="true" style="color:red;"></i>';
+                }
+            },
+            'escaped' => false,
+        ]);
+
+        CRUD::addColumn([
             'name' => 'name',
             'label' => __('backend.events.eventname'),
+            'limit'  => 160,
             'searchLogic' => function ($query, $column, $searchTerm) {
                 $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
             }
@@ -115,57 +128,13 @@ class EventCrudController extends CrudController
 
     protected function setupShowOperation(): void
     {
+
         CRUD::addColumn([
             'name' => 'name',
             'label' => __('backend.events.eventname'),
             'type' => 'text',
-        ]);
-
-
-        CRUD::addColumn([
-            'name' => 'publish_on',
-            'label' => __('backend.events.publish_on'),
-            'type' => 'date'
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'first_session',
-            'label' => __('backend.events.firstsession'),
-            'type' => 'closure',
-            'function' => fn($entry) => optional($entry->firstSession)->starts_on ?? '-',
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'last_session',
-            'label' => __('backend.events.lastsession'),
-            'type' => 'closure',
-            'function' => fn($entry) => optional($entry->lastSession)->starts_on ?? '-',
-        ]);
-
-        CRUD::addColumn([
-            'label' => __('backend.events.createdby'), // tu traducción personalizada
-            'type' => 'relationship',
-            'name' => 'user',
-            'attribute' => 'email',
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'lead',
-            'type' => 'text',
-            'label' => __('backend.events.lead'),
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'description',
-            'label' => __('backend.events.eventdescription'),
-            'type' => 'ckeditor',
-            'escaped' => false,
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'metadata',
-            'label' => __('backend.events.eventmetada'),
-            'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_basic'),
+            'limit'  => 255,
         ]);
 
         CRUD::addColumn([
@@ -173,9 +142,39 @@ class EventCrudController extends CrudController
             'type' => 'slug',
             'target' => 'name',
             'label' => __('backend.events.slug'),
+            'tab' => __('backend.events.tab_basic'),
         ]);
 
+        CRUD::addColumn([
+            'name' => 'publish_on',
+            'label' => __('backend.events.publish_on'),
+            'type' => 'date',
+            'tab' => __('backend.events.tab_basic'),
+        ]);
 
+        CRUD::addColumn([
+            'name' => 'first_session',
+            'label' => __('backend.events.firstsession'),
+            'type' => 'closure',
+            'function' => fn($entry) => optional($entry->firstSession)->starts_on ?? '-',
+            'tab' => __('backend.events.tab_basic'),
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'last_session',
+            'label' => __('backend.events.lastsession'),
+            'type' => 'closure',
+            'function' => fn($entry) => optional($entry->lastSession)->starts_on ?? '-',
+            'tab' => __('backend.events.tab_basic'),
+        ]);
+
+        CRUD::addColumn([
+            'label' => __('backend.events.createdby'), // tu traducción personalizada
+            'type' => 'relationship',
+            'name' => 'user',
+            'attribute' => 'email',
+            'tab' => __('backend.events.tab_basic'),
+        ]);
 
         CRUD::addColumn([
             'name' => 'image',
@@ -184,41 +183,29 @@ class EventCrudController extends CrudController
             /* 'prefix' => 'storage/', */
             'disk' => 'public',
             'height' => '100px',
+            'tab' => __('backend.events.tab_basic'),
         ]);
 
         CRUD::addColumn([
-            'name' => 'banner',
-            'label' => __('backend.events.banner'),
-            'type' => 'image',
-            'prefix' => 'storage/',
-            'height' => '100px',
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'email',
-            'label' => __('backend.events.responsibleemail'),
+            'name' => 'lead',
             'type' => 'text',
+            'label' => __('backend.events.lead'),
+            'tab' => __('backend.events.tab_basic'),
         ]);
 
         CRUD::addColumn([
-            'name' => 'phone',
-            'label' => __('backend.events.responsiblephone'),
+            'name' => 'description',
+            'label' => __('backend.events.eventdescription'),
+            'type' => 'ckeditor',
+            'escaped' => false,
+            'tab' => __('backend.events.tab_basic'),
         ]);
 
         CRUD::addColumn([
-            'name' => 'site',
-            'label' => __('backend.events.website'),
-        ]);
-
-        CRUD::addColumn([
-            'name' => 'social',
-            'label' => __('backend.events.socialaccounts'),
-            'type' => 'table',
-            'entity_singular' => 'social',
-            'columns' => [
-                'name' => __('backend.events.name'),
-                'desc' => __('backend.events.link'),
-            ],
+            'name' => 'metadata',
+            'label' => __('backend.events.eventmetada'),
+            'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_basic'),
         ]);
 
         CRUD::addColumn([
@@ -239,7 +226,42 @@ class EventCrudController extends CrudController
 
                 return '-';
             },
+            'tab' => __('backend.events.tab_basic'),
         ]);
+
+
+        CRUD::addColumn([
+            'name' => 'email',
+            'label' => __('backend.events.responsibleemail'),
+            'type' => 'text',
+            'tab' => __('backend.events.tab_extra'),
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'phone',
+            'label' => __('backend.events.responsiblephone'),
+            'tab' => __('backend.events.tab_extra'),
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'site',
+            'label' => __('backend.events.website'),
+            'tab' => __('backend.events.tab_extra'),
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'social',
+            'label' => __('backend.events.socialaccounts'),
+            'type' => 'table',
+            'entity_singular' => 'social',
+            'columns' => [
+                'name' => __('backend.events.name'),
+                'desc' => __('backend.events.link'),
+            ],
+            'tab' => __('backend.events.tab_extra'),
+        ]);
+
+
 
         CRUD::addColumn([
             'name' => 'images',
@@ -251,15 +273,17 @@ class EventCrudController extends CrudController
                     return '-';
 
                 $output = '<div style="display:flex; gap:10px; flex-wrap:wrap;">';
+                $images = json_decode($entry->images) ?? [];
 
-                foreach ($entry->images as $img) {
+                foreach ($images as $img) {
                     $url = asset('storage/' . ltrim($img, '/'));
                     $output .= '<img src="' . $url . '" style="max-height:100px; border-radius:4px;" />';
                 }
 
                 $output .= '</div>';
                 return $output;
-            }
+            },
+            'tab' => __('backend.events.tab_extra'),
         ]);
 
         CRUD::addColumn([
@@ -268,12 +292,23 @@ class EventCrudController extends CrudController
             'type' => 'image',
             'prefix' => 'storage/',
             'height' => '100px',
+            'tab' => __('backend.events.tab_ticket'),
         ]);
 
         CRUD::addColumn([
             'name' => 'custom_text',
             'label' => __('backend.events.custom_text'),
             'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_ticket'),
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'banner',
+            'label' => __('backend.events.banner'),
+            'type' => 'image',
+            'prefix' => 'storage/',
+            'height' => '100px',
+            'tab' => __('backend.events.tab_ticket'),
         ]);
 
         CRUD::addColumn([
@@ -284,6 +319,7 @@ class EventCrudController extends CrudController
                 0 => 'No',
                 1 => 'Si',
             ],
+            'tab' => __('backend.events.tab_calendar'),
         ]);
 
         CRUD::addColumn([
@@ -294,6 +330,7 @@ class EventCrudController extends CrudController
                 0 => 'No',
                 1 => 'Si',
             ],
+            'tab' => __('backend.events.tab_calendar'),
         ]);
 
         CRUD::addColumn([
@@ -304,6 +341,7 @@ class EventCrudController extends CrudController
                 0 => 'No',
                 1 => 'Si',
             ],
+            'tab' => __('backend.events.tab_calendar'),
         ]);
 
         CRUD::addColumn([
@@ -314,36 +352,42 @@ class EventCrudController extends CrudController
                 0 => 'No',
                 1 => 'Si',
             ],
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
             'name' => 'price_gift_card',
             'label' => __('backend.events.price_gift_card'),
             'type' => 'number',
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
             'name' => 'gift_card_text',
             'label' => __('backend.events.gift_card_text'),
             'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
             'name' => 'gift_card_email_text',
             'label' => __('backend.events.gift_card_email_text'),
             'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
             'name' => 'gift_card_legal_text',
             'label' => __('backend.events.gift_card_legal'),
             'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
             'name' => 'gift_card_footer_text',
             'label' => __('backend.events.gift_card_footer_text'),
             'type' => 'ckeditor',
+            'tab' => __('backend.events.tab_gift'),
         ]);
 
         CRUD::addColumn([
@@ -354,6 +398,7 @@ class EventCrudController extends CrudController
                 0 => 'No',
                 1 => 'Si',
             ],
+            'tab' => __('backend.events.tab_validation'),
         ]);
 
         // Mostrar sesiones (tabla personalizada)
@@ -362,14 +407,16 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.sessions'),
             'type' => 'view',
             'view' => 'vendor.backpack.crud.event.sessions_table',
+            'tab' => __('backend.events.sessions')
         ]);
 
         // Subblade de ventas por evento
         CRUD::addColumn([
             'name' => 'event_sales',
-            'label' => __('backend.events.sales'),
+            'label' => '',
             'type' => 'view',
             'view' => 'vendor.backpack.crud.event.sales_table',
+            'tab' => __('backend.events.sales')
         ]);
     }
 
@@ -379,9 +426,22 @@ class EventCrudController extends CrudController
         $this->setBasicTab();
         $this->setExtraTab();
         $this->setInscriptionsTab();
-        $this->setEntradaTab();
+        $this->setTicketTab();
         $this->setGiftTab();
         $this->setCalendarioTab();
+
+        CRUD::addSaveAction([
+            'name'                   => 'save_and_create_session',
+            'button_text'            => __('backend.events.save_and_create_session'),
+            'visible'                => function ($crud) {
+                return $crud->getCurrentOperation() === 'create';
+            },
+            'redirect'               => function ($crud, $request, $itemId) {
+                // tras guardar el Event ($itemId), ir a crear Sesión con el event_id preseleccionado
+                return route('session.create', ['event_id' => $itemId]);
+            },
+            'order'                  => 5,
+        ]);
     }
 
     protected function setupUpdateOperation(): void
@@ -423,6 +483,8 @@ class EventCrudController extends CrudController
 
         $taxonomies = json_decode($request->get('taxonomies'), true) ?? [];
 
+        \Log::info('Taxonomies from request:', ['taxonomies' => $taxonomies]);
+
         foreach (get_current_brand()->partnershipedBrands as $partner) {
             $partnerKey = 'taxonomies_alt_' . $partner->id;
             $partnerTaxonomies = json_decode($request->get($partnerKey), true) ?? [];
@@ -438,6 +500,8 @@ class EventCrudController extends CrudController
 
         $extraTaxonomies = json_decode($request->get('allTaxonomies'), true) ?? [];
         $taxonomies = array_merge($taxonomies, $extraTaxonomies);
+
+        \Log::info('Final taxonomies to sync:', ['final' => $taxonomies]);
 
         $this->crud->entry->allTaxonomies()->sync(array_map('intval', $taxonomies));
 
@@ -487,6 +551,15 @@ class EventCrudController extends CrudController
     protected function setBasicTab()
     {
         CRUD::addField([
+            'name' => 'is_active',
+            'label' => __('backend.events.is_active'),
+            'type' => 'switch',
+            'default' => true,
+            'tab' => __('backend.events.tab_basic'),
+            'hint' => __('backend.events.is_active_hint'),
+        ]);
+
+        CRUD::addField([
             'name' => 'name',
             'type' => 'text',
             'label' => __('backend.events.eventname'),
@@ -520,11 +593,7 @@ class EventCrudController extends CrudController
         CRUD::addField([
             'name' => 'publish_on',
             'label' => __('backend.events.publish'),
-            'type' => 'datetime_picker',
-            'datetime_picker_options' => [
-                'format' => 'DD/MM/YYYY HH:mm',
-                'language' => 'ca',
-            ],
+            'type' => 'datetime',
             'wrapperAttributes' => [
                 'class' => 'form-group col-md-6',
             ],
@@ -536,7 +605,7 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.posterimage'),
             'type' => 'image',
             'crop' => true,
-            //'aspect_ratio' => 1.78,
+            'aspect_ratio' => 1.78,
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
@@ -567,7 +636,7 @@ class EventCrudController extends CrudController
 
         $extra = get_current_brand()->extra_config;
         $seasons_id = $extra['seasons_taxonomy_id'] ?? null;
-        $main = $extra['main_taxonomy_id'];
+        $main = $extra['main_taxonomy_id'] ?? null;
 
         if (get_brand_capability() == 'basic' && $seasons_id) {
             CRUD::addField([
@@ -578,7 +647,7 @@ class EventCrudController extends CrudController
                 'entity' => 'allTaxonomies',
                 'attribute' => 'name',
                 'builder' => Taxonomy::query()->whereParentId($seasons_id),
-                'hint' => '<span class="small">' . __('tincket/backend.events.help-seasons-select') . '</span>',
+                'hint' => '<span class="small">' . __('backend.events.help-seasons-select') . '</span>',
                 'tab' => __('backend.events.tab_basic'),
             ]);
         }
@@ -592,6 +661,7 @@ class EventCrudController extends CrudController
                 'options' => function ($query) use ($main) {
                     return $query
                         ->whereParentId($main)
+                        ->where('active',true)
                         ->pluck('name', 'id')
                         ->toArray();
                 },
@@ -704,7 +774,7 @@ class EventCrudController extends CrudController
             'name' => 'validate_all_event',
             'label' => __('backend.events.validate_all_event'),
             'type' => 'switch',
-            'tab' => __('backend.events.tab_inscriptions'),
+            'tab' => __('backend.events.tab_validation'),
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
@@ -714,21 +784,21 @@ class EventCrudController extends CrudController
             'name' => 'validate_all_event_hint',
             'type' => 'custom_html',
             'value' => '<div class="alert alert-success">' . __('backend.events.validate_all_event_hint') . '</div>',
-            'tab' => __('backend.events.tab_inscriptions'),
+            'tab' => __('backend.events.tab_validation'),
         ]);
     }
 
-    public function setEntradaTab()
+    public function setTicketTab()
     {
         CRUD::addField([
             'name' => 'custom_text',
             'label' => __('backend.events.custom_text'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
-            'tab' => __('backend.events.tab_ticket'),
+            'tab' => 'Ticket',
         ]);
 
         CRUD::addField([
@@ -736,11 +806,9 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.custom_logo'),
             'type' => 'image',
             'crop' => true,
-            //'aspect_ratio' => 1.78,
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'custom-logo',
                 'resize' => [
@@ -750,7 +818,7 @@ class EventCrudController extends CrudController
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
-            'tab' => __('backend.events.tab_ticket'),
+            'tab' => 'Ticket',
         ]);
 
         CRUD::addField([
@@ -761,7 +829,6 @@ class EventCrudController extends CrudController
             'crop' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'banner',
                 'resize' => [
@@ -771,14 +838,14 @@ class EventCrudController extends CrudController
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
-            'tab' => __('backend.events.tab_ticket'),
+            'tab' => 'Ticket',
         ]);
 
         CRUD::addField([
             'name' => 'separator',
             'type' => 'custom_html',
             'value' => '<div class="alert alert-info">' . __('backend.events.banner_info') . '</div>',
-            'tab' => __('backend.events.tab_ticket')
+            'tab' => 'Ticket'
         ]);
     }
 
@@ -809,7 +876,7 @@ class EventCrudController extends CrudController
             'name' => 'gift_card_text',
             'label' => __('backend.events.gift_card_text'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
@@ -821,7 +888,7 @@ class EventCrudController extends CrudController
             'name' => 'gift_card_footer_text',
             'label' => __('backend.events.gift_card_footer_text'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
@@ -833,7 +900,7 @@ class EventCrudController extends CrudController
             'name' => 'gift_card_email_text',
             'label' => __('backend.events.gift_card_email_text'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
@@ -845,7 +912,7 @@ class EventCrudController extends CrudController
             'name' => 'gift_card_legal_text',
             'label' => __('backend.events.gift_card_legal_text'),
             'type' => 'ckeditor',
-            'extraPlugins' => ['oembed'],
+            //'extraPlugins' => ['oembed'],
             'wrapperAttributes' => [
                 'class' => 'form-group',
             ],
@@ -865,21 +932,21 @@ class EventCrudController extends CrudController
             'name' => 'show_calendar',
             'type' => 'switch',
             'label' => __('backend.events.show_calendar'),
-            'tab' => 'Calendario',
+            'tab' => __('backend.events.tab_calendar'),
         ]);
 
         CRUD::addField([
             'name' => 'full_width_calendar',
             'type' => 'switch',
             'label' => __('backend.events.full_width_calendar'),
-            'tab' => 'Calendario',
+            'tab' => __('backend.events.tab_calendar'),
         ]);
 
         CRUD::addField([
             'name' => 'hide_exhausted_sessions',
             'type' => 'switch',
             'label' => __('backend.events.hide_exhausted_sessions'),
-            'tab' => 'Calendario',
+            'tab' => __('backend.events.tab_calendar'),
         ]);
     }
 

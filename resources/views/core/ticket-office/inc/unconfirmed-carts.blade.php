@@ -10,9 +10,9 @@
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>{{ trans('tincket/backend.ticket.sessions') }}</th>
-                        <th>{{ trans('tincket/backend.ticket.packs') }}</th>
-                        <th>{{ trans('tincket/backend.ticket.price') }}</th>
+                        <th>{{ trans('backend.ticket.sessions') }}</th>
+                        <th>{{ trans('backend.ticket.packs') }}</th>
+                        <th>{{ trans('backend.ticket.price') }}</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -39,7 +39,7 @@
                         </td>
                         <td>{{ sprintf("%s€", number_format($cart->priceSold, 2)) }}</td>                        
                         <td>
-                            <a href="{{ route('crud.cart.destroy', compact('cart')) }}" class="btn btn-xs btn-default" data-button-type="delete"><i class="fa fa-trash"></i> {{ trans('tincket/backend.ticket.delete') }}</a>
+                            <a href="{{ route('crud.cart.destroy', compact('cart')) }}" class="btn btn-xs btn-default" data-button-type="delete"><i class="fa fa-trash"></i> {{ trans('backend.ticket.delete') }}</a>
                         </td>                        
                     </tr>
                     @endforeach

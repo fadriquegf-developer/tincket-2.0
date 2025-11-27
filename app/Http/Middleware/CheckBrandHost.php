@@ -26,7 +26,7 @@ class CheckBrandHost
      * @param  Closure(Request): Response  $next
      * @return Response
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
         $this->brand = $this->setBrandInformation($request);
 
@@ -86,11 +86,11 @@ class CheckBrandHost
     public function setBrandInformation(Request $request): ?Brand
     {
         $brand = get_current_brand();
-        
+
         if (!$brand) {
             $brand = request()->get('brand');
         }
-        
+
         if ($brand !== null) {
             // Asignamos la marca completa y algunos atributos clave
             $request->attributes->set('brand', $brand);
@@ -116,18 +116,50 @@ class CheckBrandHost
      */
     private function configureElFinderBrandRoot(string $codeName): void
     {
+        $brandPath = "uploads/{$codeName}";
+        $fullPath = storage_path("app/public/{$brandPath}");
+
+        // Crear directorio si no existe
+        if (!file_exists($fullPath)) {
+            mkdir($fullPath, 0755, true);
+        }
+
+        // ✅ Configurar ROOTS en lugar de DISKS
         config([
-            'elfinder.disks' => [
-                'brand' => [
-                    'URL' => env('APP_URL') . '/storage/uploads/' . $codeName . '/',
-                    'accessControl' => function ($attr, $path, $data, $volume, $isDir, $relpath) {
-                        // Utilizamos la función nativa de PHP para verificar si el path comienza con "_"
-                        return $isDir && str_starts_with($path, '_') ? false : null;
-                    },
+            'elfinder.roots' => [
+                [
+                    'driver' => 'LocalFileSystem',
+                    'path' => $fullPath,
+                    'URL' => url("storage/{$brandPath}"),
                     'alias' => $codeName,
-                ],
+                    'accessControl' => new \App\Services\ElfinderAccessControl(),
+                    // Slugify nombres de archivos
+                    'uploadOrder' => ['deny', 'allow'],
+
+                    // Validación de nombres de archivo
+                    'acceptedName' => '/^[a-z0-9\-_\.]+$/i', // Solo permite letras, números, guiones y puntos
+
+                    // Límite de tamaño (en bytes) - ejemplo: 10MB
+                    'uploadMaxSize' => '10M', // o 10485760 para 10MB en bytes
+
+                    // Plugin para modificar nombres
+                    'plugin' => [
+                        'Sanitizer' => [
+                            'enable' => true,
+                            'targets' => ['\\ElFinder\\Sanitizer'], // Clase personalizada
+                        ],
+                    ],
+                    'attributes' => [
+                        [
+                            'pattern' => '/^_.*/',  // Ocultar carpetas que empiecen con _
+                            'read' => false,
+                            'write' => false,
+                            'locked' => true,
+                            'hidden' => true
+                        ]
+                    ]
+                ]
             ],
-            'elfinder.dir' => "uploads/{$codeName}",
         ]);
     }
 
@@ -163,7 +195,7 @@ class CheckBrandHost
      * @return void
      */
     private function bootstrapConfig(): void
-    {   
+    {
         $originalConfig = config()->all();
 
         // Eliminamos las claves que no deben mezclarse
@@ -227,12 +259,7 @@ class CheckBrandHost
         $hasCustomClientLocales = false;
 
         if ($brand) {
-            // Itera sobre cada setting de la marca y lo incorpora en $brandConfigs usando Arr::set
-            $brand->settings->each(function ($setting) use (
-                &$brandConfigs,
-                &$hasCustomBackpackLocales,
-                &$hasCustomClientLocales
-            ) {
+            $brand->settings->each(function ($setting) use (&$brandConfigs, &$hasCustomBackpackLocales, &$hasCustomClientLocales) {
                 Arr::set($brandConfigs, $setting->key, $setting->value);
 
                 if (str_starts_with($setting->key, 'backpack.crud.locales')) {
@@ -243,7 +270,6 @@ class CheckBrandHost
             });
         }
 
-        // Si se han establecido locales personalizados, se borran los predeterminados
         if ($hasCustomBackpackLocales && isset($defaultConfigs['backpack']['crud']['locales'])) {
             $defaultConfigs['backpack']['crud']['locales'] = [];
         }
@@ -252,6 +278,39 @@ class CheckBrandHost
         }
 
         config(array_merge(Arr::dot($defaultConfigs), Arr::dot($brandConfigs)));
-        app()->setLocale(app()->getLocale());
+
+        $laravelLocalizationLocales = config('laravellocalization.supportedLocales', []);
+        $backpackLocales = [];
+
+        foreach ($laravelLocalizationLocales as $code => $localeData) {
+            $nativeName = $localeData['native'] ?? $localeData['name'] ?? $code;
+            $backpackLocales[$code] = Str::ucfirst($nativeName);
+        }
+
+        if (!empty($backpackLocales)) {
+            config(['backpack.crud.locales' => $backpackLocales]);
+        }
+
+        if (!empty($backpackLocales)) {
+            config(['backpack.crud.locales' => $backpackLocales]);
+        }
+
+        // Respetar el locale de sesión si existe
+        if (session()->has('locale')) {
+            $sessionLocale = session('locale');
+            $availableLocales = config('backpack.crud.locales', []);
+
+            if (array_key_exists($sessionLocale, $availableLocales)) {
+                app()->setLocale($sessionLocale);
+            } else {
+                $firstLocale = array_key_first($availableLocales);
+                if ($firstLocale) {
+                    app()->setLocale($firstLocale);
+                    session(['locale' => $firstLocale]);
+                }
+            }
+        } else {
+            app()->setLocale(app()->getLocale());
+        }
     }
 }

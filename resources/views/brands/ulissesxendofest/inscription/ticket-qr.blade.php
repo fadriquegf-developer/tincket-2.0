@@ -302,7 +302,12 @@
         } else {
             $bg_color = $inscription->session->session_bg_color;
         }
-        $metadataArray = json_decode($inscription->metadata, true);
+        
+        if (is_string($inscription->metadata)) {
+            $metadataArray = json_decode($inscription->metadata, true) ?? [];
+        } else {
+            $metadataArray = $inscription->metadata ?? [];
+        }
     @endphp
     @php
     setlocale(LC_TIME, "ca_ES.utf8");
@@ -350,19 +355,19 @@
             @if (isset($inscription->group_pack) && $inscription->group_pack->pack->custom_logo)
                 <div class="row">
                     <div class="col-12">
-                        <img src="/storage/uploads/{{ $inscription->group_pack->pack->custom_logo }}" width="100%" />
+                        <img src="/storage/{{ $inscription->group_pack->pack->custom_logo }}" width="100%" />
                     </div>
                 </div>
             @elseif ($inscription->session->custom_logo)
                 <div class="row">
                     <div class="col-12">
-                        <img src="/storage/uploads/{{ $inscription->session->custom_logo }}" width="100%" />
+                        <img src="/storage/{{ $inscription->session->custom_logo }}" width="100%" />
                     </div>
                 </div>
             @elseif($inscription->session->event->custom_logo)
                 <div class="row">
                     <div class="col-12">
-                        <img src="/storage/uploads/{{ $inscription->session->event->custom_logo }}" width="100%" />
+                        <img src="/storage/{{ $inscription->session->event->custom_logo }}" width="100%" />
                     </div>
                 </div>
             @else
@@ -372,7 +377,7 @@
                             <b>{{ $inscription->session->event->name }}</b>
                         </h2>
                         <h4 style="font-weight:400; margin-top: 4px; margin-bottom: 0px;">
-                            {{ $inscription->session->starts_on->formatLocalized('%d %b de %Y') }}
+                            {{ $inscription->session->starts_on->translatedFormat('d M \d\e Y') }}
                             -
                             {{ $inscription->session->space->name }}
                         </h4>
@@ -396,14 +401,14 @@
                     </div>
                     <div style="padding: 10px 0px; text-transform: uppercase; font-size: 22px;">
                         {{ $inscription->session->name }} HORA:
-                        {{ $inscription->session->starts_on->formatLocalized('%H:%M') }}
+                        {{ $inscription->session->starts_on->translatedFormat('H:i') }}
                     </div>
                     <div class="row" style="padding: 0px; margin: 0px;">
                         <div class="col-75">
                             <div
                                 style="border-top: 2px solid black; border-bottom: 2px solid black; padding: 10px 0px; font-size: 18px;">
                                 @if (isset($inscription->cart->client->name) && isset($inscription->cart->client->surname))
-                                    Nom: {{ $metadataArray['nom-i-cognoms'] }}
+                                    Nom: {{ $metadataArray['nom-i-cognoms'] ?? '' }}
                                 @endif
                             </div>
                         </div>
@@ -413,7 +418,7 @@
                         <div class="col-4">
                             <div
                                 style="border-top: 2px solid black; border-bottom: 2px solid black; padding: 10px 0px; font-size: 18px;">
-                                Municipi: {{ $metadataArray['municipi'] }}
+                                Municipi: {{ $metadataArray['municipi'] ?? '' }}
                             </div>
                         </div>
                     </div>
@@ -449,21 +454,7 @@
                 <!-- Fin Contenidor dreta QR -->
 
             </div>
-            <div class="row" style="padding: 16px 0px;">
-                <div class="col-15"></div>
-                <div class="col-3 text-center">
-                    <img src="https://ulissesxendofest.yesweticket.com/storage/uploads/ulissesxendofest/endofest.jpeg"
-                        style="height: 85px" alt="Sponsors">
-                </div>
-                <div class="col-4 text-center" style="padding-top: 12px;">
-                    <img src="https://ulissesxendofest.yesweticket.com/storage/uploads/ulissesxendofest/premia.jpeg"
-                        style="height: 60px;" alt="Sponsors">
-                </div>
-                <div class="col-4 text-center" style="padding-top: 9px;">
-                    <img src="https://ulissesxendofest.yesweticket.com/storage/uploads/ulissesxendofest/clinic-barcelona.jpeg"
-                        style="height: 70px;" alt="Sponsors">
-                </div>
-            </div>
+
             <!-- Banners -->
             <div class="row">
                 <div class="col-12 py">

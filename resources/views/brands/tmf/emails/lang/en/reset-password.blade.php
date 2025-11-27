@@ -2,7 +2,7 @@
 @section('content')
 
 <p>
-    Dear {{ $client->name ?? '{name}' }},<br>
+    Dear {{ $client->name or '{name}' }},<br>
     <br>
     We are sending you this email because you have requested a password change.<br/>
     <br>

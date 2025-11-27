@@ -100,13 +100,15 @@ abstract class AbstractCartConfirmation extends Mailable
 
     private function createMail()
     {
+        $brand = $this->cart->brand ?? optional($this->cart->allInscriptions->first()->session->event)->brand;
+        
         if (brand_setting('base.cart.views.email.html'))
-            $this->view(sprintf(brand_setting('base.cart.views.email.html'), $this->cart->client->locale ?? 'ca'), ['cart' => $this->cart, 'brand' => $this->cart->brand]);
+            $this->view(sprintf(brand_setting('base.cart.views.email.html'), $this->cart->client->locale ?? 'ca'), ['cart' => $this->cart, 'brand' =>  $brand]);
 
         // a plain text maybe specified. If not, the HTML view transformed to 
         // plain text will be used
         if (brand_setting('base.cart.views.email.plain'))
-            $this->text(sprintf(brand_setting('base.cart.views.email.plain'), $this->cart->client->locale ?? 'ca'), ['cart' => $this->cart, 'brand' => $this->cart->brand]);
+            $this->text(sprintf(brand_setting('base.cart.views.email.plain'), $this->cart->client->locale ?? 'ca'), ['cart' => $this->cart, 'brand' =>  $brand]);
 
 
         if (config()->get('mail.merge_attachments')) {
@@ -126,12 +128,36 @@ abstract class AbstractCartConfirmation extends Mailable
     {
         // attach pack receipts
         foreach ($this->cart->groupPacks as $pack) {
-            $this->attach(base_path() . \Storage::url($pack->pdf), ['mime' => 'application/pdf']);
+            if ($pack->pdf) {
+                // 🔧 CORRECCIÓN: Construir path correctamente
+                $pdfPath = storage_path('app/' . $pack->pdf);
+
+                if (file_exists($pdfPath)) {
+                    $this->attach($pdfPath, ['mime' => 'application/pdf']);
+                } else {
+                    \Log::warning('Pack PDF not found, skipping attachment', [
+                        'pack_id' => $pack->id,
+                        'expected_path' => $pdfPath
+                    ]);
+                }
+            }
         }
 
         // attach inscriptions receipts
         foreach ($this->cart->inscriptions as $inscription) {
-            $this->attach(base_path() . \Storage::url($inscription->pdf), ['mime' => 'application/pdf']);
+            if ($inscription->pdf) {
+                // 🔧 CORRECCIÓN: Construir path correctamente
+                $pdfPath = storage_path('app/' . $inscription->pdf);
+
+                if (file_exists($pdfPath)) {
+                    $this->attach($pdfPath, ['mime' => 'application/pdf']);
+                } else {
+                    \Log::warning('Inscription PDF not found, skipping attachment', [
+                        'inscription_id' => $inscription->id,
+                        'expected_path' => $pdfPath
+                    ]);
+                }
+            }
         }
     }
 
@@ -147,6 +173,10 @@ abstract class AbstractCartConfirmation extends Mailable
 
         $inscriptions = $this->cart->allInscriptions;
 
+        if ($inscriptions->isEmpty()) {
+            return; // No hay inscripciones, nada que adjuntar
+        }
+
         $merged_file = (new \App\Services\PDF\PDFService)->inscriptions($inscriptions, $this->cart->token);
 
         $this->attach($merged_file, ['mime' => 'application/pdf']);
@@ -158,7 +188,7 @@ abstract class AbstractCartConfirmation extends Mailable
     private function attachGiftCards()
     {
         foreach ($this->cart->gift_cards()->notHasEmail()->get() as $gift) {
-            $this->attach(base_path() . \Storage::url($gift->pdf), ['mime' => 'application/pdf']);
+            $this->attach(\Storage::disk('local')->path($gift->pdf), ['mime' => 'application/pdf']);
         }
     }
 }

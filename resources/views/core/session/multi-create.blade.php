@@ -8,7 +8,7 @@
      @php
            $backUrl = backpack_url('session');
            $backToAll = trans('backpack::crud.back_to_all');
-           $entityPlural = trans('backend.menu.sessions');
+           $entityPlural = trans('menu.sessions');
      @endphp
 
      {{-- enlace “← Tornar a tots Sessions” --}}

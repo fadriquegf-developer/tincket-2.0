@@ -32,7 +32,7 @@ class RateCrudRequest extends FormRequest
     public function attributes()
     {
         return [
-            'name' => __('backend.menu.rate'),
+            'name' => __('menu.rate'),
         ];
     }
 

@@ -2,10 +2,10 @@
 
 @section('content')
 <p>
-    {!! trans('tincket/backend.contact.notification') !!}
+    {!! trans('backend.contact.notification') !!}
 </p>
 
 <p>
- {{ trans('tincket/backend.contact.regards') }}
+ {{ trans('backend.contact.regards') }}
 </p>
 @endsection

@@ -3,15 +3,15 @@
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Clonar múltiples sesiones</h5>
-                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                    <h5 class="modal-title">{{ __('backend.session.clone_multiple_sessions') }}</h5>
+                    <button type="button" class="close" data-bs-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <form id="cloneSessionForm">
                         <input type="hidden" name="session_id" id="cloneSessionId">
 
                         <div class="form-group">
-                            <label>Número de sesiones a crear</label>
+                            <label>{{ __('backend.session.number_clone') }}</label>
                             <input type="number" id="numSessions" min="1" class="form-control" required>
                         </div>
 
@@ -19,7 +19,7 @@
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" onclick="submitCloneSessions()">Clonar sesiones</button>
+                    <button type="button" class="btn btn-primary" onclick="submitCloneSessions()">{{ __('backend.session.clone_sessions') }}</button>
                 </div>
             </div>
         </div>
@@ -45,24 +45,24 @@
             for (let i = 1; i <= count; i++) {
                 container.append(`
                     <div class="card mb-3 p-3 bg-light">
-                        <h6>Sesión #${i}</h6>
+                        <h6>{{ __('backend.session.session') }} #${i}</h6>
                         <div class="form-row mb-2">
                             <div class="col-md-6">
-                                <label>Inicio de la sesión</label>
+                                <label>{{ __('backend.session.sessionstartson') }}</label>
                                 <input type="datetime-local" name="sessions[${i}][start]" class="form-control" required>
                             </div>
                             <div class="col-md-6">
-                                <label>Fin de la sesión</label>
+                                <label>{{ __('backend.session.sessionendson') }}</label>
                                 <input type="datetime-local" name="sessions[${i}][end]" class="form-control" required>
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="col-md-6">
-                                <label>Inicio de inscripciones</label>
+                                <label>{{ __('backend.session.inscriptionstartson') }}</label>
                                 <input type="datetime-local" name="sessions[${i}][inscription_starts_on]" class="form-control" required>
                             </div>
                             <div class="col-md-6">
-                                <label>Fin de inscripciones</label>
+                                <label>{{ __('backend.session.inscriptionendson') }}</label>
                                 <input type="datetime-local" name="sessions[${i}][inscription_ends_on]" class="form-control" required>
                             </div>
                         </div>

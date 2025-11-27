@@ -40,7 +40,7 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                         </div>
                         <div class="modal-body">
-                            <label for="client_id" class="form-label">{{__('backend.menu.client')}}</label>
+                            <label for="client_id" class="form-label">{{__('menu.client')}}</label>
                             <select class="form-control" id="client_id" name="client_id" style="width:100%">
 
                             </select>
@@ -49,7 +49,7 @@
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                             <button type="submit" class="btn btn-success">
                                 <i class="la la-save me-1"></i>
-                                {{__('backend.rate.save')}} {{ __('backend.menu.client') }}
+                                {{__('backend.rate.save')}} {{ __('menu.client') }}
                             </button>
                         </div>
                     </div>
@@ -66,7 +66,7 @@
                 placeholder: '{{  __('backend.cart.searchBy') }}',
                 minimumInputLength: 2,
                 ajax: {
-                    url: '{{ route("client.autocomplete") }}',
+                    url: '{{ route("apibackend.client.autocomplete") }}',
                     dataType: 'json',
                     delay: 250,
                     data: function (params) {

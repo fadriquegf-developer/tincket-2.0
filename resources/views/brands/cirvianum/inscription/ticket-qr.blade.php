@@ -1,5 +1,6 @@
 <!doctype html>
 <html class="no-js" lang="">
+
 <head>
   <meta charset="utf-8">
   <meta http-equiv="x-ua-compatible" content="ie=edge">
@@ -115,7 +116,6 @@
     .col-2 {
       width: 16.66%;
     }
-
     .col-25 {
       width: 20%;
     }
@@ -217,13 +217,12 @@
       height: auto;
     }
 
-    .img-custom-logo {
+    .img-custom-logo{
       max-width: 100%;
       max-height: 100px;
       height: auto;
     }
-
-    .text-center {
+    .text-center{
       text-align: center;
     }
 
@@ -238,8 +237,7 @@
     .text-small {
       font-size: .8em;
     }
-
-    strong {
+    strong{
       font-weight: 700;
     }
   </style>
@@ -247,15 +245,18 @@
 </head>
 
 <body>
+  <!--[if lte IE 9]>
+            <p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience and security.</p>
+        <![endif]-->
   <div class="container">
     <div class="row border-bottom">
       <div class="col-4">
-        <img alt="{{ $inscription->cart->brand->name ?? '' }}" src="/storage/uploads/cirvianum/imatges/Logotips/logo-cirvianum-ticket.jpg" height="46px" />
+        <img alt="{{ $inscription->cart->brand->name }}" src="/storage/uploads/cirvianum/imatges/Logotips/logo-cirvianum-ticket.jpg" height="46px" />
       </div>
       <div class="col-8 right">
-        @if(optional($inscription->session->event)->custom_logo)
-          <img src="/storage/uploads/{{ $inscription->session->event->custom_logo }}" height="46px" />
-        @endif
+          @if($inscription->session->event->custom_logo)
+            <img src="/storage/uploads/{{ $inscription->session->event->custom_logo }}" height="46px" />
+          @endif
       </div>
     </div>
     <div class="spacer"></div>
@@ -265,73 +266,77 @@
           <div class="spacer"></div>
           <div class="row">
             <div class="col-12">
-              <h4 class="font-heavy p-0 m-0">{{ $inscription->session->event->name ?? '' }}</h4>
+              <h4 class="font-heavy p-0 m-0">{{ $inscription->session->event->name }}</h4>
               <h6 class="title-overflow p-0 m-0">
-                @if(($inscription->session->event->name ?? '') !== ($inscription->session->name ?? ''))
-                  {{ $inscription->session->name ?? '' }}
-                @endif
-                @if(isset($inscription->slot->name))
-                  | {{ $inscription->slot->name }}
-                @endif
+              @if($inscription->session->event->name != $inscription->session->name)
+              {{ $inscription->session->name }}
+              @endif
+              @if(isset($inscription->slot->name))
+              | {{ $inscription->slot->name }}
+              @endif
               </h6>
               <div class="spacer"></div>
+              @php
+              setlocale(LC_TIME, "ca_ES.utf8");
+              @endphp
               {{ sprintf("%s, %s h",
-                  ucfirst(($inscription->session->starts_on ?? now())->isoFormat('dddd')),
-                  ($inscription->session->starts_on ?? now())->isoFormat('DD/MM/YYYY HH:mm')
-              ) }}
+                                      ucfirst($inscription->session->starts_on->translatedFormat('l')),
+                                      $inscription->session->starts_on->translatedFormat('d/m/Y H:i')) }}
               <div class=""></div>
               <span>
-                {{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}
+              {{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }}
               </span>
               @if(isset($inscription->group_pack->pack->name))
-                &nbsp;<i>{{ $inscription->group_pack->pack->name }}</i>
+              &nbsp;<i>{{ $inscription->group_pack->pack->name }}</i>
               @endif
               <div class="title-overflow">
                 @php($metadata = json_decode($inscription->metadata))
                 @if(!empty($metadata))
-                  @foreach ($metadata as $property => $value )
-                    <span class="text-muted">
-                      @if($loop->index != 0)
-                        |
-                      @endif
-                      {{ $value }}
-                    </span>
-                  @endforeach
+                    @foreach ($metadata as $property => $value )
+                        <span class="text-muted">
+                        @if($loop->index != 0)
+                          |
+                        @endif
+                          {{ $value }}
+                        </span>
+                    @endforeach
                 @endif
               </div>
               <div class="spacer"></div>
-              <span>{{ sprintf("Nº %s", $inscription->cart->confirmation_code ?? '') }}</span>
+              <span>{{ sprintf("Nº %s", $inscription->cart->confirmation_code) }}</span>
               <div class="spacer"></div>
               <div class="text-small">
-                {{ $inscription->session->space->name ?? '' }} 
-                @if(($inscription->session->space->name ?? '') !== ($inscription->session->space->location->name ?? ''))
-                  | {{ $inscription->session->space->location->name ?? '' }}
-                @endif
-                - 
-                {{ $inscription->session->space->location->address ?? '' }} 
+                {{ $inscription->session->space->name }} 
+                  @if($inscription->session->space->name != $inscription->session->space->location->name)
+                  | {{ $inscription->session->space->location->name }}
+                  @endif
+                 - 
+                {{ $inscription->session->space->location->address }} 
                 -
-                {{ $inscription->session->space->location->postal_code ?? '' }} {{ $inscription->session->space->location->town->name ?? '' }}
+                {{ $inscription->session->space->location->postal_code }} {{ $inscription->session->space->location->city->name }}
                 <br>
-                @php($tpv_config = $inscription->session->getTpvNameForInscriptions())
-                {{ $tpv_config->ywtName ?? 'Ajuntament de Torelló' }} - {{ $tpv_config->ywtNIF ?? 'P0828500I' }}
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div class="col-25 text-center">
-        <div class="text-small p-0 m-0">
-          @if($inscription->session->event->custom_text)
+        
+        
+        <div class="col-25 text-center">
+            <div class="text-small p-0 m-0">
+            @if($inscription->session->event->custom_text)
             {!! $inscription->session->event->custom_text !!}
-          @endif
-          <br>
+            @endif
+            <br>
+            </div>
         </div>
-      </div>
+
       <div class="col-25 right" style="background-color:white;">
-        <img class="img-fluid" style="border: 1px solid white;" src="data:image/png;base64,{!! DNS2D::getBarcodePNG($inscription->barcode, 'QRCODE', 5, 5) !!}" />
+        <img class="img-fluid" style="border: 1px solid white;" src="data:image/png;base64,{!! DNS2D::getBarcodePNG($inscription->barcode, "QRCODE", 5,5) !!}" />
         <div class="spacer"></div>
         <span class="text-small">{{ $inscription->barcode }}</span>
       </div>
+      
     </div>
   </div>
   @if($inscription->getBanner() != NULL)
@@ -339,7 +344,9 @@
   @endif
 
   <div class="col-12 text-extra-small" style="position: absolute; bottom: 10px; left: 0px; line-height: .7rem;">
-    {{ __('backend.ticket.footer-text') }} En cas que l'espectacle sigui cancel·lat es retornarà l'import de l'entrada.
+    {{ __('tickets.footer-text') }} En cas que l'espectacle sigui cancel·lat es retornarà l'import de l'entrada.
   </div>
+
 </body>
+
 </html>

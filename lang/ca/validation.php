@@ -159,6 +159,46 @@ return [
         'code_type' => 'Limitació de compra',
         'capacity' => 'Capacitat de l\'espai',
         'space_id' => 'Espai',
+        'is_numbered' => 'Numerat',
+    ],
+    'brand' => [
+        'name' => [
+            'required' => 'El nom de la marca és obligatori.',
+        ],
+        'code_name' => [
+            'required' => 'El codi de la marca és obligatori.',
+            'alpha_dash' => 'El codi només pot contenir lletres, números, guions i guions baixos.',
+            'regex' => 'El codi només pot contenir lletres minúscules, números, guions i guions baixos.',
+            'unique' => 'Aquest codi ja està en ús.',
+        ],
+        'allowed_host' => [
+            'regex' => 'El domini ha de ser vàlid (ex: exemple.com).',
+            'unique' => 'Aquest domini ja està en ús.',
+        ],
+        'capability_id' => [
+            'required' => 'La capacitat és obligatòria.',
+            'exists' => 'La capacitat seleccionada no és vàlida.',
+        ],
+        'parent_id' => [
+            'exists' => 'La marca pare seleccionada no és vàlida.',
+            'required' => 'La marca pare és obligatòria per a capacitats de tipus promotor.',
+        ],
     ],
 
+    'client' => [
+        'name_required' => 'El nom és obligatori.',
+        'surname_required' => 'Els cognoms són obligatoris.',
+        'email_required' => 'El correu electrònic és obligatori.',
+        'email_invalid' => 'El correu electrònic ha de ser una adreça vàlida.',
+        'email_unique' => 'Aquest correu electrònic ja està registrat.',
+        'password_required' => 'La contrasenya és obligatòria.',
+        'password_confirmed' => 'La confirmació de la contrasenya no coincideix.',
+        'password_min' => 'La contrasenya ha de tenir almenys 8 caràcters.',
+        'password_mixed' => 'La contrasenya ha de contenir almenys una majúscula i una minúscula.',
+        'password_numbers' => 'La contrasenya ha de contenir almenys un número.',
+        'password_symbols' => 'La contrasenya ha de contenir almenys un símbol.',
+        'password_uncompromised' => 'Aquesta contrasenya ha aparegut en una filtració de dades. Si us plau, tria una contrasenya diferent.',
+        'date_birth_before' => 'La data de naixement ha de ser una data vàlida en el passat.',
+        'date_birth_after' => 'La data de naixement ha de ser posterior a 1900.',
+    ],
 ];

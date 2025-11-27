@@ -28,8 +28,6 @@ class RemoveBackpackuserModel extends Migration
 
     public function replaceModels($table_name)
     {
-        Log::info('Replacing BackpackUser model in '.$table_name);
-
         // if you've ended up with duplicate entries (both for App\User and App\Models\BackpackUser)
         // we can just delete them
         $userEntries = DB::table($table_name)

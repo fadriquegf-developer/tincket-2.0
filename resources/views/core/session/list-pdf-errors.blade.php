@@ -42,7 +42,7 @@
                                 <th>{{ __('backend.client.email') }}</th>
                                 <th>{{ __('backend.client.phone') }}</th>
                                 <th>{{ __('backend.cart.confirmationcode') }}</th>
-                                <th>{{ __('backend.menu.rate') }}</th>
+                                <th>{{ __('menu.rate') }}</th>
                                 <th>{{ __('backend.ticket.slot') }}</th>
                                 <th>{{ __('backend.inscription.barcode') }}</th>
                                 <th>{{ __('Acciones') }}</th>

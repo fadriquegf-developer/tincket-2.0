@@ -22,6 +22,8 @@ class StatisticsSalesController extends Controller
      */
     public function get(Request $request)
     {
+        $brand = get_current_brand();
+
         // ---- 1) Parseo de filtros ----
         $sessionIds = collect(explode(',', trim((string) $request->get('session_id', ''))))
             ->filter(fn($v) => $v !== '')
@@ -65,18 +67,29 @@ class StatisticsSalesController extends Controller
 
         // 3) Query base (reutiliza lo demás igual que lo tenías)
         $base = DB::table('inscriptions as i')
+            ->where('i.brand_id', $brand->id)
             ->join('sessions as s', 's.id', '=', 'i.session_id')
             ->leftJoin('rates as r', 'r.id', '=', 'i.rate_id')
             ->leftJoin('group_packs as gp', 'gp.id', '=', 'i.group_pack_id')
             ->leftJoin('packs as pk', 'pk.id', '=', 'gp.pack_id')
             ->join('carts as c', 'c.id', '=', 'i.cart_id')
+            ->leftJoin('users as u', function ($join) {
+                $join->on('u.id', '=', 'c.seller_id')
+                    ->on('c.seller_type', '=', DB::raw("'App\\\\Models\\\\User'"));
+            })
+            ->leftJoin('applications as app', function ($join) {
+                $join->on('app.id', '=', 'c.seller_id')
+                    ->on('c.seller_type', '=', DB::raw("'App\\\\Models\\\\Application'"));
+            })
             ->join('events as e', 'e.id', '=', 's.event_id')
             ->leftJoin(DB::raw('(' . $latestPayments->toSql() . ') as lp'), 'lp.cart_id', '=', 'c.id')
             ->mergeBindings($latestPayments)
             ->leftJoin('payments as pay', 'pay.id', '=', 'lp.id')
-            ->leftJoin('users as u', 'u.id', '=', 'c.seller_id')
             ->leftJoin('clients as cl', 'cl.id', '=', 'c.client_id')
-            ->whereNotNull('pay.paid_at');
+            ->whereNotNull('pay.paid_at')
+            ->whereNull('i.deleted_at')
+            ->whereNull('c.deleted_at')
+            ->whereNotNull('c.confirmation_code');
 
         // ---- 4) Filtros ----
         if ($sessionIds->isNotEmpty()) {
@@ -107,32 +120,41 @@ class StatisticsSalesController extends Controller
             'pk.id as pack_id',
             'c.id as cart_id',
             'c.confirmation_code',
+            'c.seller_type',
+            'u.name',
+            'app.code_name',
             'cl.email as client_email',
             DB::raw("CASE
-           WHEN u.id IS NOT NULL THEN COALESCE(u.name,'—')
-           ELSE 'Web API'
-         END AS seller_name"),
+                        WHEN c.seller_type = 'App\\\\Models\\\\User' THEN COALESCE(u.name, 'Usuario desconocido')
+                        WHEN c.seller_type = 'App\\\\Models\\\\Application' THEN COALESCE(app.code_name, 'Web')
+                        ELSE 'Desconocido'
+                    END AS seller_name"),
             'pay.gateway as payment_method',
             DB::raw("$ticketPaymentType as ticket_payment_type"),
         ];
 
-
-        // ---- 6) Resumen agregado en SQL cuando summary=1 ----
-        if ($summary) {
-            $summaryRows = $this->buildSummarySQL((clone $base), $breakdown, $jsonLocalePath, $ticketPaymentType)->get();
-
-            return response()->json([
-                'results' => [],
-                'summary' => $summaryRows,
-            ]);
+        $sql = $base->toSql();
+        foreach ($base->getBindings() as $binding) {
+            $binding = is_numeric($binding) ? $binding : "'{$binding}'";
+            $sql = preg_replace('/\?/', $binding, $sql, 1);
         }
 
-        // ---- 7) Detalle (con cap/paginación) ----
-        $rows = (clone $base)
+
+        // ---- 6) Detalle (con cap/paginación) ----
+        $detailQuery = clone $base;
+
+        // Si breakdown es 'T', filtrar solo TicketOffice también en el detalle
+        if (strtoupper($breakdown) === 'T') {
+            $detailQuery->where('pay.gateway', '=', 'TicketOffice');
+        }
+
+        $rows = $detailQuery
             ->select($detailSelect)
             ->limit($perPage)
             ->get();
 
+        // Si solo quieren summary, devolvemos results para que el frontend construya la jerarquía
+        // El frontend decidirá si mostrar o no la tabla de detalle según summaryOnly
         return response()->json([
             'results' => $rows,
         ]);
@@ -149,10 +171,11 @@ class StatisticsSalesController extends Controller
     private function buildSummarySQL($base, string $bk, string $jsonLocalePath, string $ticketPaymentType)
     {
         // Expresiones que usaremos en SELECT/GROUP BY (compatibles con ONLY_FULL_GROUP_BY)
-        $sellerExpr = "CASE
-                 WHEN u.id IS NOT NULL THEN COALESCE(u.name,'—')
-                 ELSE 'Web API'
-               END";
+        $sellerExpr =   "CASE
+                            WHEN c.seller_type = 'App\\\\Models\\\\User' THEN COALESCE(u.name, 'Usuario desconocido')
+                            WHEN c.seller_type = 'App\\\\Models\\\\Application' THEN COALESCE(app.code_name, 'API')
+                            ELSE '—'
+                        END";
         $methodExpr    = "COALESCE(pay.gateway, '—')";
         $ratePackExpr  = "
             COALESCE(

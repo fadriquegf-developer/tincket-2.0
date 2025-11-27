@@ -162,6 +162,46 @@ return [
         'code_type' => 'Limitación de compra',
         'capacity' => 'Capacidade do espazo',
         'space_id' => 'Espazo',
+        'is_numbered' => 'Numerado',
+    ],
+    'brand' => [
+        'name' => [
+            'required' => 'O nome da marca é obrigatorio.',
+        ],
+        'code_name' => [
+            'required' => 'O código da marca é obrigatorio.',
+            'alpha_dash' => 'O código só pode conter letras, números, guións e guións baixos.',
+            'regex' => 'O código só pode conter letras minúsculas, números, guións e guións baixos.',
+            'unique' => 'Este código xa está en uso.',
+        ],
+        'allowed_host' => [
+            'regex' => 'O dominio debe ser válido (ex: exemplo.com).',
+            'unique' => 'Este dominio xa está en uso.',
+        ],
+        'capability_id' => [
+            'required' => 'A capacidade é obrigatoria.',
+            'exists' => 'A capacidade seleccionada non é válida.',
+        ],
+        'parent_id' => [
+            'exists' => 'A marca pai seleccionada non é válida.',
+            'required' => 'A marca pai é obrigatoria para capacidades de tipo promotor.',
+        ],
     ],
 
+    'client' => [
+        'name_required' => 'O nome é obrigatorio.',
+        'surname_required' => 'Os apelidos son obrigatorios.',
+        'email_required' => 'O correo electrónico é obrigatorio.',
+        'email_invalid' => 'O correo electrónico debe ser un enderezo válido.',
+        'email_unique' => 'Este correo electrónico xa está rexistrado.',
+        'password_required' => 'O contrasinal é obrigatorio.',
+        'password_confirmed' => 'A confirmación do contrasinal non coincide.',
+        'password_min' => 'O contrasinal debe ter polo menos 8 caracteres.',
+        'password_mixed' => 'O contrasinal debe conter polo menos unha maiúscula e unha minúscula.',
+        'password_numbers' => 'O contrasinal debe conter polo menos un número.',
+        'password_symbols' => 'O contrasinal debe conter polo menos un símbolo.',
+        'password_uncompromised' => 'Este contrasinal apareceu nunha filtración de datos. Por favor, escolle un contrasinal diferente.',
+        'date_birth_before' => 'A data de nacemento debe ser unha data válida no pasado.',
+        'date_birth_after' => 'A data de nacemento debe ser posterior a 1900.',
+    ],
 ];

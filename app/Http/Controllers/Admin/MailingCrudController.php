@@ -2,19 +2,17 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Models\Client;
 use App\Models\Mailing;
 use App\Models\Setting;
-use App\Mail\MailingMail;
 use App\Models\FormField;
 use Illuminate\Http\Request;
 use App\Traits\AllowUsersTrait;
 use Prologue\Alerts\Facades\Alert;
 use App\Traits\CrudPermissionTrait;
-use App\Services\MailerBrandService;
-use Illuminate\Support\Facades\Mail;
 use Backpack\CRUD\app\Library\Widget;
+use Illuminate\Support\Facades\Cache;
 use App\Http\Requests\MailingCrudRequest;
+use App\Jobs\ProcessMailingJob;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
@@ -23,9 +21,11 @@ class MailingCrudController extends CrudController
 
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation {
+        store as traitStore;
     }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation {
+        update as traitUpdate;
     }
     use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
     use CrudPermissionTrait;
@@ -36,7 +36,7 @@ class MailingCrudController extends CrudController
     {
         CRUD::setModel(Mailing::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/mailing');
-        CRUD::setEntityNameStrings(__('backend.menu.mail'), __('backend.menu.mails'));
+        CRUD::setEntityNameStrings(__('menu.mail'), __('menu.mails'));
         $this->setAccessUsingPermissions();
         $this->crud->allowAccess('send');
 
@@ -54,13 +54,9 @@ class MailingCrudController extends CrudController
     {
         CRUD::removeAllButtonsFromStack('line');
 
-        if ($this->isSuperuser()) {
-            CRUD::addButtonFromView('line', 'send', 'send', 'end');
-        }
-
+        CRUD::addButtonFromView('line', 'send', 'send', 'beginning');
         CRUD::addButton('line', 'preview', 'view', 'crud::buttons.show', 'end');
         CRUD::addButtonFromModelFunction('line', 'edit_if_not_sent', 'editButton', 'end');
-        //CRUD::addButton('line', 'revisions', 'view', 'crud::buttons.revisions', 'end');
         CRUD::addButton('line', 'delete', 'view', 'crud::buttons.delete', 'end');
 
         CRUD::setValidation(MailingCrudRequest::class);
@@ -72,21 +68,37 @@ class MailingCrudController extends CrudController
         ]);
 
         CRUD::addColumn([
-            'name' => 'slug',
-            'label' => __('backend.mail.campaign_slug'),
-            'type' => 'text',
-        ]);
-
-        CRUD::addColumn([
             'name' => 'subject',
             'label' => __('backend.mail.subject'),
         ]);
 
         CRUD::addColumn([
-            'name' => 'is_sent',
+            'name' => 'status_badge',
             'label' => __('backend.mail.status'),
-            'type' => 'boolean',
-            'options' => [0 => 'Pending', 1 => 'Sent'],
+            'type' => 'model_function',
+            'function_name' => 'getStatusBadge',
+            'escaped' => false,
+            'limit' => true
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'total_recipients',
+            'label' => __('backend.mail.recipients'),
+            'type' => 'text',
+            'value' => function ($entry) {
+                if (!$entry->total_recipients) {
+                    // Contar destinatarios si no está calculado
+                    $count = substr_count($entry->emails, ',') + 1;
+                    return number_format($count);
+                }
+                return number_format($entry->total_recipients);
+            }
+        ]);
+
+        CRUD::addColumn([
+            'name' => 'sent_at',
+            'label' => __('backend.mail.sent_at'),
+            'type' => 'datetime',
         ]);
     }
 
@@ -123,40 +135,22 @@ class MailingCrudController extends CrudController
     protected function setupCreateOperation()
     {
         $this->crud->setValidation(MailingCrudRequest::class);
+
         $users = '';
-        //Si venimos de filtrar usuarios
-        if (session('session') || session('client.search') || session('client.from_to')) {
-            $value = session('session');
-            $queryClients = Client::ownedByBrand()->where('newsletter', true);
 
-            if (session('session')) {
-                $queryClients->whereHas('carts', function ($query) use ($value) {
-                    $query->whereHas('inscriptions', function ($query) use ($value) {
-                        $query->whereHas('session', function ($query) use ($value) {
-                            $query->where('id', $value);
-                        });
-                    });
-                });
-            }
+        if (request()->filled('recipients_key')) {
+            $key = request('recipients_key');
+            $users = (string) Cache::get($key, '');
 
-            if (session('client.search')) {
-                $queryClients->where(function ($query) {
-                    $query->where('email', 'like', "%" . session('client.search') . "%")
-                        ->orWhere('surname', 'like', "%" . session('client.search') . "%")
-                        ->orWhere('surname', 'like', "%" . session('client.search') . "%");
-                });
-            }
-
-
-            if (session('client.from_to')) {
-                $dates = json_decode(session('client.from_to'));
-                $queryClients->where('created_at', '>=', $dates->from);
-                $queryClients->where('created_at', '<=', $dates->to . ' 23:59:59');
-            }
-
-            $users = $queryClients->get()->pluck('email')->toArray();
-            $users = implode(",", $users);
+            // 👇 Borrar la cache una vez usada
+            Cache::forget($key);
         }
+
+        $users = collect(explode(',', str_replace(';', ',', $users)))
+            ->map(fn($e) => trim($e))
+            ->filter(fn($e) => filter_var($e, FILTER_VALIDATE_EMAIL))
+            ->unique()
+            ->implode(',');
 
         CRUD::addField([
             'name' => 'name',
@@ -240,13 +234,13 @@ class MailingCrudController extends CrudController
             'name' => 'content',
             'label' => __('backend.mail.contents'),
             'type' => 'ckeditor',
-            
+
         ]);
 
         CRUD::addField([
             'name' => 'embedded_entities',
             'label' => __('backend.mail.extra_content'),
-            'type' => 'embedded_entities', // nombre del blade
+            'type' => 'embedded_entities',
             'fake' => true,
             'store_in' => 'extra_content',
         ]);
@@ -256,13 +250,13 @@ class MailingCrudController extends CrudController
     {
         $this->setupCreateOperation();
 
-        /* if (\Auth::user()->hasRole('admin')) {
+        if (\Auth::user()->hasRole('admin')) {
             CRUD::addField([
                 'name' => 'testing_email',
                 'label' => __('backend.mail.test_it'),
                 'type' => 'test_it',
             ]);
-        } */
+        }
     }
 
     public function store(MailingCrudRequest $request)
@@ -297,30 +291,55 @@ class MailingCrudController extends CrudController
     }
 
 
-
     public function send(Request $request, $id)
     {
-        \Log::info('[MailingCrudController] Enviando mailing', [
-            'mailing_id' => $id,
-        ]);
-        $mailing = Mailing::findOrFail($id);
+        try {
+            $mailing = Mailing::findOrFail($id);
 
-        // Divide en chunks de 500
-        $chunks = array_chunk(explode(',', $mailing->emails), 500);
+            // Validar permisos y brand
+            if (!$this->crud->hasAccess('send')) {
+                abort(403);
+            }
 
-        foreach ($chunks as $chunk) {
-            // El mailer de la marca
-            $mailer = (new MailerBrandService($mailing->brand->code_name))->getMailer();
+            // Verificar que el mailing pertenece a la brand actual
+            if ($mailing->brand_id !== get_current_brand()->id) {
+                abort(403, 'No puedes enviar mailings de otra brand');
+            }
 
-            \Log::info('[MailingCrudController] Encolando mailing', ['bcc' => $chunk]);
+            if ($mailing->status === 'sent' || $mailing->status === 'processing') {
+                Alert::warning('Este mailing ya fue enviado o está en proceso')->flash();
+                return back();
+            }
 
-            $mailer->to('noreply@yesweticket.com')->queue(new MailingMail($mailing, false, $chunk));
+            // Validar que está en estado draft
+            if ($mailing->status !== 'draft') {
+                Alert::warning('Solo se pueden enviar mailings en estado borrador')->flash();
+                return back();
+            }
+
+            // CAMBIAR ESTADO INMEDIATAMENTE
+            $mailing->update([
+                'status' => 'processing',
+                'processing_started_at' => now()
+            ]);
+
+            // Despachar job principal
+            ProcessMailingJob::dispatch($mailing)
+                ->onQueue('mailings')
+                ->delay(now()->addSeconds(5));
+
+            Alert::success('Mailing encolado correctamente. Recibirás una notificación cuando se complete.')->flash();
+
+            return back();
+        } catch (\Exception $e) {
+            \Log::error('[MailingCrudController] Error al enviar mailing', [
+                'mailing_id' => $id,
+                'error' => $e->getMessage()
+            ]);
+
+            Alert::error('Error al procesar el mailing: ' . $e->getMessage())->flash();
+            return back();
         }
-
-        $mailing->update(['is_sent' => true]);
-
-        Alert::success('Mailing encolado correctamente')->flash();
-        return back();
     }
 
     private function addFieldInterests(): void
@@ -329,12 +348,17 @@ class MailingCrudController extends CrudController
         $fieldId = Setting::where('brand_id', get_current_brand()->id)
             ->where('key', 'ywt.mail_interests_field_id')
             ->value('value');
-        if (!$fieldId)
+
+        if (!$fieldId) {
+            \Log::warning('[MAILING DEBUG] No se encontró field_id de intereses');
             return;
+        }
 
         $formField = FormField::find($fieldId);
-        if (!$formField)
+        if (!$formField) {
+            \Log::warning('[MAILING DEBUG] No se encontró FormField', ['field_id' => $fieldId]);
             return;
+        }
 
         /* 2. añadir UNA vez el hidden raíz ----------------------------- */
         CRUD::addField([
@@ -347,16 +371,23 @@ class MailingCrudController extends CrudController
         $saved = optional($this->crud->getCurrentEntry())->interests ?? [];
 
         /* 4. casillas --------------------------------------------------- */
-        foreach ($formField->config->options->values as $opt) {
+        $locale = brand_setting('app.locale');
+
+        foreach ($formField->config['options'] as $opt) {
+            $label = $opt['label'][$locale] ?? reset($opt['label']);
+            $value = $opt['value'];
 
             CRUD::addField([
-                'name' => "interests[{$opt->key}]",
-                'label' => $opt->labels->{brand_setting('app.locale')},
+                'name' => "interests[{$opt['value']}]",
+                'label' => $label, // <- ¡string limpio!
                 'type' => 'checkbox',
-                'default' => ($saved[$opt->key] ?? 0) == 1 ? 1 : 0,
+                'default' => ($saved[$opt['value']] ?? 0) == 1 ? 1 : 0,
                 'wrapperAttributes' => ['class' => 'form-group col-md-2'],
+                'attributes' => [
+                    'class' => 'interest-checkbox',
+                    'data-interest' => $value
+                ],
             ]);
         }
     }
-
 }

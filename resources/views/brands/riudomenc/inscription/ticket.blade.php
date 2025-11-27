@@ -76,7 +76,7 @@
                             <div class="row">
                                 <div class="col-xs-12">
                                     <p class="confirmation-code text-right">{{ $inscription->cart->confirmation_code }}</p>
-                                    <p>{{ $inscription->session->starts_on->formatLocalized('%d/%m/%Y %H:%M') }}</p>
+                                    <p>{{ $inscription->session->starts_on->translatedFormat('d/m/Y H:i') }}</p>
                                     <p>{{ sprintf("%s - %s €", $inscription->getRateName(), number_format($inscription->price_sold, 2)) }} (IVA inclòs)</p>
                                     @if(isset($inscription->group_pack->pack->name))
                                     <p><i>{{ $inscription->group_pack->pack->name }}</i></p>

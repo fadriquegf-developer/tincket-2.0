@@ -3,16 +3,17 @@
 
 namespace App\Services\Payment\Impl;
 
-use App\Models\Payment;
+use DOMDocument;
 use App\Models\Cart;
-use App\Services\Payment\AbstractPaymentService;
+use App\Models\Payment;
+use BadMethodCallException;
+use Illuminate\Http\Request;
+use App\Services\MailerService;
+use Illuminate\Support\Facades\Log;
 use App\Services\Payment\Lib\RedsysAPI;
 use App\Services\TpvConfigurationDecoder;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
-use DOMDocument;
-use BadMethodCallException;
 use Omnipay\Common\Message\AbstractResponse;
+use App\Services\Payment\AbstractPaymentService;
 
 class PaymentRedsysSoapService extends AbstractPaymentService
 {
@@ -76,7 +77,7 @@ class PaymentRedsysSoapService extends AbstractPaymentService
             ->loadBrandConfig($this->payment->cart->brand->code_name);
 
         // 4) Carga TPV (objeto decoder, no array)
-        $this->tpv_config = new TpvConfigurationDecoder($this->payment->tpv->config);
+        $this->loadTpvConfiguration();
 
         // 5) Valida firma y confirma
         if ($this->isPaymentSuccessful(request())) {
@@ -89,6 +90,39 @@ class PaymentRedsysSoapService extends AbstractPaymentService
 
         // 6) Devuelve el XML de respuesta
         return $this->createResponseXML();
+    }
+
+    protected function loadTpvConfiguration(): void
+    {
+        if (!$this->payment->tpv_id) {
+            // ✅ Cargar inscripciones con sesiones, deshabilitando BrandScope
+            $this->payment->cart->load(['allInscriptions' => function ($q) {
+                $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                    ->with(['session' => function ($sq) {
+                        $sq->withoutGlobalScope(\App\Scopes\BrandScope::class);
+                    }]);
+            }]);
+
+            $tpvId = $this->payment->cart->allInscriptions
+                ->pluck('session.tpv_id')
+                ->filter()
+                ->first();
+
+            if ($tpvId) {
+                $this->payment->update(['tpv_id' => $tpvId]);
+                $this->payment->load('tpv');
+            }
+        }
+
+        if (!$this->payment->relationLoaded('tpv')) {
+            $this->payment->load('tpv');
+        }
+
+        if (!$this->payment->tpv) {
+            throw new \RuntimeException('TPV no encontrado para payment ID: ' . $this->payment->id);
+        }
+
+        $this->tpv_config = new TpvConfigurationDecoder($this->payment->tpv->config);
     }
 
     /**
@@ -132,6 +166,7 @@ class PaymentRedsysSoapService extends AbstractPaymentService
         if (!$this->payment) {
             $dsOrder = $this->redsys_lib->getOrderNotifSOAP($this->xml);
             $this->payment = Payment::where('order_code', $dsOrder)
+                ->with(['cart.brand', 'cart.allInscriptions.session', 'tpv'])
                 ->firstOrFail();
         }
         return $this->payment;
@@ -167,8 +202,7 @@ class PaymentRedsysSoapService extends AbstractPaymentService
         if ($duplicated) {
             Log::error("Carrito duplicado #{$cart->id}");
             try {
-                $mailer = (new \App\Services\MailerBrandService($cart->brand->code_name))
-                    ->getMailer();
+                $mailer = app(MailerService::class)->getMailerForBrand($cart->brand);
                 $mailer->to($cart->client->email)
                     ->send(new \App\Mail\ErrorDuplicate($payment, $cart, $duplicated));
             } catch (\Throwable $e) {

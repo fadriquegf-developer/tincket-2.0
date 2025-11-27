@@ -5,7 +5,7 @@ namespace App\Services\Payment\Impl;
 use Illuminate\Http\Request;
 
 /**
- * Description of PaymentSermepaService
+ * Description of PaymentTicketOfficeService
  *
  * @author miquel
  */
@@ -19,9 +19,14 @@ class PaymentTicketOfficeService extends \App\Services\Payment\AbstractPaymentSe
      */
     private $paymentType = null;
 
+    public function __construct(string $gatewayCode = 'TicketOffice')
+    {
+        parent::__construct($gatewayCode);
+    }
+
     protected function setPaymentFromRequest(Request $request = null)
     {
-
+        // No implementation needed for ticket office
     }
 
     public function getJsonResponse()
@@ -49,7 +54,10 @@ class PaymentTicketOfficeService extends \App\Services\Payment\AbstractPaymentSe
         // unlike confirmPayment of Sermepa gateway, in TicketOffice gateway we
         // do not dispatch the job to the queue to avoid the customer waiting 
         // for queue processing        
-        (new \App\Jobs\CartConfirm($this->payment->cart, ['send_mail' => false, 'pdf' => config('base.inscription.ticket-office-params')]))->handle();
+        (new \App\Jobs\CartConfirm(
+            $this->payment->cart, 
+            ['send_mail' => false, 'pdf' => config('base.inscription.ticket-office-params')]
+        ))->handle();
     }
 
     public function getName()
@@ -62,5 +70,6 @@ class PaymentTicketOfficeService extends \App\Services\Payment\AbstractPaymentSe
         if (self::CASH === $paymentType || self::CARD === $paymentType) {
             $this->paymentType = $paymentType;
         }
+        return $this;
     }
 }

@@ -14,8 +14,9 @@ class CodeCrudController extends CrudController
 
   use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
   use CrudPermissionTrait;
-  use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy;
-    }
+  use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation {
+    destroy as traitDestroy;
+  }
 
 
   public function setup()
@@ -81,20 +82,19 @@ class CodeCrudController extends CrudController
   {
     CRUD::hasAccessOrFail('delete');
 
-    // remove partner
+    // Obtener la entrada que se va a eliminar
     $entry = $this->crud->getEntry($id);
 
+    // Si la entrada tiene un promotor asociado, desvincularlo del padre
     if ($promotor = $entry->promotor) {
-      $primary_brand = get_current_brand();
-      $brand_partners_ids = Setting::where('brand_id', $primary_brand->id)->where('key', 'base.brand.partnershiped_ids')->first();
+      // Buscar si este promotor (Brand) tiene un padre
+      // y desvincularlo estableciendo parent_id a null
+      $promotorBrand = Brand::find($promotor->id);
 
-      $aux = explode(',', $brand_partners_ids->value);
-
-      if (($key = array_search($promotor->id, $aux)) !== false) {
-        unset($aux[$key]);
+      if ($promotorBrand && $promotorBrand->parent_id) {
+        $promotorBrand->parent_id = null;
+        $promotorBrand->save();
       }
-
-      Setting::where('brand_id', $primary_brand->id)->where('key', 'base.brand.partnershiped_ids')->update(['value' => implode(',', $aux)]);
     }
 
     return $this->traitDestroy($id);

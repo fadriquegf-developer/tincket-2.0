@@ -1,14 +1,14 @@
 @php
-  $btnClass = $entry->liquidation ? 'btn-success' : 'btn-danger';
+  $btnClass = $entry->liquidation ? 'bg-success' : 'bg-danger';
   $confirmText = $entry->liquidation
     ? __('backend.session.confirm_unliquidate')
     : __('backend.session.confirm_liquidate');
   $url = url($crud->route . '/' . $entry->getKey() . '/liquidation');
 @endphp
 
-<a href="{{ $url }}" class="dropdown-item {{ $btnClass }}" data-button-type="liquidate"
+<a href="{{ $url }}" class="dropdown-item {{ $btnClass }} text-white" data-button-type="liquidate"
   data-confirm="{{ $confirmText }}">
-  <i class="la la-euro me-2 text-primary"></i> {{ __('backend.session.liquidation') }}
+  <i class="la la-euro me-2 text-white"></i> {{ __('backend.session.liquidation') }}
 </a>
 
 <script>

@@ -20,7 +20,7 @@
 <link rel="icon" type="image/png" href="{{ asset('/favicon/favicon-128.png') }}" sizes="128x128" />
 
 <!-- Other -->
-<link rel="manifest" href="{{ asset('/favicon/site.webmanifest') }}">
+<link rel="manifest" href="{{ asset('/site.webmanifest') }}">
 <link rel="mask-icon" href="{{ asset('/favicon/safari-pinned-tab.svg') }}" color="#fb121c">
 <link rel="shortcut icon" href="{{ asset('/favicon/favicon.ico') }}">
 

@@ -11,6 +11,7 @@ use App\Traits\SetsBrandOnCreate;
 use Illuminate\Database\Eloquent\Model;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use App\Traits\HasTranslations;
+
 class Form extends BaseModel
 {
 
@@ -34,14 +35,13 @@ class Form extends BaseModel
 
     public function form_fields()
     {
-        return $this->belongsToMany(FormField::class)
+        return $this->belongsToMany(FormField::class, 'form_form_field', 'form_id', 'form_field_id')
             ->withPivot('order')
-            ->orderBy('form_form_field.order');
+            ->orderByPivot('order');
     }
 
     public function rate()
     {
         return $this->hasMany(Session::class);
     }
-
 }

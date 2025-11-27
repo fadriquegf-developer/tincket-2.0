@@ -36,7 +36,7 @@
 </div>
 
 {{-- ---------- Leyenda ---------- --}}
-@include('core.ticket-office.space_layout_legend')
+@include('core.partials.space_layout_legend')
 
 
 
@@ -116,8 +116,20 @@
 
         /* ---------- Resaltado de selección ---------- */
         .slot.selected {
-            stroke-width: 3 !important;
+            stroke-width: 2 !important;
             stroke: #000 !important
+        }
+
+        .slot.preview-selected {
+            stroke-width: 2 !important;
+            stroke: #000 !important;
+            opacity: 0.7;
+        }
+
+        .slot.selected {
+            stroke-width: 2 !important;
+            stroke: #000 !important;
+            opacity: 1;
         }
     </style>
 @endpush
@@ -126,6 +138,27 @@
     @include('crud::fields.svg_modal_slot')
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://unpkg.com/@panzoom/panzoom@4.6.0/dist/panzoom.min.js"></script>
+    <script>
+        // Traducciones para el editor de sesión
+        window.sessionTranslations = {
+            code_copied: {
+                es: 'Código copiado',
+                ca: 'Codi copiat',
+                en: 'Code copied'
+            },
+            copy_error: {
+                es: 'Error al copiar',
+                ca: 'Error en copiar',
+                en: 'Copy error'
+            },
+            click_to_copy: {
+                es: 'Click para copiar',
+                ca: 'Click per copiar',
+                en: 'Click to copy'
+            }
+        };
+        window.currentLocale = '{{ app()->getLocale() }}';
+    </script>
     <script
         src="{{ asset('js/vue/svg-layaout-session.js') }}?v={{ filemtime(public_path('js/vue/svg-layaout-session.js')) }}"></script>
 @endpush

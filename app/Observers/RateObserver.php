@@ -20,4 +20,9 @@ class RateObserver
         $rate->save();
     }
 
+     public function saving(Rate $rate): void
+    {
+        $rate->validator_class = $rate->needs_code ? 'DiscountCode' : null;
+    }
+
 }

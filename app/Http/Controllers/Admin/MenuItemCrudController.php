@@ -22,12 +22,11 @@ class MenuItemCrudController extends CrudController
     {
         CRUD::setModel(MenuItem::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/menu-item');
-        CRUD::setEntityNameStrings(__('backend.menu.menu_item'), __('backend.menu.menu_items'));
+        CRUD::setEntityNameStrings(__('menu.navigation_menu'), __('menu.navigation_menus'));
 
         $this->setAccessUsingPermissions();
         CRUD::enableReorder('name', 3);
         CRUD::allowAccess('reorder');
-
     }
 
     protected function setupListOperation()
@@ -45,6 +44,7 @@ class MenuItemCrudController extends CrudController
             'attribute' => 'name',
             'model' => MenuItem::class,
         ]);
+        CRUD::addButtonFromView('top', 'page_help', 'page_help', 'end');
     }
 
     protected function setupCreateOperation()
@@ -63,7 +63,7 @@ class MenuItemCrudController extends CrudController
             'entity' => 'parent',
             'attribute' => 'name',
             'model' => MenuItem::class,
-            'builder' => fn () => MenuItem::whereNull('parent_id')->orderBy('lft'),
+            'builder' => fn() => MenuItem::whereNull('parent_id')->orderBy('lft'),
         ]);
 
         CRUD::addField([

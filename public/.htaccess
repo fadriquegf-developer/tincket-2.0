@@ -5,6 +5,16 @@
 
     RewriteEngine On
 
+    # CORS Headers para archivos estáticos (fonts, images, etc.)
+    <IfModule mod_headers.c>
+        # Solo aplicar a archivos en /storage/
+        <FilesMatch "\.(ttf|ttc|otf|eot|woff|woff2|font.css|css|js|gif|png|jpe?g|svg|svgz|ico|webp)$">
+            Header set Access-Control-Allow-Origin "*"
+            Header set Access-Control-Allow-Methods "GET, OPTIONS"
+            Header set Access-Control-Allow-Headers "Content-Type"
+        </FilesMatch>
+    </IfModule>
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

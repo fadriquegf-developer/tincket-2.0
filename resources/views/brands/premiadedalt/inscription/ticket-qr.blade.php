@@ -368,7 +368,7 @@
                             <b>{{ $inscription->session->event->name }}</b>
                         </h2>
                         <h4 style="font-weight:400; margin-top: 4px; margin-bottom: 0px;">
-                            {{ $inscription->session->starts_on->formatLocalized('%d de %b de %Y') }}
+                            {{ $inscription->session->starts_on->translatedFormat('d \d\e M \d\e Y') }}
                             -
                             {{ $inscription->session->space->name }}
                         </h4>
@@ -392,7 +392,7 @@
                     </div>
                     <div style="padding: 10px 0px; text-transform: uppercase; font-size: 22px;">
                         {{ $inscription->session->name }} HORA:
-                        {{ $inscription->session->starts_on->formatLocalized('%H:%M') }}
+                        {{ $inscription->session->starts_on->translatedFormat('H:i') }}
                     </div>
                     <div class="row" style="padding: 0px; margin: 0px;">
                         <div class="col-75">
@@ -414,8 +414,8 @@
                             </div>
                         </div>
                     </div>
-                    <div class="row" style="padding: 0px 15px;">
-                        <div class="col-7">
+                    <div class="row" style="padding: 0px; margin: 0px;">
+                        <div class="col-75">
                             @if ($inscription->session->event->id == 3840)
                                 <div
                                     style="border-bottom: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
@@ -431,12 +431,15 @@
                                 <p style="margin: 0px;">Nif: P0823000E</p>
                             </div>
                         </div>
-                        <div class="col-1">
+                        <div class="col-05">
                             <p></p>
                         </div>
-                        <div class="col-4" style="padding-top: 40px;">
-                            <img style="width: 100%;" alt="{{ $inscription->cart->brand->name }}"
-                                src="{{ $inscription->cart->brand->logo }}" />
+                        <div class="col-4">
+                            <div style="padding: 10px 0px; font-size: 18px;">
+                                Preu: {{ number_format($inscription->price_sold, 2) }} €
+                            </div>
+                            <img style="width: 100%; margin-top:10px;" alt="{{ $inscription->cart->brand->name }}"
+                                src="{{ $inscription->getLogo() }}" />
                         </div>
                     </div>
                 </div>

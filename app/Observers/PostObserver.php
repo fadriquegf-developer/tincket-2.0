@@ -20,7 +20,7 @@ class PostObserver
     {
         $brand = get_current_brand()->code_name;
         $postId = $post->id;
-        $basePath = "uploads/{$brand}/post/{$postId}/";
+        $basePath = "uploads/{$brand}/post/";
 
         // 1️ Obtener imágenes nuevas desde el formulario
         $newPaths = request()->has('gallery')
@@ -46,6 +46,9 @@ class PostObserver
 
         // 2️ Procesar imágenes nuevas (solo las que vienen de backpack/temp)
         foreach ($newPaths as $relativePath) {
+            // Limpiar prefijos storage/ o /storage/
+            $relativePath = preg_replace('#^/?storage/#', '', $relativePath);
+
             if (!str_contains($relativePath, 'backpack/temp/')) {
                 // Imagen ya procesada anteriormente → conservarla
                 $finalPaths[] = $relativePath;
@@ -96,9 +99,12 @@ class PostObserver
             }
         }
 
-        // 3 Eliminar imágenes que ya no están
-         $removed = array_diff($oldPaths, $finalPaths);
+        // 3️⃣ Eliminar imágenes que ya no están
+        $removed = array_diff($oldPaths, $finalPaths);
         foreach ($removed as $removedPath) {
+            // Limpiar prefijos antes de eliminar
+            $removedPath = preg_replace('#^/?storage/#', '', $removedPath);
+
             Storage::disk('public')->delete($removedPath);
 
             $dir  = pathinfo($removedPath, PATHINFO_DIRNAME);
@@ -118,8 +124,32 @@ class PostObserver
     public function deleted(Post $post)
     {
         $brand = get_current_brand()->code_name;
-        $dir = "uploads/{$brand}/post/{$post->id}";
+        $disk = Storage::disk('public');
 
-        Storage::disk('public')->deleteDirectory($dir);
+        // Eliminar imagen principal
+        if ($post->image) {
+            $imagePath = preg_replace('#^/?storage/#', '', $post->image);
+            $disk->delete($imagePath);
+
+            // Eliminar variantes
+            $dir = pathinfo($imagePath, PATHINFO_DIRNAME);
+            $file = pathinfo($imagePath, PATHINFO_BASENAME);
+            $disk->delete("{$dir}/md-{$file}");
+            $disk->delete("{$dir}/sm-{$file}");
+        }
+
+        // Eliminar imágenes de la galería
+        if ($post->gallery && is_array($post->gallery)) {
+            foreach ($post->gallery as $galleryPath) {
+                $galleryPath = preg_replace('#^/?storage/#', '', $galleryPath);
+                $disk->delete($galleryPath);
+
+                // Eliminar variantes
+                $dir = pathinfo($galleryPath, PATHINFO_DIRNAME);
+                $file = pathinfo($galleryPath, PATHINFO_BASENAME);
+                $disk->delete("{$dir}/md-{$file}");
+                $disk->delete("{$dir}/sm-{$file}");
+            }
+        }
     }
 }

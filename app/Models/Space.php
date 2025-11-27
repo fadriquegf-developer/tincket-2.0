@@ -48,9 +48,11 @@ class Space extends BaseModel
 
     protected static function booted()
     {
+        parent::boot();
         if (get_brand_capability() !== 'engine') {
             static::addGlobalScope(new BrandScope());
         }
+        Space::observe(\App\Observers\SpaceObserver::class);
     }
 
     public function getNameCityAttribute()
@@ -105,4 +107,26 @@ class Space extends BaseModel
         return \Storage::url($this->svg_path);
     }
 
+    public function getZonesSummaryAttribute()
+    {
+        $zones = $this->zones()->withCount('slots')->get();
+
+        if ($zones->isEmpty()) {
+            return 'Sin zonas configuradas';
+        }
+
+        $summary = $zones->map(function ($zone) {
+            return "{$zone->name} ({$zone->slots_count} butacas)";
+        })->join(', ');
+
+        return $summary;
+    }
+
+    // Método helper para validar configuración
+    public function hasCompleteConfiguration()
+    {
+        return $this->zones()->count() > 0 &&
+            $this->slots()->count() > 0 &&
+            $this->slots()->whereNotNull('zone_id')->count() === $this->slots()->count();
+    }
 }

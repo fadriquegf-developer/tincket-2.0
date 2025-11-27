@@ -37,74 +37,58 @@ return [
 
     'mailers' => [
 
+        // Tu mailer principal: Mandrill vía SMTP, con valores del .env de producción
         'smtp' => [
-            'transport' => 'smtp',
-            'host' => env('MAIL_HOST'),
-            'port' => env('MAIL_PORT'),
-            'encryption' => env('MAIL_ENCRYPTION'),
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
-            'timeout' => null,
-            'auth_mode' => null,
+            'transport'  => 'smtp',
+            'host'       => env('MAIL_HOST', 'smtp.mandrillapp.com'), 
+            'port'       => env('MAIL_PORT', 2525),
+            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+            'username'   => env('MAIL_USERNAME'),  
+            'password'   => env('MAIL_PASSWORD'),
+            'timeout'    => null,
+            'auth_mode'  => null,
         ],
 
+        // ALIAS opcional "mandrill": usa SMTP igualmente (así nada rompe si alguien lo solicita por nombre)
         'mandrill' => [
-            'transport' => 'smtp',
-            'host' => 'smtp.mandrillapp.com',
-            'port' => 587,
+            'transport'  => 'smtp',
+            'host'       => 'smtp.mandrillapp.com',
+            'port'       => 587,
             'encryption' => 'tls',
-            'username' => env('MANDRILL_USERNAME', 'apikey'), // o el email remitente
-            'password' => env('MANDRILL_SECRET'),             // la API key
-            'timeout' => null,
-            'auth_mode' => null,
+            // Mandrill recomienda username "apikey" + password = API key:
+            'username'   => env('MANDRILL_USERNAME', 'apikey'),
+            'password'   => env('MANDRILL_SECRET'),
+            'timeout'    => null,
+            'auth_mode'  => null,
         ],
 
-        'ses' => [
-            'transport' => 'ses',
-        ],
+        'ses' => ['transport' => 'ses'],
 
         'postmark' => [
             'transport' => 'postmark',
             // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
-            // 'client' => [
-            //     'timeout' => 5,
-            // ],
+            // 'client' => ['timeout' => 5],
         ],
 
-        'resend' => [
-            'transport' => 'resend',
-        ],
+        'resend' => ['transport' => 'resend'],
 
         'sendmail' => [
             'transport' => 'sendmail',
-            'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
+            'path'      => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
         ],
 
-        'log' => [
-            'transport' => 'log',
-            'channel' => env('MAIL_LOG_CHANNEL'),
-        ],
+        'log'   => ['transport' => 'log', 'channel' => env('MAIL_LOG_CHANNEL')],
+        'array' => ['transport' => 'array'],
 
-        'array' => [
-            'transport' => 'array',
-        ],
-
+        // Opcional: failover y roundrobin si los usas
         'failover' => [
             'transport' => 'failover',
-            'mailers' => [
-                'smtp',
-                'log',
-            ],
+            'mailers'   => ['smtp', 'log'],
         ],
-
         'roundrobin' => [
             'transport' => 'roundrobin',
-            'mailers' => [
-                'ses',
-                'postmark',
-            ],
+            'mailers'   => ['ses', 'postmark'],
         ],
-
     ],
 
     /*
@@ -119,8 +103,33 @@ return [
     */
 
     'from' => [
-        'address' => 'noreply@yesweticket.com',
-        'name' => 'Tickets YesWeTicket.com',
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@yesweticket.com'),
+        'name'    => env('MAIL_FROM_NAME', 'YesWeTicket'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cart Confirmation Class
+    |--------------------------------------------------------------------------
+    |
+    | Default mail class used for cart confirmation emails when a brand
+    | does not have a specific mail.confirmation_class configured in
+    | brand_settings table.
+    |
+    */
+
+    'confirmation_class' => \App\Mail\Impl\DefaultCartConfirmation::class,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Group Cart Tickets in a single document
+    |--------------------------------------------------------------------------
+    |
+    | By default we send every single ticket in a separate attached document.
+    | Set this to true to merge ALL cart tickets in a single document.
+    |
+    */
+
+    'merge_attachments' => env('MAIL_MERGE_ATTACHMENTS', false),
 
 ];

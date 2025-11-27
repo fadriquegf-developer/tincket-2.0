@@ -20,7 +20,7 @@ class RegisterInputCrudController extends CrudController
     {
         CRUD::setModel(RegisterInput::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/register-input');
-        CRUD::setEntityNameStrings(__('backend.menu.input'), __('backend.menu.inputs'));
+        CRUD::setEntityNameStrings(__('menu.input'), __('menu.inputs'));
     }
 
 

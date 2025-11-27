@@ -27,8 +27,7 @@ class SettingsAdvancedCrudController extends CrudController
 
         CRUD::setModel(Setting::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/custom-settings/advanced');
-        CRUD::setEntityNameStrings(__('backend.menu.setting_advanced'), __('backend.menu.settings_advanced'));
-
+        CRUD::setEntityNameStrings(__('backend.settings_advanced.single'), __('backend.settings_advanced.plural'));
     }
 
     protected function setupListOperation(): void
@@ -50,15 +49,18 @@ class SettingsAdvancedCrudController extends CrudController
             'type' => 'text',
             'limit' => true,
         ]);
+
     }
 
     protected function setupCreateOperation(): void
     {
         CRUD::setValidation(SettingRequest::class);
+
         CRUD::addField([
             'name' => 'key',
             'label' => __('backend.settings_advanced.key'),
             'type' => 'text',
+            'hint' => __('backend.settings_advanced.key_hint'),
             'wrapper' => [
                 'class' => 'form-group col-md-6',
             ],
@@ -67,7 +69,8 @@ class SettingsAdvancedCrudController extends CrudController
         CRUD::addField([
             'name' => 'value',
             'label' => __('backend.settings_advanced.value'),
-            'type' => 'text',
+            'type' => 'textarea',
+            'hint' => __('backend.settings_advanced.value_hint'),
             'wrapper' => [
                 'class' => 'form-group col-md-6',
             ],

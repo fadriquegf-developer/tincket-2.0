@@ -26,19 +26,25 @@ class ClientUpdateApiRequest extends FormRequest
     public function rules()
     {
         return [
-            "name" => "required",
-            "surname" => "required",
+            "name" => "required|string|max:255",
+            "surname" => "required|string|max:255",
             "email" => [
                 "required",
                 "email",
                 "confirmed"
-                // TODO: Clean this.
-                // This rule has been moved in a After Hook.
-                // email duplicates will be verified only by API.
-                //\Illuminate\Validation\Rule::unique('clients')->ignore($client_id->id)->where('brand_id', $brand_id);
-                ],
-            "phone" => "required",
-            "email_confirmation" => "required"
+            ],
+            "phone" => "required|string|max:20",
+            "email_confirmation" => "required|email",
+
+            // ✅ AÑADIDOS: Campos opcionales
+            "newsletter" => "nullable|boolean",
+            "date_birth" => "nullable|date",
+            "dni" => "nullable|string|max:20",
+            "province" => "nullable|string|max:100",
+            "city" => "nullable|string|max:100",
+            "address" => "nullable|string|max:255",
+            "postal_code" => "nullable|string|max:10",
+            "mobile_phone" => "nullable|string|max:20",
         ];
     }
 
@@ -57,7 +63,6 @@ class ClientUpdateApiRequest extends FormRequest
      *
      * @return bool
      */
-
     public function emailExists($validator)
     {
         $brand_id = request()->get('brand')->id;
@@ -69,5 +74,4 @@ class ClientUpdateApiRequest extends FormRequest
             ->where('id', '!=', $client_id)
             ->exists();
     }
-
 }

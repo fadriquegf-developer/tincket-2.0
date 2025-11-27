@@ -1,6 +1,6 @@
 <?php
 
 return [
-    // Define aquí los IDs de los superusuarios.
-    'ids' => [1],
+    // Usar variable de entorno para mayor flexibilidad
+    'ids' => array_map('intval', explode(',', env('SUPERUSER_IDS', '1'))),
 ];

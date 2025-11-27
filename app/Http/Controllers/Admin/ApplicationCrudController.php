@@ -33,7 +33,7 @@ class ApplicationCrudController extends CrudController
 
         CRUD::setModel(\App\Models\Application::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/application');
-        CRUD::setEntityNameStrings(__('backend.menu.application'), __('backend.menu.applications'));
+        CRUD::setEntityNameStrings(__('menu.application'), __('menu.applications'));
         CRUD::denyAccess('delete');
     }
 

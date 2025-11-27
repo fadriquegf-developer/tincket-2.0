@@ -19,11 +19,13 @@ class ValidationController extends CrudController
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use CrudPermissionTrait;
 
+    protected ?string $customPermissionName = 'validations';
+
     public function setup()
     {
         CRUD::setModel(Session::class);
         CRUD::setRoute(backpack_url('validation'));
-        CRUD::setEntityNameStrings('validación', 'validaciones');
+        CRUD::setEntityNameStrings(__('menu.validation'), __('menu.validation'));
         $this->setAccessUsingPermissions();
     }
 
@@ -53,7 +55,7 @@ class ValidationController extends CrudController
             'label' => __('backend.validation.free_positions'),
             'type' => 'closure',
             'function' => function ($entry) {
-                return $entry->count_free_positions . '/' . $entry->max_places;
+                return $entry->getFreePositions() . '/' . $entry->max_places;
             },
         ]);
 
@@ -62,8 +64,8 @@ class ValidationController extends CrudController
             'label' => __('backend.validation.validated_in'),
             'type' => 'closure',
             'function' => function ($entry) {
-                $validatedIn = $entry->count_validated - $entry->count_validated_out;
-                return "{$validatedIn}/{$entry->count_validated}";
+                $validatedIn = $entry->getValidatedCount() - $entry->getValidatedOutCount();
+                return "{$validatedIn}/{$entry->getValidatedCount()}";
             },
             'wrapper' => ['class' => 'hidden-xs hidden-sm'],
         ]);
@@ -73,7 +75,7 @@ class ValidationController extends CrudController
             'label' => __('backend.validation.validated_out'),
             'type' => 'closure',
             'function' => function ($entry) {
-                return "{$entry->count_validated_out}/{$entry->count_validated}";
+                return "{$entry->getValidatedOutCount()}/{$entry->getValidatedCount()}";
             },
             'wrapper' => ['class' => 'hidden-xs hidden-sm'],
         ]);
@@ -179,7 +181,7 @@ class ValidationController extends CrudController
         }
 
         // 7. Cuántas inscripciones hay validadas en la sesión real de la inscripción
-        $nValidated = $inscription ? $inscription->session->count_validated : 0;
+        $nValidated = $inscription ? $inscription->session->getValidatedCount() : 0;
 
         // 8. Preparamos la respuesta
         $data = [

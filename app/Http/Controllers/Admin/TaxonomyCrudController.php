@@ -22,7 +22,7 @@ class TaxonomyCrudController extends CrudController
     {
         CRUD::setModel(Taxonomy::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/taxonomy');
-        CRUD::setEntityNameStrings(__('backend.menu.taxonomy'), __('backend.menu.taxonomies'));
+        CRUD::setEntityNameStrings(__('menu.taxonomy'), __('menu.taxonomies'));
 
         $this->setAccessUsingPermissions();
         CRUD::allowAccess('reorder');

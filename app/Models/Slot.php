@@ -2,156 +2,41 @@
 
 namespace App\Models;
 
-use Carbon\Carbon;
-use Illuminate\Support\Collection;
+use App\Services\RedisSlotsService;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
-/**
- * An slot is the area/place where spectator is located during a session
- */
 class Slot extends BaseModel
 {
-
-    // this is a JSON stored in cache that we don't want it to JSON output.
-    // See App\Services\Api\SlotCacheService.    
-    protected $hidden = ['rates_info'];
-    protected $casts = [
-        'is_locked' => 'boolean'
-    ];
+    protected $table = 'slots';
     public $timestamps = false;
 
+    protected $hidden = ['rates_info'];
+    protected $casts = [
+        'is_locked' => 'boolean',
+        'x' => 'integer',
+        'y' => 'integer',
+        'zone_id' => 'integer',
+        'space_id' => 'integer',
+        'status_id' => 'integer'
+    ];
 
+    protected $fillable = [
+        'name',
+        'x',
+        'y',
+        'zone_id',
+        'space_id',
+        'status_id',
+        'comment'
+    ];
+
+    /**
+     * Relaciones básicas
+     */
     public function zone()
     {
         return $this->belongsTo(Zone::class);
-    }
-
-
-    public function rates()
-    {
-        // Validación mejorada
-        if (!isset($this->pivot_session_id) || !$this->pivot_session_id) {
-            \Log::warning("Slot rates() called without pivot_session_id", [
-                'slot_id' => $this->id,
-                'trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)
-            ]);
-
-            // Retornar una relación vacía en lugar de lanzar excepción
-            return $this->morphToMany(
-                Rate::class,
-                'assignated_rate',
-                'assignated_rates',
-                'assignated_rate_id',
-                'rate_id'
-            )->whereRaw('1=0'); // Esto asegura que no se devuelvan resultados
-        }
-
-        return $this->morphToMany(
-            Rate::class,
-            'assignated_rate',
-            'assignated_rates',
-            'assignated_rate_id',
-            'rate_id'
-        )
-            ->wherePivot('assignated_rate_type', self::class)
-            ->wherePivot('session_id', $this->pivot_session_id)
-            ->withPivot([
-                'id',
-                'price',
-                'session_id',
-                'max_on_sale',
-                'max_per_order',
-                'assignated_rate_type',
-                'available_since',
-                'available_until',
-                'is_public',
-                'is_private',
-                'max_per_code',
-                'validator_class'
-            ]);
-    }
-
-
-    /**
-     * Because an Slot can belong to different Inscription (but only one confirmed),
-     * it will be only possible to access to Inscription from Slot if we have arrived
-     * here using the inscription->slot relation
-     * 
-     * @return \Illuminate\Database\Eloquent\Relations\HasOne
-     * @throws \Exception
-     */
-    public function getInscriptionAttribute()
-    {
-        if ($this->relationLoaded('inscription')) {
-            return $this->getRelation('inscription');
-        }
-
-        if (!isset($this->pivot_session_id)) {
-            throw new \Exception("Slot for which Session? pivot_session_id attribute needs to be set");
-        }
-
-
-        $inscriptions = Inscription::sharedLock()->select(['inscriptions.*'])
-            ->join('carts', 'carts.id', '=', 'inscriptions.cart_id')
-            ->where(function ($query) {
-                // an slot belongs to and inscription if it is: confirmed or still not expired
-                return $query
-                    ->whereNotNull('carts.confirmation_code') // confirmed
-                    ->orWhere('carts.expires_on', '>', Carbon::now()) // or not expired
-                ;
-            })
-            ->where('inscriptions.slot_id', $this->id)
-            ->where('inscriptions.session_id', $this->pivot_session_id)
-            ->get();
-
-        if ($inscriptions->count() > 1) {
-            $headers = 'From: noreply@javajan.com' . "\r\n" .
-                'Reply-To: noreply@javajan.com' . "\r\n" .
-                'X-Mailer: PHP/' . phpversion();
-            $message = sprintf("More than one Inscription related to this Slot (%s) for Session ID (%s). This should not be possible", $this->id, $this->pivot_session_id);
-            $email_sent = mail('fadrique.javajan@gmail.com', 'TINCKET: Conflicte de butaques', $message, $headers);
-            logger()->warning(sprintf("%s. Notified by mail: %s", $message, $email_sent));
-        }
-
-        $this->setRelation('inscription', $inscriptions->first());
-
-        return $this->getRelation('inscription');
-    }
-
-    public function session()
-    {
-        if (!isset($this->pivot_session_id)) {
-            throw new \Exception('$this->pivot_session_id must be set to retrieve session');
-        }
-
-        $builder = Session::select(['sessions.*', \DB::raw("$this->pivot_session_id as session_id")]);
-
-        return new BelongsTo(
-            $builder,
-            $this,
-            'pivot_session_id',
-            'id',
-            'session'
-        );
-    }
-
-    public function sessionSlot()
-    {
-        if (!isset($this->pivot_session_id)) {
-            throw new \Exception("Slot for which Session? pivot_session_id attribute needs to be set");
-        }
-
-        return $this->hasMany(SessionSlot::class)->where('session_id', $this->pivot_session_id)->whereNotNull('status_id');
-    }
-
-    public function sessionTempSlot()
-    {
-        if (!isset($this->pivot_session_id)) {
-            throw new \Exception("Slot for which Session? pivot_session_id attribute needs to be set");
-        }
-
-        return $this->hasMany(SessionTempSlot::class)->where('session_id', $this->pivot_session_id)->notExpired()->whereNotNull('status_id');
     }
 
     public function space()
@@ -160,137 +45,168 @@ class Slot extends BaseModel
     }
 
     /**
-     * Unlike cascade_rate which returns only public rates, this methods
-     * returns the cascade of all rates: public or not
+     * Verificar disponibilidad usando Redis
      */
-
-    public function getAllCascadeRatesAttribute()
+    public function isAvailableForSession(int $sessionId, bool $isTicketOffice = false, bool $isForPack = false): bool
     {
-        if (!isset($this->pivot_session_id)) {
-            return collect();
+        $session = Session::find($sessionId);
+        if (!$session) {
+            return false;
         }
 
-        // Propaga el session_id a la zona
-        if ($this->zone) {
-            $this->zone->pivot_session_id = $this->pivot_session_id;
+        $service = new RedisSlotsService($session);
+        return $service->isSlotAvailable($this->id, $isTicketOffice, $isForPack);
+    }
+
+    /**
+     * Obtener inscripción para una sesión
+     */
+    public function getInscriptionForSession(int $sessionId)
+    {
+        $cacheKey = "inscription:{$sessionId}:{$this->id}";
+
+        return Cache::tags(["session:{$sessionId}", "slot:{$this->id}"])
+            ->remember($cacheKey, 60, function () use ($sessionId) {
+                return Inscription::where('slot_id', $this->id)
+                    ->where('session_id', $sessionId)
+                    ->whereHas('cart', function ($q) {
+                        $q->where(function ($query) {
+                            $query->whereNotNull('confirmation_code')
+                                ->orWhere('expires_on', '>', now());
+                        });
+                    })
+                    ->first();
+            });
+    }
+
+    /**
+     * Obtener tarifas para una sesión
+     */
+    public function getRatesForSession(int $sessionId, bool $publicOnly = true)
+    {
+        $cacheKey = "rates:{$sessionId}:slot:{$this->id}:" . ($publicOnly ? 'public' : 'all');
+
+        return Cache::tags(["session:{$sessionId}", "slot:{$this->id}"])
+            ->remember($cacheKey, 300, function () use ($sessionId, $publicOnly) {
+                // Obtener tarifas desde AssignatedRate
+                return AssignatedRate::where('session_id', $sessionId)
+                    ->where('assignated_rate_type', Zone::class)
+                    ->where('assignated_rate_id', $this->zone_id)
+                    ->when($publicOnly, fn($q) => $q->where('is_public', true))
+                    ->with('rate:id,name')
+                    ->get()
+                    ->map(function ($ar) {
+                        return [
+                            'id' => $ar->rate->id,
+                            'name' => $ar->rate->name,
+                            'price' => $ar->price,
+                            'max_on_sale' => $ar->max_on_sale,
+                            'max_per_order' => $ar->max_per_order,
+                            'is_public' => $ar->is_public
+                        ];
+                    });
+            });
+    }
+
+    /**
+     * Obtener estado completo del slot para una sesión
+     */
+    public function getStateForSession(int $sessionId)
+    {
+        $session = Session::find($sessionId);
+        if (!$session) {
+            return null;
         }
 
-        $sessionRates = $this->session?->rates()->get() ?? collect();
-        $zoneRates = $this->zone?->rates()->get() ?? collect();
-        $slotRates = $this->rates()->get();
+        $service = new RedisSlotsService($session);
+        $config = $service->getConfiguration();
 
-        \Log::debug('Slot all_cascade_rates', [
-            'slot_id' => $this->id,
-            'session_id' => $this->pivot_session_id,
-            'session_rates_count' => $sessionRates->count(),
-            'zone_rates_count' => $zoneRates->count(),
-            'slot_rates_count' => $slotRates->count(),
-        ]);
+        // Buscar el slot en la configuración
+        foreach ($config['zones'] ?? [] as $zone) {
+            foreach ($zone['slots'] ?? [] as $slot) {
+                if ($slot['id'] == $this->id) {
+                    return (object) $slot;
+                }
+            }
+        }
 
-        return $sessionRates
-            ->merge($zoneRates)
-            ->merge($slotRates)
-            ->unique('id')
-            ->sortBy(fn($r) => $r->pivot->id ?? PHP_INT_MAX)
-            ->values();
+        return null;
     }
 
-    public function getCascadeRatesAttribute()
+    /**
+     * Limpiar cache del slot
+     */
+    public function clearCache(int $sessionId): void
     {
-        $rates = collect([])->keyBy('id')
-            ->merge($this->session->rates()->wherePivot('is_public', true)->getResults())
-            ->merge($this->zone->rates()->wherePivot('is_public', true)->getResults())
-            ->merge($this->rates()->wherePivot('is_public', true)->getResults());
+        Cache::tags(["session:{$sessionId}", "slot:{$this->id}"])->flush();
 
-        return $rates->keyBy('id')->sortBy('pivot.id')->values();
+        // Invalidar configuración completa
+        $session = Session::find($sessionId);
+        if ($session) {
+            $service = new RedisSlotsService($session);
+            $service->invalidateSlot($this->id);
+        }
     }
 
+    /**
+     * Precargar disponibilidad masiva
+     */
+    public static function preloadAvailability(array $slotIds, int $sessionId, bool $isTicketOffice = false, bool $isForPack = false): array
+    {
+        if (empty($slotIds)) {
+            return [];
+        }
+
+        $session = Session::find($sessionId);
+        if (!$session) {
+            return [];
+        }
+
+        $service = new RedisSlotsService($session);
+        return $service->checkBulkAvailability($slotIds, $isTicketOffice, $isForPack);
+    }
+
+    /**
+     * Métodos de compatibilidad con código legacy
+     */
     public function isAvailableFor($session_id, $isticketOffice = false, $isForAPack = false)
     {
-        $this->pivot_session_id = $session_id;
-
-        return $this->getIsAvailableAttribute($isticketOffice, $isForAPack);
+        return $this->isAvailableForSession($session_id, $isticketOffice, $isForAPack);
     }
 
-    public function getIsAvailableAttribute($isTicketOffice = false, $isForAPack = false)
+    public function getInscription($sessionId = null)
     {
-        // Verificar si los slots tienen un status que no permite la disponibilidad
-        $auxSessionSlot = $this->sessionSlot()->whereNotNull('status_id')->where('status_id', '!=', 6);
-        $auxSessionTempSlot = $this->sessionTempSlot()->whereNotNull('status_id')->where('status_id', '!=', 6);
-
-        // Condiciones especiales para taquilla
-        if ($isTicketOffice) {
-            $this->applyTicketOfficeConditions($auxSessionSlot, $auxSessionTempSlot);
+        if (!$sessionId && isset($this->pivot_session_id)) {
+            $sessionId = $this->pivot_session_id;
         }
 
-        // Condiciones especiales para packs
-        if ($isForAPack) {
-            $this->applyPackConditions($auxSessionSlot, $auxSessionTempSlot);
+        if (!$sessionId) {
+            return null;
         }
 
-        // Verificar condiciones de inscripción y carrito
-        $isSlotAvailable = $this->checkInscriptionAndCart();
-
-
-        // Verificar que no haya slots con status conflictivos
-        $noConflictingSlots = $auxSessionSlot->count() === 0 && $auxSessionTempSlot->count() === 0;
-
-        // El slot está disponible si se cumplen ambas condiciones
-        return $isSlotAvailable && $noConflictingSlots;
+        return $this->getInscriptionForSession($sessionId);
     }
 
     /**
-     * Aplica condiciones específicas para taquilla, ignorando ciertos status.
-     */
-    private function applyTicketOfficeConditions($sessionSlot, $tempSessionSlot)
-    {
-        // Ignorar slots reservados y de reducción de movilidad en taquilla
-        $sessionSlot->whereNotIn('status_id', [3, 7]);
-        $tempSessionSlot->whereNotIn('status_id', [3, 7]);
-    }
-
-    /**
-     * Aplica condiciones específicas para packs, ignorando ciertos status.
-     */
-    private function applyPackConditions($sessionSlot, $tempSessionSlot)
-    {
-        // Ignorar slots reservados para packs
-        $sessionSlot->where('status_id', '!=', 8);
-        $tempSessionSlot->where('status_id', '!=', 8);
-    }
-
-    /**
-     * Verifica las condiciones de disponibilidad del slot basadas en la inscripción y el carrito.
-     */
-    private function checkInscriptionAndCart()
-    {
-        $inscription = $this->inscription;
-        $cart = $inscription ? $inscription->cart : null;
-
-        // Slot disponible solo si no tiene inscripción o carrito, o si el carrito ha expirado y no está confirmado
-        if (!$inscription || !$cart) {
-            return true; // Disponible porque no hay inscripción o carrito
-        }
-
-        return $cart->is_expired && !$cart->is_confirmed;
-    }
-
-
-    /**
-     * Converts the product to array.
-     *
-     * @return array
+     * Este método ya no es necesario con Redis
+     * Lo mantenemos para compatibilidad pero retorna un array vacío
      */
     public function arrayCacheSlot()
     {
+        if (!isset($this->pivot_session_id)) {
+            throw new \Exception('arrayCacheSlot requires pivot_session_id to be set');
+        }
+
+        $state = $this->getStateForSession($this->pivot_session_id);
+
         return [
             "session_id" => $this->pivot_session_id,
             "slot_id" => $this->id,
-            "zone_id" => $this->pivot_zone_id,
-            "cart_id" => !$this->is_available && isset($this->inscription->cart) ? $this->inscription->cart->id : null,
-            "is_locked" => !$this->is_available,
-            "comment" => $this->comment,
-            "rates_info" => $this->all_cascade_rates
+            "zone_id" => $this->pivot_zone_id ?? $this->zone_id,
+            "cart_id" => $state->cart_id ?? null,
+            "is_locked" => (bool)($state->is_locked ?? false),
+            "comment" => $state->comment ?? $this->comment,
+            "rates_info" => $state->rates ?? []
         ];
     }
 }

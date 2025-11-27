@@ -21,9 +21,11 @@ class PostCrudController extends CrudController
     use CrudPermissionTrait;
     use AllowUsersTrait;
     use ListOperation;
-    use CreateOperation { store as traitStore;
+    use CreateOperation {
+        store as traitStore;
     }
-    use UpdateOperation { update as traitUpdate;
+    use UpdateOperation {
+        update as traitUpdate;
     }
     use DeleteOperation;
     use \Backpack\Pro\Http\Controllers\Operations\DropzoneOperation;
@@ -36,10 +38,9 @@ class PostCrudController extends CrudController
 
         CRUD::setModel(Post::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/post');
-        CRUD::setEntityNameStrings(__('backend.menu.post'), __('backend.menu.posts'));
+        CRUD::setEntityNameStrings(__('menu.post'), __('menu.posts'));
 
         CRUD::allowAccess('show');
-
     }
 
     protected function setupListOperation()
@@ -64,10 +65,20 @@ class PostCrudController extends CrudController
                 'label' => __('backend.post.taxonomies'),
             ],
             function () {
-                $taxonomy_id = optional($this->brand->extra_config)->posting_taxonomy_id;
-                return $taxonomy_id
-                    ? Taxonomy::whereParentId($taxonomy_id)->pluck('name', 'id')->toArray()
-                    : [];
+                $brand = get_current_brand();
+                $taxonomy_id = $brand->extra_config['posting_taxonomy_id'] ?? null;
+
+                if (!$taxonomy_id) {
+                    return [];
+                }
+
+                return Taxonomy::where('parent_id', $taxonomy_id)
+                    ->active()
+                    ->get()
+                    ->mapWithKeys(fn($tax) => [
+                        $tax->id => $tax->getTranslation('name', app()->getLocale())
+                    ])
+                    ->toArray();
             },
             function ($value) {
                 CRUD::addClause('whereHas', 'taxonomies', function ($query) use ($value) {
@@ -100,6 +111,7 @@ class PostCrudController extends CrudController
             'label' => __('backend.post.publish_on'),
             'type' => 'date.str'
         ]);
+        CRUD::addButtonFromView('top', 'page_help', 'page_help', 'end');
     }
 
     protected function setupCreateOperation()
@@ -140,11 +152,7 @@ class PostCrudController extends CrudController
         CRUD::addField([
             'name' => 'publish_on',
             'label' => __('backend.post.publish'),
-            'type' => 'datetime_picker',
-            'datetime_picker_options' => [
-                'format' => 'DD/MM/YYYY HH:mm',
-                'language' => 'ca',
-            ],
+            'type' => 'datetime',
             'wrapperAttributes' => ['class' => 'form-group col-md-6'],
         ]);
 
@@ -171,7 +179,6 @@ class PostCrudController extends CrudController
                     'pivot' => true,
                 ]);
             }
-
         }
 
         CRUD::addField([
@@ -201,10 +208,11 @@ class PostCrudController extends CrudController
             'type' => 'image',
             'crop' => true,
             'upload' => true,
+            'prefix' => 'storage/', // Solo añadir storage/ al renderizar
             'withFiles' => [
                 'disk' => 'public',
                 'uploader' => WebpImageUploader::class,
-                'path' => 'uploads/' . get_current_brand()->code_name . '/post/' . ($this->crud->getCurrentEntry()?->id ?? 'temp') . '/',
+                'path' => 'uploads/' . get_current_brand()->code_name . '/post/',
                 'resize' => [
                     'max' => 1200,
                 ],

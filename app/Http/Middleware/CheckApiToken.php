@@ -13,15 +13,11 @@ class CheckApiToken
      * Maneja la solicitud entrante validando el token.
      *
      * @param  Request  $request
-     * @param  Closure(Request): Response  $next
+     * @param  Closure(Request) $next
      * @return Response
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
-        \Log::info('CheckApiToken middleware triggered', [
-            'headers' => $request->headers->all(),
-            'ip' => $request->ip(),
-        ]);
         $token = $request->header('X-TK-APPLICATION-KEY');
 
         if ($this->validateToken($token, $request)) {

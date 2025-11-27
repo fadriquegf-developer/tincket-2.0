@@ -73,6 +73,27 @@ class Page extends BaseModel
             '<i class="la la-eye"></i> ' . __('backend.page.open') . '</a>';
     }
 
+    /**
+     * Obtener URL absoluta de la imagen para emails
+     */
+    public function getImageUrlAttribute(): string
+    {
+        // Las páginas no tienen campo image directo
+        // Si tienes imagen en extras o algún otro campo, adaptarlo aquí
+        $image = $this->extras['image'] ?? null;
 
+        if (!$image) {
+            return '';
+        }
 
+        if (filter_var($image, FILTER_VALIDATE_URL)) {
+            return $image;
+        }
+
+        if (str_starts_with($image, 'storage/')) {
+            return url($image);
+        }
+
+        return url('storage/' . ltrim($image, '/'));
+    }
 }

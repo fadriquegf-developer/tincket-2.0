@@ -14,7 +14,10 @@ function mountFilters() {
     if (!el) return;
 
     /* recibimos filtros y traducciones en props */
-    const { filters: initial, t } = JSON.parse(el.dataset.props || "{}");
+    const {
+        filters: initial,
+        t
+    } = JSON.parse(el.dataset.props || "{}");
     const today = new Date().toISOString().slice(0, 10);
 
     const App = {
@@ -83,9 +86,9 @@ function mountFilters() {
 
             const hasFilters = Vue.computed(
                 () =>
-                    filters.from !== today ||
-                    filters.to !== today ||
-                    filters.breakdown !== "U"
+                filters.from !== today ||
+                filters.to !== today ||
+                filters.breakdown !== "U"
             );
 
             const fmt = (d) => (d ? d.replace(/-/g, "") : null);
@@ -97,6 +100,10 @@ function mountFilters() {
                             from: fmt(filters.from),
                             to: fmt(filters.to),
                             breakdown: filters.breakdown,
+                            filters: {
+                                from: filters.from,
+                                to: filters.to
+                            }
                         },
                     })
                 );
@@ -110,7 +117,13 @@ function mountFilters() {
             }
 
             Vue.onMounted(generate);
-            return { filters, hasFilters, generate, reset, t };
+            return {
+                filters,
+                hasFilters,
+                generate,
+                reset,
+                t
+            };
         },
     };
 
@@ -125,18 +138,26 @@ function mountResults() {
     if (!el) return;
 
     /* sólo recibimos las traducciones */
-    const { t } = JSON.parse(el.dataset.props || "{}");
+    const {
+        t
+    } = JSON.parse(el.dataset.props || "{}");
 
     const results = Vue.ref([]);
     const breakdown = Vue.ref("U");
     const loading = Vue.ref(false);
+    const currentFilters = Vue.ref({});
 
     const columnMap = {
-        U: [
-            { label: t.seller, field: "name" },
-            { label: t.inscriptions ?? "Inscripciones", field: "count" },
+        U: [{
+                label: t.seller,
+                field: "name"
+            },
             {
-                label: t.cash ?? "Pago en efectivo",
+                label: t.inscriptions ?? "Inscripciones",
+                field: "count"
+            },
+            {
+                label: t.cash ?? "Pago en efectiu",
                 field: "totalCash",
                 format: money,
             },
@@ -145,17 +166,39 @@ function mountResults() {
                 field: "totalCard",
                 format: money,
             },
-            { label: t.total ?? "Total", field: "sum", format: money },
+            {
+                label: t.total ?? "Total",
+                field: "sum",
+                format: money
+            },
         ],
-        E: [
-            { label: t.event, field: "name" },
-            { label: t.inscriptions ?? "Inscripciones", field: "count" },
-            { label: t.total ?? "Total", field: "sum", format: money },
+        E: [{
+                label: t.event,
+                field: "name"
+            },
+            {
+                label: t.inscriptions ?? "Inscripciones",
+                field: "count"
+            },
+            {
+                label: t.total ?? "Total",
+                field: "sum",
+                format: money
+            },
         ],
-        P: [
-            { label: t.promoter, field: "name" },
-            { label: t.inscriptions ?? "Inscripciones", field: "count" },
-            { label: t.total ?? "Total", field: "sum", format: money },
+        P: [{
+                label: t.promoter,
+                field: "name"
+            },
+            {
+                label: t.inscriptions ?? "Inscripciones",
+                field: "count"
+            },
+            {
+                label: t.total ?? "Total",
+                field: "sum",
+                format: money
+            },
         ],
     };
 
@@ -169,10 +212,13 @@ function mountResults() {
     async function fetchResults(params) {
         loading.value = true;
         breakdown.value = params.breakdown;
+        currentFilters.value = params.filters || {};
         results.value = [];
 
         try {
-            const { data } = await axios.get("/api/statistics/balance", {
+            const {
+                data
+            } = await axios.get("/api/statistics/balance", {
                 params,
             });
             results.value = data;
@@ -189,11 +235,18 @@ function mountResults() {
       <div class="card rounded border-xs shadow-xs">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
            <h3 class="card-title mb-0">{{ t.results }}</h3>
-            <button class="btn btn-outline-secondary btn-sm pe-2"
+           <div class="btn-group">
+            <button class="btn btn-outline-secondary btn-sm"
+                   @click="exportPdf"
+                   :disabled="!results.length">
+                <i class="la la-file-pdf me-1"></i> PDF
+            </button>
+            <button class="btn btn-outline-secondary btn-sm"
                    @click="exportCsv"
                    :disabled="!results.length">
                 <i class="la la-download me-1"></i> CSV
             </button>
+           </div>
         </div>
 
         <div v-if="loading" class="py-5 text-center">
@@ -225,6 +278,7 @@ function mountResults() {
             const columns = Vue.computed(
                 () => columnMap[breakdown.value] ?? []
             );
+
             function exportCsv() {
                 if (!results.value.length) return;
 
@@ -242,11 +296,11 @@ function mountResults() {
                 const csvLines = [header, ...rows]
                     .map(
                         (r) =>
-                            r
-                                .map(
-                                    (v) => `"${String(v).replace(/"/g, '""')}"` // escapado básico
-                                )
-                                .join(";") // separador punto-y-coma
+                        r
+                        .map(
+                            (v) => `"${String(v).replace(/"/g, '""')}"` // escapado básico
+                        )
+                        .join(";") // separador punto-y-coma
                     )
                     .join("\n");
 
@@ -260,7 +314,73 @@ function mountResults() {
                 link.click();
                 URL.revokeObjectURL(link.href);
             }
-            return { results, columns, loading, t, exportCsv };
+
+            function exportPdf() {
+                if (!results.value.length) return;
+
+                const {
+                    jsPDF
+                } = window.jspdf;
+                const doc = new jsPDF();
+
+                // Título
+                doc.setFontSize(18);
+                doc.text(t.title || 'Estadísticas de Balance', 14, 22);
+                doc.setFontSize(11);
+                doc.setTextColor(100);
+
+                let nextY = 30;
+
+                // Información de fechas si están disponibles
+                if (currentFilters.value.from && currentFilters.value.to) {
+                    const fromDate = new Date(currentFilters.value.from).toLocaleDateString('es-ES');
+                    const toDate = new Date(currentFilters.value.to).toLocaleDateString('es-ES');
+                    doc.text(`Período: ${fromDate} - ${toDate}`, 14, nextY);
+                    nextY += 10;
+                }
+
+                // Preparar datos para la tabla
+                const tableData = results.value.map((row) =>
+                    columns.value.map((c) =>
+                        c.format ? c.format(row[c.field]) : row[c.field]
+                    )
+                );
+
+                const headers = columns.value.map((c) => c.label);
+
+                doc.autoTable({
+                    head: [headers],
+                    body: tableData,
+                    startY: nextY,
+                    styles: {
+                        fontSize: 10
+                    },
+                    headStyles: {
+                        fillColor: [66, 139, 202]
+                    },
+                    didDrawPage: function (data) {
+                        // Footer
+                        const now = new Date();
+                        const dateStr = now.toLocaleString('es-ES');
+                        const str = `Generado el ${dateStr}`;
+
+                        doc.setFontSize(10);
+                        const pageSize = doc.internal.pageSize;
+                        const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+                        doc.text(str, data.settings.margin.left, pageHeight - 10);
+                    }
+                });
+
+                doc.save(`balance_${breakdown.value}_${Date.now()}.pdf`);
+            }
+            return {
+                results,
+                columns,
+                loading,
+                t,
+                exportCsv,
+                exportPdf
+            };
         },
     };
 

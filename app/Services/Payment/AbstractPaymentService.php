@@ -5,6 +5,7 @@ namespace App\Services\Payment;
 use App\Models\Cart;
 use App\Models\Payment;
 use Illuminate\Http\Request;
+use App\Services\MailerService;
 use App\Services\TpvConfigurationDecoder;
 
 /**
@@ -68,8 +69,10 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         $payment = $this->payment;
         $cart = $payment->cart;
 
-        // Check if any other cart has the same session_id and slot_id pairs
-        $duplicated_cart = Cart::where('brand_id', '=', $cart->brand_id)
+        if ($cart->gift_cards()->exists() && !$cart->allInscriptions()->exists()) {
+            $duplicated_cart = null;
+        } else {
+            $duplicated_cart = Cart::where('brand_id', '=', $cart->brand_id)
             ->whereNotNull('confirmation_code')
             ->where('confirmation_code', 'not like', 'XXXXXXXXX%') // Exclude any confirmation_code containing 'XXXXXXXXX' ya que son los que han enviado el email de pago, suele ser XXXXXXXXX-{id_cart}
             ->with('allInscriptions')
@@ -85,16 +88,20 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
                     }
                 });
             })->first();
-
+        }
 
         if ($duplicated_cart) {
             \Log::error('Duplicate error Cart id: ' . $cart->id);
             try {
                 // Send email user
-                $mailer = (new \App\Services\MailerBrandService($cart->brand->code_name))->getMailer();
+                $mailer = app(MailerService::class)->getMailerForBrand($cart->brand);
                 $mailer->to(trim($cart->client->email))->send(new \App\Mail\ErrorDuplicate($payment, $cart, $duplicated_cart));
             } catch (\Exception $e) {
-                \Log::error('Duplicate error and the email could not be sent. Cart id: ' . $cart->id);
+                \Log::error('Duplicate error and the email could not be sent', [
+                    'cart_id' => $cart->id,
+                    'exception' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         }
 
@@ -117,7 +124,7 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
     public function confirmedPayment()
     {
         // Email sending, pdf generation and so on will be done by Event Queue
-        \App\Jobs\CartConfirm::dispatch($this->payment->cart, ['pdf' => config('base.inscription.ticket-web-params')]);
+        \App\Jobs\CartConfirm::dispatch($this->payment->cart, ['pdf' => brand_setting('base.inscription.ticket-web-params')]);
     }
 
     public function getConfigDecoder(): ?TpvConfigurationDecoder

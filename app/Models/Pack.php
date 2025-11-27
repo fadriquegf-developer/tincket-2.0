@@ -13,7 +13,7 @@ use App\Traits\HasTranslations;
 
 class Pack extends BaseModel
 {
-    
+
     use HasTranslations;
     use CrudTrait;
     use SetsBrandOnCreate;
@@ -89,27 +89,25 @@ class Pack extends BaseModel
      */
     public function getEventsAttribute()
     {
-
         if (!$this->relationLoaded('events')) {
             $id = $this->id;
-            $events = Event::
-                distinct()
+            $events = Event::distinct()
                 ->join('sessions', 'events.id', '=', 'sessions.event_id')
                 ->whereHas('sessions.packs', function ($query) use ($id) {
                     return $query->where('packs.id', $id);
                 })
                 ->with([
                     'next_sessions' => function ($query) use ($id) {
-                        // we do not return all Sessions of Event. Only Sessions
-                        // contained in Pack and with at least on Rate
-                        $query
-                            ->has('all_rates')
+                        $query->has('allRates')
                             ->whereHas('packs', function ($query) use ($id) {
-                            $query->where('packs.id', $id);
-                        });
+                                $query->where('packs.id', $id);
+                            })
+                            // 🔧 FIX: Cargar space para el layout
+                            ->with(['space', 'event']);
                     }
                 ])
                 ->get(['events.*']);
+
             $this->setRelation('events', $events);
         }
 
@@ -145,5 +143,4 @@ class Pack extends BaseModel
 
         return $this->attributes['slug'];
     }
-
 }

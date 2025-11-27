@@ -58,5 +58,8 @@ return [
         'loading'   => 'Carregant…',
         'user'      => 'Usuari',
         'no_data'   => 'No hi ha dades disponibles',
+        'payment_method' => 'Mètode de pagament',
+        'cash' => 'efectiu',
+        'card' => 'targeta',
     ],
 ];
