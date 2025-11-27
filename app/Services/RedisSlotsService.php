@@ -616,7 +616,8 @@ class RedisSlotsService
             return [];
         }
 
-        $cacheKey = "{$this->brandPrefix}:rates:s{$this->session->id}:z{$zoneId}";
+        $locale = app()->getLocale();
+        $cacheKey = "{$this->brandPrefix}:rates:s{$this->session->id}:z{$zoneId}:{$locale}";
 
         // Incluir showPrivateRates en la cache key
         if ($this->showPrivateRates) {
@@ -725,7 +726,8 @@ class RedisSlotsService
 
     private function getConfigKey(): string
     {
-        return "{$this->brandPrefix}:config:s{$this->session->id}:v" . self::CACHE_VERSION;
+        $locale = app()->getLocale();
+        return "{$this->brandPrefix}:config:s{$this->session->id}:v" . self::CACHE_VERSION . ":{$locale}";
     }
 
     private function getAvailabilityKey(int $slotId, bool $isTicketOffice, bool $isForPack): string

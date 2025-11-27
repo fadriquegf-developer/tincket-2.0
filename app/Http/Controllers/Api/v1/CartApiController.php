@@ -16,18 +16,21 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Services\PaymentSlotLockService;
 
 class CartApiController extends \App\Http\Controllers\Api\ApiController
 {
     private CartService $service;
     private PaymentServiceFactory $paymentServiceFactory;
     private InscriptionService $inscriptionService;
+    private PaymentSlotLockService $paymentSlotLockService;
 
     public function __construct()
     {
         $this->service = new CartService();
         $this->paymentServiceFactory = new PaymentServiceFactory();
         $this->inscriptionService = new InscriptionService();
+        $this->paymentSlotLockService = new PaymentSlotLockService();
 
         // Middleware para verificar expiración y confirmación
         $this->middleware(\App\Http\Middleware\Api\v1\CartExpiration::class)
@@ -396,6 +399,9 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
      */
     public function getPayment($id)
     {
+        // ─────────────────────────────────────────────────────────────────────
+        // PASO 1: Buscar el carrito (sin cambios)
+        // ─────────────────────────────────────────────────────────────────────
         $cart = $this->getCartBuilder($id)
             ->notExpired()
             ->whereNull('confirmation_code')
@@ -409,6 +415,65 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
             return $this->json(['error' => 'Carrito no válido'], 404);
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // PASO 2: ✅ NUEVO - Verificar y bloquear slots antes de pagar
+        // ─────────────────────────────────────────────────────────────────────
+        // 
+        // ¿Qué hace lockSlotsForPayment()?
+        //   1. Verifica que cada slot no haya sido vendido a otro cliente
+        //   2. Verifica que cada slot no esté siendo pagado por otro carrito
+        //   3. Marca cada slot como "in_payment" en Redis (TTL 10 min)
+        //   4. Extiende la fecha de expiración del carrito
+        // 
+        // Si algún slot no está disponible, lanza SlotNotAvailableException
+        // con los detalles de qué slots tienen problemas.
+
+        try {
+            $lockResult = $this->paymentSlotLockService->lockSlotsForPayment($cart);
+
+            // Log para debugging (opcional, puedes quitarlo en producción)
+            Log::info('Payment slots locked successfully', [
+                'cart_id' => $cart->id,
+                'locked_slots' => count($lockResult['locked_slots'] ?? []),
+                'cart_expires_on' => $lockResult['cart_expires_on'] ?? null
+            ]);
+        } catch (SlotNotAvailableException $e) {
+            // ─────────────────────────────────────────────────────────────────
+            // Algún slot no está disponible - devolver error 409
+            // ─────────────────────────────────────────────────────────────────
+            // 
+            // El frontend debe manejar este error mostrando un mensaje como:
+            // "Algunos asientos ya no están disponibles. Por favor, revisa tu carrito."
+            // 
+            // La respuesta incluye detalles de qué slots tienen problemas:
+            // {
+            //     "error": "slot_not_available",
+            //     "message": "Algunos asientos ya no están disponibles",
+            //     "conflicts": [
+            //         {
+            //             "slot_id": 123,
+            //             "slot_name": "Fila A, Butaca 5",
+            //             "reason": "already_sold"
+            //         }
+            //     ]
+            // }
+
+            Log::warning('Payment blocked - slots not available', [
+                'cart_id' => $cart->id,
+                'conflicts' => $e->getConflicts()
+            ]);
+
+            return $this->json([
+                'error' => 'slot_not_available',
+                'message' => $e->getMessage(),
+                'conflicts' => $e->getConflicts(),
+                'conflict_slot_ids' => $e->getConflictSlotIds()
+            ], 409);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // PASO 3: Crear payment y devolver datos (sin cambios)
+        // ─────────────────────────────────────────────────────────────────────
         try {
             $platform = $cart->price_sold == 0 ? 'Free' : 'Redsys_Redirect';
             $service = $this->paymentServiceFactory->create($platform);
@@ -416,6 +481,22 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
 
             return $this->json($service->getData());
         } catch (\Exception $e) {
+            // ─────────────────────────────────────────────────────────────────
+            // Si falla la creación del payment, liberar los locks
+            // ─────────────────────────────────────────────────────────────────
+            // Esto es importante para no dejar slots bloqueados si algo falla
+            // después de haberlos bloqueado.
+
+            try {
+                $this->paymentSlotLockService->releasePaymentLocks($cart);
+            } catch (\Exception $releaseError) {
+                Log::error('Failed to release payment locks after error', [
+                    'cart_id' => $cart->id,
+                    'original_error' => $e->getMessage(),
+                    'release_error' => $releaseError->getMessage()
+                ]);
+            }
+
             Log::error('Error procesando pago', [
                 'cart_id' => $cart->id,
                 'error' => $e->getMessage(),
@@ -425,6 +506,53 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
             return $this->json([
                 'error' => 'No se pudo procesar el pago'
             ], 500);
+        }
+    }
+
+    /**
+     * Verificar disponibilidad de slots antes de pagar
+     * 
+     * Este endpoint es OPCIONAL pero mejora la experiencia de usuario.
+     * El frontend puede llamarlo antes de mostrar el formulario de pago
+     * para verificar que los slots siguen disponibles.
+     * 
+     * Si los slots están disponibles, devuelve 200 OK.
+     * Si hay conflictos, devuelve 409 Conflict con detalles.
+     * 
+     * @param int $id ID del carrito
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkSlotsAvailability($id)
+    {
+        $cart = $this->getCartBuilder($id)
+            ->notExpired()
+            ->whereNull('confirmation_code')
+            ->first();
+
+        if (!$cart) {
+            return $this->json(['error' => 'Carrito no válido'], 404);
+        }
+
+        try {
+            // Usamos el mismo método que getPayment() pero sin bloquear
+            // Solo verificamos disponibilidad
+            $result = $this->paymentSlotLockService->lockSlotsForPayment($cart);
+
+            // Si llegamos aquí, los slots fueron bloqueados exitosamente
+            // Los mantenemos bloqueados porque el usuario va a pagar
+
+            return $this->json([
+                'available' => true,
+                'slots_count' => count($result['locked_slots'] ?? []),
+                'cart_expires_on' => $result['cart_expires_on'] ?? null
+            ]);
+        } catch (SlotNotAvailableException $e) {
+            return $this->json([
+                'available' => false,
+                'message' => $e->getMessage(),
+                'conflicts' => $e->getConflicts(),
+                'conflict_slot_ids' => $e->getConflictSlotIds()
+            ], 409);
         }
     }
 

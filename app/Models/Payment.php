@@ -18,7 +18,19 @@ class Payment extends BaseModel
         'order_code',
         'gateway',
         'gateway_response',
-        'paid_at'
+        'paid_at',
+        'requires_refund',
+        'refund_reason',
+        'refund_details',
+        'refunded_at',
+        'refund_reference',
+    ];
+
+    protected $casts = [
+        'requires_refund' => 'boolean',
+        'refund_details' => 'array',
+        'refunded_at' => 'datetime',
+        'paid_at' => 'datetime',
     ];
 
     public function cart()
@@ -75,5 +87,94 @@ class Payment extends BaseModel
         }
 
         return null;
+    }
+
+    /**
+     * Marcar este pago como pendiente de reembolso
+     * 
+     * @param string $reason Motivo del reembolso (duplicate_slots, expired_session, etc.)
+     * @param array $details Detalles adicionales del conflicto
+     * @return self
+     */
+    public function markForRefund(string $reason, array $details = []): self
+    {
+        $this->requires_refund = true;
+        $this->refund_reason = $reason;
+        $this->refund_details = array_merge($details, [
+            'marked_at' => now()->toIso8601String(),
+        ]);
+        $this->save();
+
+        return $this;
+    }
+
+    /**
+     * Marcar el reembolso como procesado
+     * 
+     * @param string|null $reference Código de referencia del reembolso
+     * @return self
+     */
+    public function markAsRefunded(?string $reference = null): self
+    {
+        $this->refunded_at = now();
+        $this->refund_reference = $reference;
+
+        // Añadir al historial de detalles
+        $details = $this->refund_details ?? [];
+        $details['refunded_at'] = now()->toIso8601String();
+        $details['refund_reference'] = $reference;
+        $this->refund_details = $details;
+
+        $this->save();
+
+        return $this;
+    }
+
+    /**
+     * ¿Este pago está pendiente de reembolso?
+     * 
+     * @return bool
+     */
+    public function isPendingRefund(): bool
+    {
+        return $this->requires_refund && is_null($this->refunded_at);
+    }
+
+    /**
+     * ¿Este pago ya fue reembolsado?
+     * 
+     * @return bool
+     */
+    public function isRefunded(): bool
+    {
+        return $this->requires_refund && !is_null($this->refunded_at);
+    }
+
+    /**
+     * Scope: Pagos pendientes de reembolso
+     * 
+     * Uso: Payment::pendingRefund()->get()
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopePendingRefund($query)
+    {
+        return $query->where('requires_refund', true)
+            ->whereNull('refunded_at');
+    }
+
+    /**
+     * Scope: Pagos ya reembolsados
+     * 
+     * Uso: Payment::refunded()->get()
+     * 
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function scopeRefunded($query)
+    {
+        return $query->where('requires_refund', true)
+            ->whereNotNull('refunded_at');
     }
 }

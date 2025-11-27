@@ -1,5 +1,20 @@
 <?php
-// app/Services/Payment/Impl/PaymentSermepaSoapService.php
+
+/**
+ * ════════════════════════════════════════════════════════════════════════════
+ * PaymentRedsysSoapService - VERSIÓN CORREGIDA
+ * ════════════════════════════════════════════════════════════════════════════
+ * 
+ * CAMBIO PRINCIPAL: Se elimina el método confirmPayment() duplicado.
+ * Ahora usa el del padre (AbstractPaymentService) que tiene la protección
+ * contra race conditions.
+ * 
+ * ¿Por qué?
+ * - El confirmPayment() que tenía era código duplicado
+ * - Hacía exactamente lo mismo que el padre
+ * - Tenía un bug: no llamaba a confirmedPayment() al final
+ * - Ahora hereda la protección con PaymentSlotLockService
+ */
 
 namespace App\Services\Payment\Impl;
 
@@ -81,6 +96,10 @@ class PaymentRedsysSoapService extends AbstractPaymentService
 
         // 5) Valida firma y confirma
         if ($this->isPaymentSuccessful(request())) {
+            // ════════════════════════════════════════════════════════════════
+            // CAMBIO: Ahora usa el confirmPayment() del padre
+            // que tiene la protección contra race conditions
+            // ════════════════════════════════════════════════════════════════
             $this->confirmPayment();
             $this->success = true;
         } else {
@@ -92,10 +111,13 @@ class PaymentRedsysSoapService extends AbstractPaymentService
         return $this->createResponseXML();
     }
 
+    /**
+     * Carga la configuración del TPV desde el payment
+     */
     protected function loadTpvConfiguration(): void
     {
         if (!$this->payment->tpv_id) {
-            // ✅ Cargar inscripciones con sesiones, deshabilitando BrandScope
+            // Cargar inscripciones con sesiones, deshabilitando BrandScope
             $this->payment->cart->load(['allInscriptions' => function ($q) {
                 $q->withoutGlobalScope(\App\Scopes\BrandScope::class)
                     ->with(['session' => function ($sq) {
@@ -172,60 +194,17 @@ class PaymentRedsysSoapService extends AbstractPaymentService
         return $this->payment;
     }
 
-    /**
-     * Marca como confirmado, gestiona duplicados y dispara el job.
-     */
-    public function confirmPayment(): void
-    {
-        $payment = $this->payment;
-        $cart = $payment->cart;
-
-        // --- lógica de duplicados tal cual tenías ---
-        $duplicated = Cart::where('brand_id', $cart->brand_id)
-            ->whereNotNull('confirmation_code')
-            ->where('confirmation_code', 'NOT LIKE', 'XXXXXXXXX%')
-            ->where('id', '!=', $cart->id)
-            ->whereHas('allInscriptions', function ($q) use ($cart) {
-                $q->where(function ($q) use ($cart) {
-                    foreach ($cart->allInscriptions as $insc) {
-                        $q->orWhere(
-                            fn($q2) =>
-                            $q2->whereNotNull('slot_id')
-                                ->where('session_id', $insc->session_id)
-                                ->where('slot_id', $insc->slot_id)
-                        );
-                    }
-                });
-            })
-            ->first();
-
-        if ($duplicated) {
-            Log::error("Carrito duplicado #{$cart->id}");
-            try {
-                $mailer = app(MailerService::class)->getMailerForBrand($cart->brand);
-                $mailer->to($cart->client->email)
-                    ->send(new \App\Mail\ErrorDuplicate($payment, $cart, $duplicated));
-            } catch (\Throwable $e) {
-                Log::error("Error enviando mail duplicado: {$e->getMessage()}");
-            }
-            return;
-        }
-
-        // --- confirmación normal ---
-        $cart->confirmation_code = $payment->order_code;
-        $cart->save();
-
-        $payment->paid_at = now();
-        $payment->gateway = $this->gateway_code;
-        $payment->gateway_response = json_encode($this->getJsonResponse());
-        $payment->save();
-
-        // --- dispatch Job ---
-        \App\Jobs\CartConfirm::dispatch(
-            $cart,
-            ['pdf' => config('base.inscription.ticket-web-params')]
-        );
-    }
+    // ════════════════════════════════════════════════════════════════════════
+    // ELIMINADO: confirmPayment()
+    // ════════════════════════════════════════════════════════════════════════
+    // 
+    // El método confirmPayment() que estaba aquí era código duplicado del padre.
+    // Ahora usa el de AbstractPaymentService que tiene:
+    //   - Lock distribuido para evitar callbacks simultáneos
+    //   - Marcado de pagos para reembolso
+    //   - Logs mejorados
+    //   - Liberación de locks de Redis
+    // ════════════════════════════════════════════════════════════════════════
 
     /**
      * Construye el XML de respuesta para Redsys SOAP.
@@ -257,10 +236,21 @@ class PaymentRedsysSoapService extends AbstractPaymentService
     }
 
     /**
-     * Devuelve el nombre del gateway (para el callback URL).
+     * Devuelve el nombre del gateway.
+     * 
+     * NOTA: Este método es necesario porque el padre llama a
+     * $this->getGateway()->getName() y en este servicio $this->gateway = $this
      */
     public function getName(): string
     {
         return $this->gateway_code;
+    }
+
+    /**
+     * Getter para el config decoder (usado por PaymentApiController)
+     */
+    public function getConfigDecoder(): ?TpvConfigurationDecoder
+    {
+        return $this->tpv_config ?? null;
     }
 }

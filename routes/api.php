@@ -40,6 +40,7 @@ Route::group(['middleware' => 'api', 'prefix' => 'v1', 'as' => 'api1.'], functio
         Route::delete('{cart}/{type}/{id}', [\App\Http\Controllers\Api\v1\CartApiController::class, 'destroy'])->name('destroy');
         Route::get('{cart}/extend-time', [\App\Http\Controllers\Api\v1\CartApiController::class, 'extendTime'])->name('extend-time');
         Route::get('{cart}/expired-time', [\App\Http\Controllers\Api\v1\CartApiController::class, 'expiredTime'])->name('expired-time');
+        Route::get('{cart}/check-slots', [\App\Http\Controllers\Api\v1\CartApiController::class, 'checkSlotsAvailability'])->name('check-slots');
     });
 
     Route::group(['prefix' => 'payment', 'as' => 'payment.'], function () {

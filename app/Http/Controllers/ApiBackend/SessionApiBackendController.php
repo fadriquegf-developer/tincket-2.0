@@ -18,6 +18,8 @@ class SessionApiBackendController extends Controller
      */
     public function getConfiguration($sessionId)
     {
+        app()->setLocale(brand_setting('app.locale'));
+
         $session = Session::findOrFail($sessionId);
         $session->checkBrandOwnership();
 

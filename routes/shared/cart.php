@@ -18,6 +18,7 @@ Route::middleware(['web', 'auth:backpack'])->group(function () {
     Route::get('cart/{cart}/send-mail-payment', [\App\Http\Controllers\Admin\CartCrudController::class, 'sendPaymentEmail']);
     Route::post('cart/payment-office', [\App\Http\Controllers\Admin\CartCrudController::class, 'paymentOffice'])->name('crud.cart.payment-office');
     Route::post('cart/{cart}/change-gateway', [\App\Http\Controllers\Admin\CartCrudController::class, 'changeGateway'])->name('crud.cart.change-gateway');
+    Route::post('cart/{id}/mark-refunded', [\App\Http\Controllers\Admin\CartCrudController::class, 'markRefunded'])->name('crud.cart.mark-refunded');
 
     // Ticket Office
     Route::resource('ticket-office', \App\Http\Controllers\Admin\TicketOfficeController::class)

@@ -581,4 +581,61 @@ class CartCrudController extends CrudController
         Alert::success('Cliente cambiado correctamente')->flash();
         return redirect()->back();
     }
+
+    /**
+     * Marcar un pago como reembolsado manualmente
+     */
+    public function markRefunded(Request $request, $id)
+    {
+        $cart = Cart::withoutGlobalScope(BrandScope::class)->findOrFail($id);
+
+        // Verificar permisos
+        if (!auth()->check() || !auth()->user()->isSuperuser()) {
+            Alert::error(__('refund.no_permission') ?? 'No tienes permisos para esta acción')->flash();
+            return redirect()->back();
+        }
+
+        // Verificar que el pago existe y necesita reembolso
+        if (!$cart->payment || !$cart->payment->needs_refund) {
+            Alert::error(__('refund.not_pending') ?? 'Este pago no está marcado para reembolso')->flash();
+            return redirect()->back();
+        }
+
+        if ($cart->payment->refunded_at) {
+            Alert::warning(__('refund.already_refunded') ?? 'Este pago ya fue marcado como reembolsado')->flash();
+            return redirect()->back();
+        }
+
+        // Validar
+        $validated = $request->validate([
+            'refund_reference' => 'required|string|max:100',
+            'refund_notes' => 'nullable|string|max:500'
+        ]);
+
+        // Actualizar el pago
+        $cart->payment->update([
+            'refunded_at' => now(),
+            'refund_reference' => $validated['refund_reference']
+        ]);
+
+        // Añadir nota al comentario si se proporcionó
+        if (!empty($validated['refund_notes'])) {
+            $cart->comment = trim($cart->comment . "\n\n[REEMBOLSO " . now()->format('d/m/Y H:i') . "]\n" . $validated['refund_notes']);
+            $cart->save();
+        }
+
+        // Log
+        \Log::info('Payment marked as refunded', [
+            'cart_id' => $cart->id,
+            'payment_id' => $cart->payment->id,
+            'refund_reference' => $validated['refund_reference'],
+            'amount' => $cart->payment->amount ?? $cart->priceSold,
+            'user_id' => auth()->id(),
+            'user_email' => auth()->user()->email
+        ]);
+
+        Alert::success(__('refund.success') ?? 'Pago marcado como reembolsado correctamente')->flash();
+
+        return redirect()->back();
+    }
 }
