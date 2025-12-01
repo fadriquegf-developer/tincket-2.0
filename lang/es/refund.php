@@ -91,4 +91,104 @@ return [
     // Otros
     'external_application' => 'Aplicación externa (:name)',
     'steps' => 'Pasos: 1) Accede al panel de Redsys → 2) Realiza la devolución → 3) Marca como reembolsado aquí',
+    // ───────────────────────────────────────────────────────────────────────────
+    // Devolución parcial
+    // ───────────────────────────────────────────────────────────────────────────
+    
+    'partial_refund_button' => 'Devolución parcial',
+    'partial_refund_title' => 'Devolución Parcial',
+    'partial_refund_submit' => 'Crear solicitud de devolución',
+    'partial_refund_description' => 'Selecciona las inscripciones que deseas devolver. Las butacas se liberarán automáticamente.',
+    
+    // Estados de devolución parcial
+    'partial_status' => [
+        'pending' => 'Pendiente',
+        'processing' => 'Procesando',
+        'completed' => 'Completado',
+        'failed' => 'Fallido',
+    ],
+    
+    // Mensajes
+    'partial_success' => 'Devolución parcial creada correctamente.',
+    'partial_error_no_inscriptions' => 'Debe seleccionar al menos una inscripción para devolver.',
+    'partial_error_all_inscriptions' => 'No puede devolver todas las inscripciones con devolución parcial. Use la opción de devolución completa.',
+    'partial_error_invalid_inscriptions' => 'Las inscripciones seleccionadas no son válidas o ya fueron devueltas.',
+    
+    // Historial
+    'partial_history_title' => 'Historial de devoluciones parciales',
+    'partial_history_empty' => 'No hay devoluciones parciales registradas.',
+    'partial_inscriptions_count' => ':count inscripciones',
+    
+    // Tabla
+    'table_event_session' => 'Evento / Sesión',
+    'table_seat' => 'Butaca',
+    'table_rate' => 'Tarifa',
+    'table_price' => 'Precio',
+    'table_total_to_refund' => 'Total a devolver',
+    'table_select_all' => 'Seleccionar todas',
+    
+    // Resumen
+    'summary_original_amount' => 'Importe original',
+    'summary_total_refunded' => 'Ya devuelto',
+    'summary_remaining' => 'Restante',
+
+    // Botones principales
+    'partial_refund_button' => 'Devolución parcial',
+    'partial_refund_title' => 'Devolución Parcial',
+    'partial_refund_submit' => 'Crear solicitud de devolución',
+    'cancel' => 'Cancelar',
+
+    // Loading y estados
+    'loading' => 'Cargando...',
+    'loading_inscriptions' => 'Cargando inscripciones...',
+    'processing' => 'Procesando...',
+
+    // Resumen del carrito
+    'code' => 'Código',
+    'original_amount' => 'Importe original',
+    'already_refunded' => 'Ya devuelto',
+
+    // Instrucciones
+    'instructions_title' => 'Instrucciones',
+    'instructions_text' => 'Selecciona las inscripciones que deseas devolver. Las butacas se liberarán automáticamente.',
+
+    // Tabla de inscripciones
+    'select_all' => 'Seleccionar todas',
+    'event_session' => 'Evento / Sesión',
+    'seat' => 'Butaca',
+    'rate' => 'Tarifa',
+    'price' => 'Precio',
+    'total_to_refund' => 'Total a devolver',
+
+    // Formulario
+    'select_reason' => 'Motivo de la devolución',
+    'select_option' => '-- Seleccionar --',
+    'notes_label' => 'Notas adicionales',
+    'notes_placeholder' => 'Ej: Cliente llamó para cancelar',
+
+    // Motivos de devolución
+    'reasons' => [
+        'customer_request' => 'Solicitud del cliente',
+        'event_cancelled' => 'Evento cancelado',
+        'duplicate_payment' => 'Pago duplicado',
+        'admin_manual' => 'Reembolso manual por admin',
+        'other' => 'Otro motivo',
+    ],
+
+    // Historial
+    'refund_history_title' => 'Historial de devoluciones parciales',
+    'view_inscriptions' => 'Ver inscripciones',
+    'reference' => 'Ref',
+
+    // Mensajes de validación y alertas
+    'select_at_least_one' => 'Selecciona al menos una inscripción',
+    'select_reason_required' => 'Selecciona un motivo para la devolución',
+    'cannot_select_all' => 'No puede seleccionar todas las inscripciones. Para devolver todo el carrito, use la opción de devolución completa.',
+    'confirm_partial_refund' => '¿Confirmar devolución parcial?',
+    'inscriptions_count' => 'Inscripciones',
+    'amount' => 'Importe',
+    'seats_will_be_released' => 'Las butacas se liberarán automáticamente.',
+    'error_prefix' => 'Error',
+    'error_loading_data' => 'Error al cargar los datos',
+    'error_processing_refund' => 'Error al procesar la devolución',
 ];

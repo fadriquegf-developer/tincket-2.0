@@ -91,4 +91,115 @@ return [
     // Outros
     'external_application' => 'Aplicación externa (:name)',
     'steps' => 'Pasos: 1) Accede ao panel de Redsys → 2) Realiza a devolución → 3) Marca como reembolsado aquí',
+    // ───────────────────────────────────────────────────────────────────────────────
+    // Devolución parcial
+    // ───────────────────────────────────────────────────────────────────────────────
+
+    'partial_refund_button' => 'Devolución parcial',
+    'partial_refund_title' => 'Devolución Parcial',
+    'partial_refund_submit' => 'Crear solicitude de devolución',
+    'partial_refund_description' => 'Selecciona as inscricións que desexas devolver. Os asentos liberaranse automaticamente.',
+    'partial_refund_instructions' => 'Selecciona as inscricións que desexas devolver. Os asentos liberaranse automaticamente.',
+    'partial_refund_loading' => 'Cargando inscricións...',
+    'partial_refund_confirm' => 'Confirmar devolución parcial?',
+    'partial_refund_processing' => 'Procesando...',
+
+    // Estados de devolución parcial
+    'partial_status' => [
+        'pending' => 'Pendente',
+        'processing' => 'Procesando',
+        'completed' => 'Completado',
+        'failed' => 'Fallido',
+    ],
+
+    // Mensaxes
+    'partial_success' => 'Devolución parcial creada correctamente.',
+    'partial_error_no_inscriptions' => 'Debes seleccionar polo menos unha inscrición para devolver.',
+    'partial_error_all_inscriptions' => 'Non podes devolver todas as inscricións con devolución parcial. Usa a opción de devolución completa.',
+    'partial_error_invalid_inscriptions' => 'As inscricións seleccionadas non son válidas ou xa foron devoltas.',
+    'partial_error_load' => 'Erro ao cargar os datos',
+
+    // Historial
+    'partial_history_title' => 'Historial de devolucións parciais',
+    'partial_history_empty' => 'Non hai devolucións parciais rexistradas.',
+    'partial_view_inscriptions' => 'Ver inscricións',
+
+    // Táboa
+    'table_event_session' => 'Evento / Sesión',
+    'table_seat' => 'Asento',
+    'table_rate' => 'Tarifa',
+    'table_price' => 'Prezo',
+    'table_total_to_refund' => 'Total a devolver',
+    'table_select_all' => 'Seleccionar todas',
+
+    // Resumo
+    'summary_code' => 'Código',
+    'summary_original_amount' => 'Importe orixinal',
+    'summary_total_refunded' => 'Xa devolto',
+    'summary_remaining' => 'Restante',
+
+    // Confirmación
+    'confirm_inscriptions' => 'Inscricións',
+    'confirm_amount' => 'Importe',
+    'confirm_seats_released' => 'Os asentos liberaranse automaticamente.',
+
+    // Botóns principais
+    'partial_refund_button' => 'Devolución parcial',
+    'partial_refund_title' => 'Devolución Parcial',
+    'partial_refund_submit' => 'Crear solicitude de devolución',
+    'cancel' => 'Cancelar',
+
+    // Loading e estados
+    'loading' => 'Cargando...',
+    'loading_inscriptions' => 'Cargando inscricións...',
+    'processing' => 'Procesando...',
+
+    // Resumo do carro
+    'code' => 'Código',
+    'original_amount' => 'Importe orixinal',
+    'already_refunded' => 'Xa devolto',
+
+    // Instrucións
+    'instructions_title' => 'Instrucións',
+    'instructions_text' => 'Selecciona as inscricións que desexas devolver. As butacas liberaranse automaticamente.',
+
+    // Táboa de inscricións
+    'select_all' => 'Seleccionar todas',
+    'event_session' => 'Evento / Sesión',
+    'seat' => 'Butaca',
+    'rate' => 'Tarifa',
+    'price' => 'Prezo',
+    'total_to_refund' => 'Total a devolver',
+
+    // Formulario
+    'select_reason' => 'Motivo da devolución',
+    'select_option' => '-- Seleccionar --',
+    'notes_label' => 'Notas adicionais',
+    'notes_placeholder' => 'Ex: O cliente chamou para cancelar',
+
+    // Motivos de devolución
+    'reasons' => [
+        'customer_request' => 'Solicitude do cliente',
+        'event_cancelled' => 'Evento cancelado',
+        'duplicate_payment' => 'Pago duplicado',
+        'admin_manual' => 'Reembolso manual por admin',
+        'other' => 'Outro motivo',
+    ],
+
+    // Historial
+    'refund_history_title' => 'Historial de devolucións parciais',
+    'view_inscriptions' => 'Ver inscricións',
+    'reference' => 'Ref',
+
+    // Mensaxes de validación e alertas
+    'select_at_least_one' => 'Selecciona polo menos unha inscrición',
+    'select_reason_required' => 'Selecciona un motivo para a devolución',
+    'cannot_select_all' => 'Non podes seleccionar todas as inscricións. Para devolver todo o carro, usa a opción de devolución completa.',
+    'confirm_partial_refund' => 'Confirmar devolución parcial?',
+    'inscriptions_count' => 'Inscricións',
+    'amount' => 'Importe',
+    'seats_will_be_released' => 'As butacas liberaranse automaticamente.',
+    'error_prefix' => 'Erro',
+    'error_loading_data' => 'Erro ao cargar os datos',
+    'error_processing_refund' => 'Erro ao procesar a devolución',
 ];

@@ -142,7 +142,7 @@
 
                                     {{-- Botón Eliminar --}}
                                     @can('carts.delete')
-                                    <a href="{{ route('inscription.destroy', $inscription->id) }}"
+                                    <a href="{{ route('cart.inscription.destroy', [$entry->id, $inscription->id]) }}"
                                         class="btn btn-sm btn-outline-danger pe-2"
                                         onclick="
                                             event.preventDefault();

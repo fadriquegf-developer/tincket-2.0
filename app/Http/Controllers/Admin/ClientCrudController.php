@@ -452,15 +452,10 @@ class ClientCrudController extends CrudController
         $this->crud->entry = $this->crud->model->findOrFail($request->id);
         $client = $this->crud->entry;
 
-        // AHORA actualizar el password si existe
         if ($newPassword !== null) {
             // Opción 1: Usar el mutador (recomendado)
             $client->password = $newPassword;
             $client->save();
-
-            // Verificar que funcionó
-            $client->refresh();
-            $canVerify = \Hash::check($newPassword, $client->password);
 
         }
 
@@ -468,30 +463,6 @@ class ClientCrudController extends CrudController
         if (class_exists('\App\Services\Api\ClientPreferencesService')) {
             (new \App\Services\Api\ClientPreferencesService())->update($client, $request);
         }
-
-        // Justo después de actualizar el password, añade esto:
-        if ($newPassword !== null) {
-            $client->password = $newPassword;
-            $client->save();
-
-            // DEBUGGING - REMOVER EN PRODUCCIÓN
-            $client->refresh();
-
-            // Test 1: Verificar que el password guardado es un hash válido
-            $isValidHash = strlen($client->password) === 60 && str_starts_with($client->password, '$2y$');
-
-            // Test 2: Verificar que podemos autenticar con el nuevo password
-            $canAuthenticate = \Hash::check($newPassword, $client->password);
-
-            // Test 3: Info del hash
-            $hashInfo = \Hash::info($client->password);
-
-            // Si no puede autenticar, mostrar alerta
-            if (!$canAuthenticate) {
-                Alert::warning('⚠️ Password guardado pero la verificación falló. Revisa los logs.')->flash();
-            }
-        }
-        // FIN DEBUGGING
 
         // Gestionar suscripción a Brevo
         $this->handleBrevoSubscription($client, $newsletterBefore);

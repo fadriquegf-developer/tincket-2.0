@@ -409,8 +409,8 @@ class PackCrudController extends CrudController
         foreach ($rules as $rule) {
 
             // Sanitizar valores: si son negativos los tratamos como NULL
-            $rule['price_pack'] = isset($rule['price_pack']) && $rule['price_pack'] >= 0 ? $rule['price_pack'] : null;
-            $rule['percent_pack'] = isset($rule['percent_pack']) && $rule['percent_pack'] >= 0 ? $rule['percent_pack'] : null;
+            $rule['price_pack'] = isset($rule['price_pack']) && $rule['price_pack'] >= 0 ? floatval($rule['price_pack']) : null;
+            $rule['percent_pack'] = isset($rule['percent_pack']) && $rule['percent_pack'] >= 0 ? floatval($rule['percent_pack']) : null;
 
             /* ----------- A) Regla existente (tiene ID) ----------- */
             if (!empty($rule['id'])) {

@@ -272,7 +272,7 @@
               &nbsp;<i>{{ $inscription->group_pack->pack->name }}</i>
               @endif
               <div class="text-small title-overflow">
-                 @php($metadata = is_array($inscription->metadata) ? $inscription->metadata : (json_decode($inscription->metadata, true) ?? []))
+                @php($metadata = is_array($inscription->metadata) ? $inscription->metadata : (json_decode($inscription->metadata, true) ?? []))
                 @if(!empty($metadata))
                     @foreach ($metadata as $property => $value )
                         <span class="text-muted">
@@ -315,7 +315,7 @@
       {{ __('tickets.footer-text') }}
       @if($inscription->session->event->custom_text)
         <div class="p-0 m-0">
-          {{ mb_strimwidth(strip_tags($inscription->session->event->custom_text), 0, 145, "...") }}
+          {{ mb_strimwidth(html_entity_decode(strip_tags($inscription->session->event->custom_text), ENT_QUOTES, 'UTF-8'), 0, 145, "...") }}
         </div>
       @endif
   </div>

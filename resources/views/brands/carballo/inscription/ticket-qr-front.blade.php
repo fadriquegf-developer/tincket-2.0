@@ -311,6 +311,20 @@
                     -
                     {{ $inscription->session->space->name }}
                 </h4>
+                @if($inscription->session->space->location)
+                    <p style="margin: 4px 0px 0px 0px; font-size: 16px;">
+                        @if($inscription->session->space->location->address)
+                            {{ $inscription->session->space->location->address }}
+                        @endif
+                        @if($inscription->session->space->location->city)
+                            @if($inscription->session->space->location->address), @endif
+                            {{ $inscription->session->space->location->city->name }}
+                        @endif
+                        @if($inscription->session->space->location->postal_code)
+                            - {{ $inscription->session->space->location->postal_code }}
+                        @endif
+                    </p>
+                @endif
             </div>
         </div>
     </div>
@@ -320,17 +334,15 @@
         <div class="row">
             <!-- Contenidor esquerra Info -->
             <div class="col-9" style="padding-right: 10px;">
-                <div
-                    style="border-top: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
+                <div style="border-top: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
                     @if (isset($inscription->group_pack->pack->name))
                         <b>{{ $inscription->group_pack->pack->name }}</b>
                     @else
-                        <b>ENTRADA ÚNICA - {{ $inscription->rate->getTranslation('name', $inscription->cart->client->locale) }}</b>
+                        <b>ENTRADA ÚNICA - {{ $inscription->rate->getTranslation('name', $inscription->cart->client->locale) }} - {{ number_format($inscription->price_sold, 2) }} €</b>
                     @endif
                 </div>
-                <div
-                    style="border-top: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
-                    @if ($inscription->session->event->name != $inscription->session->name)
+                <div style="border-top: 2px solid black; padding: 10px 0px; text-transform: uppercase; font-size: 18px;">
+                    @if ($inscription->session->event->name != $inscription->session->name && !empty($inscription->session->name))
                         <span>{{ $inscription->session->name }} - </span>
                     @endif
                     HORA:
@@ -349,7 +361,7 @@
                         {{ $inscription->slot->name }}
                     </div>
                 @endif
-                @php($metadata = json_decode($inscription->metadata))
+                @php($metadata = is_array($inscription->metadata) ? $inscription->metadata : (json_decode($inscription->metadata, true) ?? []))
                 @if (!empty($metadata))
                     <div style="border-top: 2px solid black; padding: 10px 0px; font-size: 18px;">
                         @foreach ($metadata as $property => $value)
@@ -390,25 +402,22 @@
                     {!! $inscription->session->event->custom_text !!}
                 </div>
             </div>
+
+            <div class="row">
+                <hr style="border-top: 2px solid black; margin-top: 6px; margin-bottom: 6px;">
+            </div>
         @endif
 
-        <!-- Linea divisoria -->
-        <div class="row">
-            <hr style="border-top: 2px solid black; margin-top: 6px; margin-bottom: 6px;">
-        </div>
-        <!-- Fin Linea divisoria -->
-
         <!-- Banners i Sponsors -->
-        <div class="row">
-            <div class="col-12 py">
-                @if ($inscription->getBanner() != null)
-                    <img src="{{ $inscription->getBanner() }}" style="width: 100%;" alt="Banner">
-                @endif
+        @if ($inscription->getBanner() != null)
+            <div class="row">
+                <div class="col-12 py">
+                        <img src="{{ $inscription->getBanner() }}" style="width: 100%;" alt="Banner">
+                </div>
             </div>
-        </div>
+        @endif
         <!-- Fin Banners y Sponsors -->
 
     </div>
 </body>
-
 </html>

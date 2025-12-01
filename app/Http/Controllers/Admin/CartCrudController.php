@@ -8,6 +8,7 @@ use setasign\Fpdi\Fpdi;
 use App\Scopes\BrandScope;
 use App\Models\Application;
 use App\Models\Inscription;
+use App\Models\PartialRefund;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Prologue\Alerts\Facades\Alert;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use App\Services\Payment\PaymentServiceFactory;
 use App\Services\Payment\RedsysRefundService;
+use App\Services\Payment\PartialRefundService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
@@ -844,5 +846,266 @@ class CartCrudController extends CrudController
         }
 
         return false;
+    }
+
+    public function destroyInscription($cartId, $inscriptionId)
+    {
+        $this->crud->hasAccessOrFail('delete');
+
+        $cart = \App\Models\Cart::findOrFail($cartId);
+
+        // Buscar inscripción sin BrandScope
+        $inscription = \App\Models\Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->where('cart_id', $cart->id)
+            ->findOrFail($inscriptionId);
+
+        if ($inscription->slot_id) {
+            try {
+                app(\App\Services\InscriptionService::class)->releaseSlot($inscription);
+            } catch (\Exception $e) {
+                \Log::warning('Error liberando slot', ['inscription_id' => $inscription->id, 'error' => $e->getMessage()]);
+                $inscription->delete();
+            }
+        } else {
+            $inscription->delete();
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Mostrar modal de devolución parcial con inscripciones disponibles
+     * 
+     * Este endpoint devuelve JSON con las inscripciones que se pueden devolver
+     */
+    public function getPartialRefundData($id)
+    {
+        $cart = Cart::withoutGlobalScope(BrandScope::class)
+            ->with(['inscriptions' => function ($q) {
+                $q->whereNull('deleted_at')
+                    ->with(['session.event', 'slot', 'rate']);
+            }])
+            ->findOrFail($id);
+
+        // Verificar permisos
+        if (!$this->canManageRefunds()) {
+            return response()->json([
+                'success' => false,
+                'message' => __('refund.no_permission'),
+            ], 403);
+        }
+
+        // Verificar que tiene pago
+        if (!$cart->payment || !$cart->payment->paid_at) {
+            return response()->json([
+                'success' => false,
+                'message' => __('refund.not_paid'),
+            ], 400);
+        }
+
+        // Obtener servicio y datos
+        $service = new PartialRefundService();
+        $inscriptions = $service->getRefundableInscriptions($cart);
+        $refundHistory = $service->getRefundHistory($cart);
+        $totalRefunded = $service->getTotalRefunded($cart);
+
+        // Formatear inscripciones para el frontend
+        $formattedInscriptions = $inscriptions->map(function ($inscription) {
+            return [
+                'id' => $inscription->id,
+                'event_name' => $inscription->session?->event?->name ?? 'Sin evento',
+                'session_name' => $inscription->session?->name ?? 'Sin sesión',
+                'session_date' => $inscription->session?->starts_on?->format('d/m/Y H:i'),
+                'slot_name' => $inscription->slot?->name ?? 'Sin butaca',
+                'rate_name' => $inscription->rate?->name ?? 'Sin tarifa',
+                'barcode' => $inscription->barcode,
+                'price_sold' => (float) $inscription->price_sold,
+                'price_sold_formatted' => number_format($inscription->price_sold, 2) . ' €',
+            ];
+        });
+
+        // Formatear historial
+        $formattedHistory = $refundHistory->map(function ($refund) {
+            return [
+                'id' => $refund->id,
+                'amount' => (float) $refund->amount,
+                'amount_formatted' => number_format($refund->amount, 2) . ' €',
+                'status' => $refund->status,
+                'status_badge' => $refund->status_badge,
+                'reason' => $refund->reason_text,
+                'refund_reference' => $refund->refund_reference,
+                'created_at' => $refund->created_at->format('d/m/Y H:i'),
+                'refunded_at' => $refund->refunded_at?->format('d/m/Y H:i'),
+                'inscription_count' => $refund->items->count(),
+                'items' => $refund->items->map(function ($item) {
+                    return [
+                        'slot_name' => $item->slot_name ?? 'Sin butaca',
+                        'rate_name' => $item->rate_name,
+                        'price_sold' => number_format($item->price_sold, 2) . ' €',
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'cart_id' => $cart->id,
+            'confirmation_code' => $cart->confirmation_code,
+            'original_amount' => (float) $cart->priceSold,
+            'original_amount_formatted' => number_format($cart->priceSold, 2) . ' €',
+            'total_refunded' => $totalRefunded,
+            'total_refunded_formatted' => number_format($totalRefunded, 2) . ' €',
+            'remaining_amount' => (float) ($cart->priceSold - $totalRefunded),
+            'remaining_amount_formatted' => number_format($cart->priceSold - $totalRefunded, 2) . ' €',
+            'inscriptions' => $formattedInscriptions,
+            'refund_history' => $formattedHistory,
+            'can_auto_refund' => $this->canAutoRefund($cart),
+        ]);
+    }
+
+    /**
+     * Crear solicitud de devolución parcial
+     */
+    public function requestPartialRefund(Request $request, $id)
+    {
+        $cart = Cart::withoutGlobalScope(BrandScope::class)->findOrFail($id);
+
+        // Verificar permisos
+        if (!$this->canManageRefunds()) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('refund.no_permission'),
+                ], 403);
+            }
+            Alert::error(__('refund.no_permission'))->flash();
+            return redirect()->back();
+        }
+
+        // Validar
+        $validated = $request->validate([
+            'inscription_ids' => 'required|array|min:1',
+            'inscription_ids.*' => 'required|integer|exists:inscriptions,id',
+            'refund_reason' => 'required|string|in:customer_request,event_cancelled,duplicate_payment,admin_manual,other',
+            'refund_notes' => 'nullable|string|max:500',
+        ]);
+
+        // Procesar
+        $service = new PartialRefundService();
+        $result = $service->createPartialRefund(
+            $cart,
+            $validated['inscription_ids'],
+            $validated['refund_reason'],
+            $validated['refund_notes'] ?? null
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json($result, $result['success'] ? 200 : 400);
+        }
+
+        if ($result['success']) {
+            Alert::success($result['message'])->flash();
+        } else {
+            Alert::error($result['message'])->flash();
+        }
+
+        return redirect()->back();
+    }
+
+    /**
+     * Procesar devolución parcial con Redsys
+     */
+    public function processPartialRefund(Request $request, $partialRefundId)
+    {
+        $partialRefund = PartialRefund::withoutGlobalScope(BrandScope::class)
+            ->findOrFail($partialRefundId);
+
+        // Verificar permisos (solo superadmin puede procesar automáticamente)
+        if (!auth()->user()->isSuperuser()) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('refund.no_permission_auto'),
+                ], 403);
+            }
+            Alert::error(__('refund.no_permission_auto'))->flash();
+            return redirect()->back();
+        }
+
+        $service = new PartialRefundService();
+        $result = $service->processWithRedsys($partialRefund);
+
+        if ($request->wantsJson()) {
+            return response()->json($result, $result['success'] ? 200 : 400);
+        }
+
+        if ($result['success']) {
+            Alert::success($result['message'])->flash();
+        } else {
+            Alert::error($result['message'])->flash();
+        }
+
+        return redirect()->back();
+    }
+
+    /**
+     * Marcar devolución parcial como completada manualmente
+     */
+    public function markPartialRefundCompleted(Request $request, $partialRefundId)
+    {
+        $partialRefund = PartialRefund::withoutGlobalScope(BrandScope::class)
+            ->findOrFail($partialRefundId);
+
+        // Verificar permisos
+        if (!$this->canManageRefunds()) {
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => __('refund.no_permission'),
+                ], 403);
+            }
+            Alert::error(__('refund.no_permission'))->flash();
+            return redirect()->back();
+        }
+
+        // Validar
+        $validated = $request->validate([
+            'refund_reference' => 'required|string|max:100',
+            'refund_notes' => 'nullable|string|max:500',
+        ]);
+
+        $service = new PartialRefundService();
+        $result = $service->markAsCompletedManually(
+            $partialRefund,
+            $validated['refund_reference'],
+            $validated['refund_notes'] ?? null
+        );
+
+        if ($request->wantsJson()) {
+            return response()->json($result, $result['success'] ? 200 : 400);
+        }
+
+        if ($result['success']) {
+            Alert::success($result['message'])->flash();
+        } else {
+            Alert::error($result['message'])->flash();
+        }
+
+        return redirect()->back();
+    }
+
+    /**
+     * Verificar si se puede hacer refund automático para este carrito
+     */
+    private function canAutoRefund(Cart $cart): bool
+    {
+        // Solo Redsys soporta devoluciones automáticas
+        if (!$cart->payment) {
+            return false;
+        }
+
+        $supportedGateways = ['redsys', 'Redsys'];
+        return in_array($cart->payment->gateway, $supportedGateways)
+            && auth()->user()?->isSuperuser();
     }
 }

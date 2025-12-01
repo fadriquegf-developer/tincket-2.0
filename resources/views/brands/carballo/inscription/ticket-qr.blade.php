@@ -269,7 +269,7 @@
               &nbsp;<i>{{ $inscription->group_pack->pack->name }}</i>
               @endif
               <div class="title-overflow">
-                @php($metadata = json_decode($inscription->metadata))
+                @php($metadata = is_array($inscription->metadata) ? $inscription->metadata : (json_decode($inscription->metadata, true) ?? []))
                 @if(!empty($metadata))
                     @foreach ($metadata as $property => $value )
                         <span class="text-muted">

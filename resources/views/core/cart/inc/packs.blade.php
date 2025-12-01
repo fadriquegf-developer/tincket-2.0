@@ -100,7 +100,7 @@
                                                 </ul>
                                             @endif
                                             <a href="#" class="btn btn-sm btn-outline-danger js-del-insc pe-2"
-                                                data-url="{{ route('inscription.destroy', $inscription->id) }}">
+                                                data-url="{{ route('cart.inscription.destroy', [$entry->id, $inscription->id]) }}">
                                                 <i class="la la-trash pe-1"></i> {{ __('backend.cart.inc.delete') }}
                                             </a>
                                         </div>

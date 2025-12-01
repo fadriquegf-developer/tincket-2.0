@@ -104,6 +104,32 @@ class Cart extends BaseModel
     }
 
     /**
+     * Obtener todas las devoluciones parciales de este carrito
+     */
+    public function partialRefunds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\PartialRefund::class);
+    }
+
+    /**
+     * Obtener las devoluciones parciales completadas
+     */
+    public function completedPartialRefunds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\PartialRefund::class)
+            ->where('status', \App\Models\PartialRefund::STATUS_COMPLETED);
+    }
+
+    /**
+     * Obtener las devoluciones parciales pendientes
+     */
+    public function pendingPartialRefunds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(\App\Models\PartialRefund::class)
+            ->where('status', \App\Models\PartialRefund::STATUS_PENDING);
+    }
+
+    /**
      * ✅ DESHABILITAR BrandScope para permitir packs de brands hijos
      */
     public function groupPacks()
@@ -244,5 +270,45 @@ class Cart extends BaseModel
         SessionTempSlot::where('cart_id', $this->id)->update(['expires_on' => $this->expires_on]);
 
         return $this->save();
+    }
+
+    /**
+     * Obtener el total devuelto en devoluciones parciales
+     */
+    public function getTotalPartialRefundedAttribute(): float
+    {
+        return $this->completedPartialRefunds()->sum('amount');
+    }
+
+    /**
+     * Obtener el importe restante después de devoluciones parciales
+     */
+    public function getRemainingAmountAttribute(): float
+    {
+        return $this->priceSold - $this->total_partial_refunded;
+    }
+
+    /**
+     * Verificar si el carrito tiene devoluciones parciales
+     */
+    public function hasPartialRefunds(): bool
+    {
+        return $this->partialRefunds()->exists();
+    }
+
+    /**
+     * Verificar si el carrito tiene devoluciones parciales pendientes
+     */
+    public function hasPendingPartialRefunds(): bool
+    {
+        return $this->pendingPartialRefunds()->exists();
+    }
+
+    /**
+     * Obtener el número de inscripciones activas (no devueltas)
+     */
+    public function getActiveInscriptionsCountAttribute(): int
+    {
+        return $this->inscriptions()->whereNull('deleted_at')->count();
     }
 }

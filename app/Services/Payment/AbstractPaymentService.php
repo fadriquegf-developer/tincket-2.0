@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Services\MailerService;
 use App\Services\TpvConfigurationDecoder;
 use App\Services\PaymentSlotLockService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -152,13 +153,35 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
      */
     public function confirmPayment()
     {
+        Log::info('🔄 confirmPayment: INICIANDO', [
+            'payment_id' => $this->payment->id ?? 'NULL',
+            'payment_order_code' => $this->payment->order_code ?? 'NULL',
+        ]);
+
         $payment = $this->payment;
         $cart = $payment->cart;
+
+        Log::info('🔄 confirmPayment: Cart cargado', [
+            'cart_id' => $cart->id ?? 'NULL',
+            'cart_confirmation_code' => $cart->confirmation_code ?? 'NULL',
+        ]);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 0: Si es solo gift cards (sin inscripciones), confirmar directamente
         // ─────────────────────────────────────────────────────────────────────
-        if ($cart->gift_cards()->exists() && !$cart->allInscriptions()->exists()) {
+        $hasGiftCards = $cart->gift_cards()->exists();
+        $hasInscriptions = $cart->allInscriptions()->exists();
+
+        Log::info('🔄 confirmPayment: Verificando tipo de carrito', [
+            'cart_id' => $cart->id,
+            'has_gift_cards' => $hasGiftCards,
+            'has_inscriptions' => $hasInscriptions,
+        ]);
+
+        if ($hasGiftCards && !$hasInscriptions) {
+            Log::info('🔄 confirmPayment: Solo gift cards, confirmando sin verificación de slots', [
+                'cart_id' => $cart->id,
+            ]);
             $this->confirmCartWithoutSlotVerification($payment, $cart);
             return;
         }
@@ -166,24 +189,37 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         // ─────────────────────────────────────────────────────────────────────
         // PASO 1: Verificar slots con lock distribuido
         // ─────────────────────────────────────────────────────────────────────
-        // 
-        // verifyAndConfirmSlots() hace lo siguiente:
-        //   a) Adquiere un lock distribuido para este carrito
-        //   b) Verifica que cada slot no haya sido vendido a otro carrito confirmado
-        //   c) Retorna resultado con detalles de conflictos si los hay
-        //   d) Siempre libera el lock al finalizar
+        Log::info('🔄 confirmPayment: Llamando a verifyAndConfirmSlots', [
+            'cart_id' => $cart->id,
+        ]);
 
-        $verificationResult = $this->paymentSlotLockService->verifyAndConfirmSlots($cart);
+        try {
+            $verificationResult = $this->paymentSlotLockService->verifyAndConfirmSlots($cart);
+        } catch (\Throwable $e) {
+            Log::error('❌ confirmPayment: ERROR en verifyAndConfirmSlots', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            throw $e;
+        }
+
+        Log::info('🔄 confirmPayment: Resultado de verifyAndConfirmSlots', [
+            'cart_id' => $cart->id,
+            'success' => $verificationResult['success'] ?? 'NOT_SET',
+            'reason' => $verificationResult['reason'] ?? 'N/A',
+            'conflicts_count' => count($verificationResult['conflicts'] ?? []),
+        ]);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 2: Manejar resultado de la verificación
         // ─────────────────────────────────────────────────────────────────────
-
         if (!$verificationResult['success']) {
-            // ═══════════════════════════════════════════════════════════════
-            // HAY CONFLICTO - Algún slot ya fue vendido a otro
-            // ═══════════════════════════════════════════════════════════════
-
+            Log::warning('⚠️ confirmPayment: Verificación fallida, llamando handleDuplicatePayment', [
+                'cart_id' => $cart->id,
+                'reason' => $verificationResult['reason'] ?? 'unknown',
+            ]);
             $this->handleDuplicatePayment($payment, $cart, $verificationResult);
             return;
         }
@@ -191,39 +227,85 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         // ─────────────────────────────────────────────────────────────────────
         // PASO 3: Todo OK - Confirmar el carrito
         // ─────────────────────────────────────────────────────────────────────
-        // 
-        // Llegamos aquí solo si:
-        //   - El carrito no estaba ya confirmado
-        //   - Todos los slots siguen disponibles
-        //   - Tenemos el lock distribuido
-
-        // Verificar que el carrito no esté ya confirmado (doble check)
-        // El 'XXXXXXXXX' son los carritos que han enviado email de pago
         $isAlreadyConfirmed = $cart->is_confirmed &&
             strpos($cart->confirmation_code, 'XXXXXXXXX') === false;
 
+        Log::info('🔄 confirmPayment: Verificando si ya está confirmado', [
+            'cart_id' => $cart->id,
+            'is_confirmed_attr' => $cart->is_confirmed,
+            'confirmation_code' => $cart->confirmation_code,
+            'is_already_confirmed' => $isAlreadyConfirmed,
+        ]);
+
         if ($isAlreadyConfirmed) {
-            Log::info('Cart already confirmed, skipping', [
+            Log::info('⚠️ confirmPayment: Cart already confirmed, skipping', [
                 'cart_id' => $cart->id,
                 'confirmation_code' => $cart->confirmation_code
             ]);
-
-            // Liberar locks de pago ya que el carrito ya está confirmado
             $this->releasePaymentLocks($cart);
             return;
         }
 
-        // Confirmar el carrito
-        $cart->confirmation_code = $payment->order_code;
-        $cart->save();
+        // ─────────────────────────────────────────────────────────────────────
+        // PASO 3b: Guardar payment y cart en transacción
+        // ─────────────────────────────────────────────────────────────────────
+        Log::info('🔄 confirmPayment: Iniciando transacción DB', [
+            'cart_id' => $cart->id,
+            'payment_id' => $payment->id,
+        ]);
 
-        // Actualizar el pago
-        $payment->paid_at = new \DateTime();
-        $payment->gateway = $this->getGateway()->getName();
-        $payment->gateway_response = json_encode($this->getJsonResponse());
-        $payment->save();
+        try {
+            DB::transaction(function () use ($cart, $payment) {
+                Log::info('🔄 confirmPayment: Dentro de transacción, actualizando payment', [
+                    'payment_id' => $payment->id,
+                ]);
 
-        Log::info('Payment confirmed successfully', [
+                $payment->paid_at = new \DateTime();
+                $payment->gateway = $this->getGateway()->getName();
+
+                Log::info('🔄 confirmPayment: Gateway name obtenido', [
+                    'gateway' => $payment->gateway,
+                ]);
+
+                $jsonResponse = $this->getJsonResponse();
+                Log::info('🔄 confirmPayment: JSON response obtenido', [
+                    'type' => gettype($jsonResponse),
+                    'is_null' => is_null($jsonResponse),
+                ]);
+
+                $payment->gateway_response = json_encode($jsonResponse);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    Log::error('❌ confirmPayment: Error en json_encode', [
+                        'json_error' => json_last_error_msg(),
+                    ]);
+                }
+
+                $payment->save();
+                Log::info('🔄 confirmPayment: Payment guardado', [
+                    'payment_id' => $payment->id,
+                    'paid_at' => $payment->paid_at,
+                ]);
+
+                $cart->confirmation_code = $payment->order_code;
+                $cart->save();
+                Log::info('🔄 confirmPayment: Cart guardado', [
+                    'cart_id' => $cart->id,
+                    'confirmation_code' => $cart->confirmation_code,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            Log::error('❌ confirmPayment: ERROR en transacción DB', [
+                'cart_id' => $cart->id,
+                'payment_id' => $payment->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            throw $e;
+        }
+
+        Log::info('✅ confirmPayment: Payment confirmed successfully', [
             'cart_id' => $cart->id,
             'payment_id' => $payment->id,
             'order_code' => $payment->order_code,
@@ -233,17 +315,35 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         // ─────────────────────────────────────────────────────────────────────
         // PASO 4: Liberar locks de pago de Redis
         // ─────────────────────────────────────────────────────────────────────
-        // 
-        // Los locks "in_payment:*" ya no son necesarios porque el carrito
-        // ahora tiene confirmation_code (la fuente de verdad)
+        Log::info('🔄 confirmPayment: Liberando locks de Redis', [
+            'cart_id' => $cart->id,
+        ]);
 
         $this->releasePaymentLocks($cart);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 5: Disparar eventos post-confirmación
         // ─────────────────────────────────────────────────────────────────────
+        Log::info('🔄 confirmPayment: Llamando confirmedPayment()', [
+            'cart_id' => $cart->id,
+        ]);
 
-        $this->confirmedPayment();
+        try {
+            $this->confirmedPayment();
+        } catch (\Throwable $e) {
+            Log::error('❌ confirmPayment: ERROR en confirmedPayment()', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            // No relanzamos porque el pago ya está confirmado
+        }
+
+        Log::info('✅ confirmPayment: COMPLETADO', [
+            'cart_id' => $cart->id,
+            'payment_id' => $payment->id,
+        ]);
     }
 
     /**
@@ -343,14 +443,17 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
             return;
         }
 
-        // Confirmar
-        $cart->confirmation_code = $payment->order_code;
-        $cart->save();
+        DB::transaction(function () use ($cart, $payment) {
+            // PRIMERO: Actualizar el pago (esto confirma que tenemos respuesta del TPV)
+            $payment->paid_at = new \DateTime();
+            $payment->gateway = $this->getGateway()->getName();
+            $payment->gateway_response = json_encode($this->getJsonResponse());
+            $payment->save();
 
-        $payment->paid_at = new \DateTime();
-        $payment->gateway = $this->getGateway()->getName();
-        $payment->gateway_response = json_encode($this->getJsonResponse());
-        $payment->save();
+            // DESPUÉS: Confirmar el carrito (solo si el payment se guardó OK)
+            $cart->confirmation_code = $payment->order_code;
+            $cart->save();
+        });
 
         Log::info('Gift card payment confirmed', [
             'cart_id' => $cart->id,

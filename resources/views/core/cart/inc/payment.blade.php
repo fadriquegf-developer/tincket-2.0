@@ -4,7 +4,7 @@
     $isPending = $payment && $payment->isPendingRefund();
     $isRefunded = $payment && $payment->isRefunded();
     $canManageRefunds = auth()->check() && auth()->user()->isSuperuser();
-    
+
     // Verificar si es gateway compatible con devolución automática
     $autoRefundGateways = ['Sermepa', 'Redsys', 'Redsys Redirect', 'SermepaSoapService', 'RedsysSoapService'];
     $canAutoRefund = $payment && in_array($payment->gateway, $autoRefundGateways);
@@ -45,13 +45,14 @@
                             </p>
                             <p class="mb-2 small">
                                 <strong>{{ __('refund.reason') }}:</strong>
-                                {{ __('refund.reasons.' . ($payment->refund_reason ?? 'not_specified'), [], app()->getLocale()) !== 'refund.reasons.' . ($payment->refund_reason ?? 'not_specified') 
-                                    ? __('refund.reasons.' . ($payment->refund_reason ?? 'not_specified')) 
-                                    : ($payment->refund_reason ?? __('refund.reason_not_specified')) }}
+                                {{ __('refund.reasons.' . ($payment->refund_reason ?? 'not_specified'), [], app()->getLocale()) !==
+                                'refund.reasons.' . ($payment->refund_reason ?? 'not_specified')
+                                    ? __('refund.reasons.' . ($payment->refund_reason ?? 'not_specified'))
+                                    : $payment->refund_reason ?? __('refund.reason_not_specified') }}
                             </p>
-                            
+
                             {{-- Detalles técnicos colapsables --}}
-                            @if($payment->refund_details && isset($payment->refund_details['conflicts']))
+                            @if ($payment->refund_details && isset($payment->refund_details['conflicts']))
                                 <details class="mb-2">
                                     <summary class="text-muted small" style="cursor: pointer;">
                                         <i class="la la-code me-1"></i> Ver detalles técnicos
@@ -59,7 +60,7 @@
                                     <pre class="mt-2 p-2 bg-dark text-light rounded small" style="max-height: 150px; overflow-y: auto;">{{ json_encode($payment->refund_details, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) }}</pre>
                                 </details>
                             @endif
-                            
+
                             <hr class="my-2">
                             <p class="mb-0 small text-muted">
                                 <i class="la la-info-circle me-1"></i>
@@ -70,7 +71,7 @@
                 </div>
 
                 {{-- Botones de acción para reembolso pendiente --}}
-                @if($canManageRefunds)
+                @if ($canManageRefunds)
                     <div class="d-flex flex-wrap gap-2 mb-3">
                         {{-- Botón: Marcar como reembolsado (manual) --}}
                         <button type="button" class="btn btn-success" data-bs-toggle="modal"
@@ -78,9 +79,9 @@
                             <i class="la la-check me-1"></i>
                             {{ __('refund.mark_as_refunded') }}
                         </button>
-                        
+
                         {{-- Botón: Procesar automático con Redsys --}}
-                        @if($canAutoRefund)
+                        @if ($canAutoRefund)
                             <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                                 data-bs-target="#processRefundModal">
                                 <i class="la la-credit-card me-1"></i>
@@ -116,6 +117,8 @@
                     </div>
                 </div>
             @endif
+
+            @include('core.cart.inc.partial-refunds-pending')
 
             {{-- ══════════════════════════════════════════════════════════════
                  DATOS DEL PAGO
@@ -164,19 +167,42 @@
                 </div>
             </div>
 
-            {{-- ══════════════════════════════════════════════════════════════
-                 BOTÓN SOLICITAR REEMBOLSO (solo si NO está pendiente/reembolsado)
-                 ══════════════════════════════════════════════════════════════ --}}
+
+            {{-- BOTONES DE DEVOLUCIÓN (solo si NO está pendiente/reembolsado) --}}
             @if ($hasPaid && !$isPending && !$isRefunded && $canManageRefunds)
                 <hr class="my-3">
-                <div class="d-flex align-items-center">
+
+                {{-- Verificar si hay más de 1 inscripción activa para mostrar devolución parcial --}}
+                @php
+                    $activeInscriptionsCount = $entry->inscriptions()->whereNull('deleted_at')->count();
+                    $canPartialRefund = $activeInscriptionsCount > 1;
+                @endphp
+
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    {{-- Botón: Solicitar devolución completa --}}
                     <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
                         data-bs-target="#requestRefundModal">
                         <i class="la la-undo me-1"></i>
                         {{ __('refund.request_button') ?? 'Solicitar devolución' }}
                     </button>
-                    <small class="text-muted ms-3">
-                        {{ __('refund.request_description') ?? 'Marcar este pago como pendiente de reembolso' }}
+
+                    {{-- Botón: Devolución parcial (solo si hay más de 1 inscripción) --}}
+                    @if ($canPartialRefund)
+                        <button type="button" class="btn btn-outline-info" data-bs-toggle="modal"
+                            data-bs-target="#partialRefundModal"
+                            onclick="loadPartialRefundData({{ $entry->getKey() }})">
+                            <i class="la la-cut me-1"></i>
+                            {{ __('refund.partial_refund_button') ?? 'Devolución parcial' }}
+                        </button>
+                    @endif
+
+                    <small class="text-muted ms-2">
+                        @if ($canPartialRefund)
+                            {{ __('refund.request_description') ?? 'Devolución completa o parcial' }}
+                            <span class="badge bg-secondary ms-1">{{ $activeInscriptionsCount }} inscripciones</span>
+                        @else
+                            {{ __('refund.request_description') ?? 'Solo tiene 1 inscripción' }}
+                        @endif
                     </small>
                 </div>
             @endif
@@ -236,9 +262,8 @@
     </div>
 </div>
 
-{{-- ══════════════════════════════════════════════════════════════════════════════
-     MODAL: Solicitar Reembolso (marcar como pendiente)
-     ══════════════════════════════════════════════════════════════════════════════ --}}
+
+{{-- MODAL: Solicitar Reembolso (marcar como pendiente) --}}
 @if ($hasPaid && !$isPending && !$isRefunded && $canManageRefunds)
     @push('after_scripts')
         <div class="modal fade" id="requestRefundModal" tabindex="-1" aria-hidden="true">
@@ -257,43 +282,50 @@
                             <p class="text-muted">
                                 {{ __('refund.request_description') ?? 'Marcar este pago como pendiente de reembolso.' }}
                             </p>
-                            
+
                             {{-- Resumen del pago --}}
                             <div class="card bg-light mb-3">
                                 <div class="card-body py-2">
                                     <div class="row">
                                         <div class="col-6">
-                                            <small class="text-muted">{{ __('refund.payment_code') ?? 'Código' }}</small><br>
+                                            <small
+                                                class="text-muted">{{ __('refund.payment_code') ?? 'Código' }}</small><br>
                                             <strong>{{ $payment->order_code }}</strong>
                                         </div>
                                         <div class="col-6 text-end">
                                             <small class="text-muted">{{ __('refund.amount') ?? 'Importe' }}</small><br>
-                                            <strong class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
+                                            <strong
+                                                class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-3">
                                 <label class="form-label">
                                     {{ __('refund.select_reason') ?? 'Motivo' }} <span class="text-danger">*</span>
                                 </label>
                                 <select name="refund_reason" class="form-select" required>
-                                    <option value="">-- {{ __('refund.select_reason') ?? 'Selecciona el motivo' }} --</option>
-                                    <option value="customer_request">{{ __('refund.reasons.customer_request') ?? 'Solicitud del cliente' }}</option>
-                                    <option value="event_cancelled">{{ __('refund.reasons.event_cancelled') ?? 'Evento cancelado' }}</option>
-                                    <option value="duplicate_payment">{{ __('refund.reasons.duplicate_payment') ?? 'Pago duplicado' }}</option>
-                                    <option value="admin_manual">{{ __('refund.reasons.admin_manual') ?? 'Devolución manual' }}</option>
+                                    <option value="">-- {{ __('refund.select_reason') ?? 'Selecciona el motivo' }}
+                                        --</option>
+                                    <option value="customer_request">
+                                        {{ __('refund.reasons.customer_request') ?? 'Solicitud del cliente' }}</option>
+                                    <option value="event_cancelled">
+                                        {{ __('refund.reasons.event_cancelled') ?? 'Evento cancelado' }}</option>
+                                    <option value="duplicate_payment">
+                                        {{ __('refund.reasons.duplicate_payment') ?? 'Pago duplicado' }}</option>
+                                    <option value="admin_manual">
+                                        {{ __('refund.reasons.admin_manual') ?? 'Devolución manual' }}</option>
                                     <option value="other">{{ __('refund.reasons.other') ?? 'Otro motivo' }}</option>
                                 </select>
                             </div>
-                            
+
                             <div class="mb-3">
                                 <label class="form-label">{{ __('refund.notes_label') ?? 'Notas adicionales' }}</label>
-                                <textarea name="refund_notes" class="form-control" rows="3" 
-                                          placeholder="{{ __('refund.notes_placeholder') ?? 'Ej: El cliente llamó solicitando cancelación...' }}"></textarea>
+                                <textarea name="refund_notes" class="form-control" rows="3"
+                                    placeholder="{{ __('refund.notes_placeholder') ?? 'Ej: El cliente llamó solicitando cancelación...' }}"></textarea>
                             </div>
-                            
+
                             <div class="alert alert-info mb-0 small">
                                 <i class="la la-info-circle me-1"></i>
                                 {{ __('refund.steps') ?? 'Después de marcar, deberás procesar el reembolso desde Redsys o usar el botón de proceso automático.' }}
@@ -315,9 +347,7 @@
     @endpush
 @endif
 
-{{-- ══════════════════════════════════════════════════════════════════════════════
-     MODAL: Marcar como reembolsado (manual)
-     ══════════════════════════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Marcar como reembolsado (manual) --}}
 @if ($isPending && $canManageRefunds)
     @push('after_scripts')
         <div class="modal fade" id="markRefundedModal" tabindex="-1" aria-hidden="true">
@@ -348,7 +378,8 @@
                                         </div>
                                         <div class="col-6 text-end">
                                             <small class="text-muted">{{ __('refund.amount') }}</small><br>
-                                            <strong class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
+                                            <strong
+                                                class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
                                         </div>
                                     </div>
                                 </div>
@@ -390,9 +421,7 @@
     @endpush
 @endif
 
-{{-- ══════════════════════════════════════════════════════════════════════════════
-     MODAL: Procesar Reembolso Automático con Redsys
-     ══════════════════════════════════════════════════════════════════════════════ --}}
+{{-- MODAL: Procesar Reembolso Automático con Redsys --}}
 @if ($isPending && $canManageRefunds && $canAutoRefund)
     @push('after_scripts')
         <div class="modal fade" id="processRefundModal" tabindex="-1" aria-hidden="true">
@@ -412,35 +441,40 @@
                                 <i class="la la-exclamation-triangle me-1"></i>
                                 {{ __('refund.process_auto_warning') ?? 'Esta acción enviará una solicitud de devolución a Redsys. El importe se devolverá a la tarjeta del cliente.' }}
                             </div>
-                            
+
                             {{-- Resumen del pago --}}
                             <div class="card bg-light mb-3">
                                 <div class="card-body py-2">
                                     <div class="row">
                                         <div class="col-6">
-                                            <small class="text-muted">{{ __('refund.payment_code') ?? 'Código' }}</small><br>
+                                            <small
+                                                class="text-muted">{{ __('refund.payment_code') ?? 'Código' }}</small><br>
                                             <strong>{{ $payment->order_code }}</strong>
                                         </div>
                                         <div class="col-6 text-end">
-                                            <small class="text-muted">{{ __('refund.original_amount') ?? 'Importe original' }}</small><br>
-                                            <strong class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
+                                            <small
+                                                class="text-muted">{{ __('refund.original_amount') ?? 'Importe original' }}</small><br>
+                                            <strong
+                                                class="text-danger">{{ number_format($entry->priceSold, 2) }}€</strong>
                                         </div>
                                     </div>
                                     <div class="row mt-2">
                                         <div class="col-12">
-                                            <small class="text-muted">{{ __('backend.cart.platform') ?? 'Gateway' }}</small><br>
+                                            <small
+                                                class="text-muted">{{ __('backend.cart.platform') ?? 'Gateway' }}</small><br>
                                             <strong>{{ $payment->gateway }}</strong>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="mb-3">
-                                <label class="form-label">{{ __('refund.partial_amount') ?? 'Importe a devolver (opcional)' }}</label>
+                                <label
+                                    class="form-label">{{ __('refund.partial_amount') ?? 'Importe a devolver (opcional)' }}</label>
                                 <div class="input-group">
-                                    <input type="number" name="refund_amount" class="form-control" 
-                                           step="0.01" min="0.01" max="{{ $entry->priceSold }}"
-                                           placeholder="{{ number_format($entry->priceSold, 2) }}">
+                                    <input type="number" name="refund_amount" class="form-control" step="0.01"
+                                        min="0.01" max="{{ $entry->priceSold }}"
+                                        placeholder="{{ number_format($entry->priceSold, 2) }}">
                                     <span class="input-group-text">€</span>
                                 </div>
                                 <div class="form-text">
@@ -463,3 +497,6 @@
         </div>
     @endpush
 @endif
+
+{{-- MODAL: Devolución Parcial --}}
+@include('core.cart.inc.partial-refund-modal')

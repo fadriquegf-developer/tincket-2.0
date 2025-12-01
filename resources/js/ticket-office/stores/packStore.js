@@ -175,7 +175,7 @@ export const usePackStore = defineStore('pack', () => {
     }
 
     const getRule = (n) => {
-        return selectedPackRules.value.find(rule => rule.number_sessions === n || rule.all_sessions === 1)
+        return selectedPackRules.value.find(rule => rule.number_sessions === n || rule.all_sessions === true)
     }
 
     const shouldShowExpired = () => {

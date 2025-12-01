@@ -91,4 +91,112 @@ return [
     // Altres
     'external_application' => 'Aplicació externa (:name)',
     'steps' => 'Passos: 1) Accedeix al panell de Redsys → 2) Realitza la devolució → 3) Marca com a reemborsat aquí',
+
+    'partial_refund_button' => 'Devolució parcial',
+    'partial_refund_title' => 'Devolució Parcial',
+    'partial_refund_submit' => 'Crear sol·licitud de devolució',
+    'partial_refund_description' => 'Selecciona les inscripcions que vols retornar. Les butaques s\'alliberaran automàticament.',
+    'partial_refund_instructions' => 'Selecciona les inscripcions que vols retornar. Les butaques s\'alliberaran automàticament.',
+    'partial_refund_loading' => 'Carregant inscripcions...',
+    'partial_refund_confirm' => 'Confirmar devolució parcial?',
+    'partial_refund_processing' => 'Processant...',
+
+    // Estats de devolució parcial
+    'partial_status' => [
+        'pending' => 'Pendent',
+        'processing' => 'Processant',
+        'completed' => 'Completat',
+        'failed' => 'Fallat',
+    ],
+
+    // Missatges
+    'partial_success' => 'Devolució parcial creada correctament.',
+    'partial_error_no_inscriptions' => 'Has de seleccionar almenys una inscripció per retornar.',
+    'partial_error_all_inscriptions' => 'No pots retornar totes les inscripcions amb devolució parcial. Utilitza l\'opció de devolució completa.',
+    'partial_error_invalid_inscriptions' => 'Les inscripcions seleccionades no són vàlides o ja han estat retornades.',
+    'partial_error_load' => 'Error en carregar les dades',
+
+    // Historial
+    'partial_history_title' => 'Historial de devolucions parcials',
+    'partial_history_empty' => 'No hi ha devolucions parcials registrades.',
+    'partial_view_inscriptions' => 'Veure inscripcions',
+
+    // Taula
+    'table_event_session' => 'Esdeveniment / Sessió',
+    'table_seat' => 'Butaca',
+    'table_rate' => 'Tarifa',
+    'table_price' => 'Preu',
+    'table_total_to_refund' => 'Total a retornar',
+    'table_select_all' => 'Seleccionar totes',
+
+    // Resum
+    'summary_code' => 'Codi',
+    'summary_original_amount' => 'Import original',
+    'summary_total_refunded' => 'Ja retornat',
+    'summary_remaining' => 'Restant',
+
+    // Confirmació
+    'confirm_inscriptions' => 'Inscripcions',
+    'confirm_amount' => 'Import',
+    'confirm_seats_released' => 'Les butaques s\'alliberaran automàticament.',
+
+    // Botons principals
+    'partial_refund_button' => 'Devolució parcial',
+    'partial_refund_title' => 'Devolució Parcial',
+    'partial_refund_submit' => 'Crear sol·licitud de devolució',
+    'cancel' => 'Cancel·lar',
+
+    // Loading i estats
+    'loading' => 'Carregant...',
+    'loading_inscriptions' => 'Carregant inscripcions...',
+    'processing' => 'Processant...',
+
+    // Resum del carret
+    'code' => 'Codi',
+    'original_amount' => 'Import original',
+    'already_refunded' => 'Ja retornat',
+
+    // Instruccions
+    'instructions_title' => 'Instruccions',
+    'instructions_text' => 'Selecciona les inscripcions que vols retornar. Les butaques es lliuraran automàticament.',
+
+    // Taula d'inscripcions
+    'select_all' => 'Seleccionar totes',
+    'event_session' => 'Esdeveniment / Sessió',
+    'seat' => 'Butaca',
+    'rate' => 'Tarifa',
+    'price' => 'Preu',
+    'total_to_refund' => 'Total a retornar',
+
+    // Formulari
+    'select_reason' => 'Motiu de la devolució',
+    'select_option' => '-- Seleccionar --',
+    'notes_label' => 'Notes addicionals',
+    'notes_placeholder' => 'Ex: El client va trucar per cancel·lar',
+
+    // Motius de devolució
+    'reasons' => [
+        'customer_request' => 'Sol·licitud del client',
+        'event_cancelled' => 'Esdeveniment cancel·lat',
+        'duplicate_payment' => 'Pagament duplicat',
+        'admin_manual' => 'Reemborsament manual per admin',
+        'other' => 'Altre motiu',
+    ],
+
+    // Historial
+    'refund_history_title' => 'Historial de devolucions parcials',
+    'view_inscriptions' => 'Veure inscripcions',
+    'reference' => 'Ref',
+
+    // Missatges de validació i alertes
+    'select_at_least_one' => 'Selecciona almenys una inscripció',
+    'select_reason_required' => 'Selecciona un motiu per a la devolució',
+    'cannot_select_all' => 'No pots seleccionar totes les inscripcions. Per retornar tot el carret, utilitza l\'opció de devolució completa.',
+    'confirm_partial_refund' => 'Confirmar devolució parcial?',
+    'inscriptions_count' => 'Inscripcions',
+    'amount' => 'Import',
+    'seats_will_be_released' => 'Les butaques es lliuraran automàticament.',
+    'error_prefix' => 'Error',
+    'error_loading_data' => 'Error en carregar les dades',
+    'error_processing_refund' => 'Error en processar la devolució',
 ];

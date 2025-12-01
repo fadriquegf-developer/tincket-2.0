@@ -21,8 +21,12 @@ Route::middleware(['web', 'auth:backpack'])->group(function () {
     Route::post('cart/{id}/mark-refunded', [\App\Http\Controllers\Admin\CartCrudController::class, 'markRefunded'])->name('crud.cart.mark-refunded');
     Route::post('cart/{id}/request-refund', [\App\Http\Controllers\Admin\CartCrudController::class, 'requestRefund'])->name('crud.cart.request-refund');
     Route::post('cart/{id}/process-refund', [\App\Http\Controllers\Admin\CartCrudController::class, 'processRefund'])->name('crud.cart.process-refund');
-
+    Route::delete('cart/{cart}/inscription/{inscription}', [\App\Http\Controllers\Admin\CartCrudController::class, 'destroyInscription'])->name('cart.inscription.destroy');
+    // Devolución parcial
+    Route::get('cart/{id}/partial-refund-data', [\App\Http\Controllers\Admin\CartCrudController::class, 'getPartialRefundData'])->name('crud.cart.partial-refund-data');
+    Route::post('cart/{id}/request-partial-refund', [\App\Http\Controllers\Admin\CartCrudController::class, 'requestPartialRefund'])->name('crud.cart.request-partial-refund');
+    Route::post('cart/partial-refund/{partialRefundId}/process', [\App\Http\Controllers\Admin\CartCrudController::class, 'processPartialRefund'])->name('crud.cart.process-partial-refund');
+    Route::post('cart/partial-refund/{partialRefundId}/mark-completed', [\App\Http\Controllers\Admin\CartCrudController::class, 'markPartialRefundCompleted'])->name('crud.cart.mark-partial-refund-completed');
     // Ticket Office
-    Route::resource('ticket-office', \App\Http\Controllers\Admin\TicketOfficeController::class)
-        ->only(['index', 'create', 'store']);
+    Route::resource('ticket-office', \App\Http\Controllers\Admin\TicketOfficeController::class)->only(['index', 'create', 'store']);
 });
