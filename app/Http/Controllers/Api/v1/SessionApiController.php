@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\v1;
 
 use App\Models\Session;
 use App\Scopes\BrandScope;
-use App\Http\Resources\SessionShowResource;
+use App\Models\Inscription;
+use Illuminate\Http\Request;
 use App\Services\RedisSlotsService;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use App\Http\Resources\SessionShowResource;
 
 class SessionApiController extends \App\Http\Controllers\Api\ApiController
 {
@@ -144,7 +146,7 @@ class SessionApiController extends \App\Http\Controllers\Api\ApiController
                         'id' => $session->id,
                         'name' => $session->name,
                         'starts_on' => $session->starts_on->toIso8601String(),
-                        'ends_on' => $session->ends_on->toIso8601String()
+                        'ends_on' => $session->ends_on->toIso8601String(),
                     ],
                     'cache' => [
                         'source' => 'redis',
@@ -384,5 +386,57 @@ class SessionApiController extends \App\Http\Controllers\Api\ApiController
         }
 
         return false;
+    }
+
+    public function checkUserLimit(Request $request, $session_id)
+    {
+        try {
+            $session = Session::withoutGlobalScope(BrandScope::class)
+                ->findOrFail($session_id);
+
+            $email = $request->get('email');
+
+            if (!$email) {
+                return response()->json(['error' => 'Email requerido'], 400)
+                    ->header('Access-Control-Allow-Origin', '*');
+            }
+
+            if (!$session->limit_per_user) {
+                return response()->json(['can_buy_more' => true])
+                    ->header('Access-Control-Allow-Origin', '*');
+            }
+
+            $inscriptionsBuyed = Inscription::withoutGlobalScope(BrandScope::class)
+                ->where('session_id', $session->id)
+                ->whereHas('cart', function ($q) use ($email) {
+                    // El carrito tiene un cliente con este email
+                    $q->whereHas('client', function ($clientQ) use ($email) {
+                        $clientQ->where('email', $email);
+                    })
+                        // Y tiene un pago confirmado
+                        ->whereHas('payments', function ($paymentQ) {
+                        $paymentQ->whereNotNull('paid_at');
+                    });
+                })
+                ->count();
+
+            $canBuyMore = $inscriptionsBuyed < $session->max_per_user;
+
+            return response()->json([
+                'can_buy_more' => $canBuyMore,
+                'inscriptions_buyed' => $inscriptionsBuyed,
+                'max_allowed' => $session->max_per_user
+            ])->header('Access-Control-Allow-Origin', '*')
+                ->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+
+        } catch (\Exception $e) {
+            \Log::error('❌ Error en checkUserLimit', [
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ]);
+
+            return response()->json(['error' => 'Error interno'], 500)
+                ->header('Access-Control-Allow-Origin', '*');
+        }
     }
 }

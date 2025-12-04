@@ -686,7 +686,7 @@ return [
         'autolock_type' => 'Bloqueo de patrón',
         'limit_x_100' => 'Límite de capacidade',
         'autolock_n' => 'N bloqueo',
-        'code_type' => 'Limitación de compra a través de:',
+        'code_type' => 'Limitación de compra por tarifa a través de:',
         'code_type_null' => 'Sen Limitaciónes',
         'code_type_census' => 'Limitación por empadroamento',
         'code_type_session' => 'Limitación por códigos subidos na sesión',
@@ -720,6 +720,9 @@ return [
         'hint_no_space' => '¿Non tes ningún espazo creado?',
         'private_url' => 'Acceso privado vía URL',
         'session_info' => 'Información da sesión',
+        'limit_per_user' => 'Limitar compra por usuario',
+        'max_per_user' => 'Máximo por usuario',
+        'max_per_user_hint' => 'Máximo de inscricións que un usuario pode mercar para esta sesión.',
     ],
 
     'cart' => [
@@ -787,6 +790,7 @@ return [
         'total' => 'Total',
         'pending' => 'Pendente',
         'deleted' => 'Eliminado',
+        'no_payment' => 'No hay información del pago disponible'
     ],
 
     'ticket' => [

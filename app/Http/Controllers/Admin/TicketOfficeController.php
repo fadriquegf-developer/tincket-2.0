@@ -229,6 +229,54 @@ class TicketOfficeController extends Controller
                 ];
             }
 
+            //  VALIDAR LÍMITES POR USUARIO ANTES DE CREAR INSCRIPCIONES
+            $clientEmail = $cart->client ? $cart->client->email : $request->input('client.email');
+
+            if ($clientEmail) {
+                foreach ($inscriptionsBySession as $sessionId => $inscriptionsData) {
+                    $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                        ->findOrFail($sessionId);
+
+                    // Solo validar si la sesión tiene límite activo
+                    if ($session->limit_per_user) {
+                        // Contar inscripciones ya compradas por este email
+                        $inscriptionsBuyed = Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->where('session_id', $session->id)
+                            ->whereHas('cart', function ($q) use ($clientEmail) {
+                                $q->whereHas('client', function ($clientQ) use ($clientEmail) {
+                                    $clientQ->where('email', $clientEmail);
+                                })
+                                    ->whereHas('payments', function ($paymentQ) {
+                                        $paymentQ->whereNotNull('paid_at');
+                                    });
+                            })
+                            ->count();
+
+                        // Contar cuántas está intentando añadir ahora
+                        $cantidadAañadir = count($inscriptionsData);
+                        $totalFinal = $inscriptionsBuyed + $cantidadAañadir;
+
+                        $sessionName = $session->event->name ?? '';
+                        if ($session->name) {
+                            $sessionName .= ' - ' . $session->name;
+                        }
+                        $sessionName .= ' (' . $session->starts_on->format('d/m/Y H:i') . ')';
+
+                        if ($totalFinal > $session->max_per_user) {
+                            $disponibles = $session->max_per_user - $inscriptionsBuyed;
+                            throw new \App\Exceptions\ApiException(
+                                __('ticket-office.errors.limit_per_user_exceeded', [
+                                    'session' => $sessionName,
+                                    'buyed' => $inscriptionsBuyed,
+                                    'max' => $session->max_per_user,
+                                    'available' => $disponibles
+                                ])
+                            );
+                        }
+                    }
+                }
+            }
+
             // Procesar cada sesión
             foreach ($inscriptionsBySession as $sessionId => $inscriptionsData) {
                 $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
@@ -338,6 +386,66 @@ class TicketOfficeController extends Controller
                     }
                 }
             }
+
+            // ✅ VALIDAR LÍMITES POR USUARIO EN PACKS
+        $clientEmail = $cart->client ? $cart->client->email : $request->input('client.email');
+        
+        if ($clientEmail) {
+            foreach ($groupPacks as $packId => $packData) {
+                foreach ($packData['selection'] as $sessionId => $sessionData) {
+                    $session = Session::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                        ->findOrFail($sessionId);
+
+                    if ($session->limit_per_user) {
+                        // Contar inscripciones ya compradas (INCLUYENDO PACKS)
+                        $inscriptionsBuyed = Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)
+                            ->where('session_id', $session->id)
+                            ->whereHas('cart', function($q) use ($clientEmail) {
+                                $q->whereHas('client', function($clientQ) use ($clientEmail) {
+                                    $clientQ->where('email', $clientEmail);
+                                })
+                                ->whereHas('payments', function($paymentQ) {
+                                    $paymentQ->whereNotNull('paid_at');
+                                });
+                            })
+                            ->count();
+
+                        // Calcular cuántas va a añadir con este pack
+                        $cantidadAñadir = $packData['pack_multiplier']; // número de veces que compra el pack
+                        $totalFinal = $inscriptionsBuyed + $cantidadAñadir;
+
+                        \Log::info('🔍 Validación límite en pack', [
+                            'session_id' => $session->id,
+                            'pack_id' => $packId,
+                            'email' => $clientEmail,
+                            'inscriptions_buyed' => $inscriptionsBuyed,
+                            'pack_multiplier' => $cantidadAñadir,
+                            'total_final' => $totalFinal,
+                            'max_allowed' => $session->max_per_user
+                        ]);
+
+                        if ($totalFinal > $session->max_per_user) {
+                            $disponibles = $session->max_per_user - $inscriptionsBuyed;
+                            
+                            $sessionName = $session->event->name ?? '';
+                            if ($session->name) {
+                                $sessionName .= ' - ' . $session->name;
+                            }
+                            $sessionName .= ' (' . $session->starts_on->format('d/m/Y H:i') . ')';
+                            
+                            throw new \App\Exceptions\ApiException(
+                                __('ticket-office.errors.limit_per_user_exceeded', [
+                                    'session' => $sessionName,
+                                    'buyed' => $inscriptionsBuyed,
+                                    'max' => $session->max_per_user,
+                                    'available' => $disponibles
+                                ])
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
             // Crear cada pack usando CartService
             $cartService = new \App\Services\Api\CartService();

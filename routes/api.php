@@ -26,6 +26,7 @@ Route::group(['middleware' => 'api', 'prefix' => 'v1', 'as' => 'api1.'], functio
     Route::group(['prefix' => 'session', 'as' => 'session.'], function () {
         Route::get('{session}', [\App\Http\Controllers\Api\v1\SessionApiController::class, 'show'])->name('show');
         Route::get('{session}/configuration', [\App\Http\Controllers\Api\v1\SessionApiController::class, 'configuration'])->name('configuration');
+        Route::get('{session}/check-user-limit', [\App\Http\Controllers\Api\v1\SessionApiController::class, 'checkUserLimit'])->name('check-user-limit');
     });
 
     Route::group(['prefix' => 'cart', 'as' => 'cart.'], function () {

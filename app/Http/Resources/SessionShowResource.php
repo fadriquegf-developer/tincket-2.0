@@ -76,6 +76,8 @@ class SessionShowResource extends JsonResource
             "has_public_rates" => $this->has_public_rates,
             "redirect_to" => $this->redirect_to,
             "code_type" => $this->code_type,
+            "limit_per_user" => (bool) $this->limit_per_user,
+            "max_per_user" => $this->max_per_user,
             "only_pack" => $this->only_pack,
             'space' => new SpaceResource($this->space),
             'event' => new EventResource($this->event),

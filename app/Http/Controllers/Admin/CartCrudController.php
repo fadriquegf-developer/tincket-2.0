@@ -549,15 +549,28 @@ class CartCrudController extends CrudController
     public function changeGateway(Request $request, Cart $cart)
     {
         $payment = $cart->payment;
+        $gateway = $request->input('gateway');
 
-        /* 2) actualiza la columna visible --------------------------- */
-        $payment->gateway = $request->input('gateway');   // <- ESTA línea faltaba
+        // Si es cash o card, el gateway real es TicketOffice
+        if (in_array($gateway, ['cash', 'card'])) {
+            $payment->gateway = 'TicketOffice';
 
-        /* 3) mantiene coherencia en el JSON (por si lo usas luego) -- */
-        $resp = json_decode($payment->gateway_response ?? '{}', true);
-        $resp['payment_type'] = $payment->gateway;
-        $payment->gateway_response = json_encode($resp, JSON_UNESCAPED_UNICODE);
+            $resp = json_decode($payment->gateway_response ?? '{}', true);
+            $resp['payment_type'] = $gateway;  // 'cash' o 'card'
+            $payment->gateway_response = json_encode($resp, JSON_UNESCAPED_UNICODE);
+        } else {
+            // Redsys Redirect u otro gateway online
+            $payment->gateway = $gateway;
+
+            // Limpiamos payment_type del JSON si existía
+            $resp = json_decode($payment->gateway_response ?? '{}', true);
+            unset($resp['payment_type']);
+            $payment->gateway_response = json_encode($resp, JSON_UNESCAPED_UNICODE);
+        }
+
         $payment->save();
+
+        Alert::success('Plataforma de pago actualizada correctamente')->flash();
 
         return redirect()->route('cart.show', $cart->id);
     }
@@ -714,15 +727,6 @@ class CartCrudController extends CrudController
         $reasonText = __('refund.reasons.' . $validated['refund_reason']);
         $cart->comment = trim($cart->comment . "\n\n[DEVOLUCIÓN SOLICITADA " . now()->format('d/m/Y H:i') . "]\nMotivo: {$reasonText}\n" . ($validated['refund_notes'] ?? ''));
         $cart->save();
-
-        // Log
-        \Log::info('Refund requested', [
-            'cart_id' => $cart->id,
-            'payment_id' => $payment->id,
-            'reason' => $validated['refund_reason'],
-            'user_id' => auth()->id(),
-            'user_email' => auth()->user()->email,
-        ]);
 
         Alert::success(__('refund.request_success'))->flash();
 

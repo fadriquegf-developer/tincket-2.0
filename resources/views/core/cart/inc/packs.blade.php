@@ -25,10 +25,14 @@
                                 <td>{{ $group_pack->pack->name }}</td>
                                 <td>{{ $group_pack->inscriptions->count() }}</td>
                                 <td class="">
-                                    @if ($group_pack->cart->confirmation_code && $group_pack->pdf)
+                                    @if ($group_pack->cart->confirmation_code)
                                         <a target="_blank"
-                                            href="{{route('open.cart.download', ['cart' => $group_pack->cart->getKey()])}}"
-                                            class="btn btn-sm btn-outline-primary">
+                                        href="{{ route('open.cart.pack.download', [
+                                                'cart' => $group_pack->cart->id,
+                                                'pack' => $group_pack->id,
+                                                'token' => $group_pack->cart->token
+                                        ]) }}"
+                                        class="btn btn-sm btn-outline-primary">
                                             <i class="la la-file-pdf-o me-1"></i>
                                             {{ __('backend.cart.inc.download') }} {{ __('backend.cart.inc.pack') }}
                                         </a>

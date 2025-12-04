@@ -153,18 +153,10 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
      */
     public function confirmPayment()
     {
-        Log::info('🔄 confirmPayment: INICIANDO', [
-            'payment_id' => $this->payment->id ?? 'NULL',
-            'payment_order_code' => $this->payment->order_code ?? 'NULL',
-        ]);
 
         $payment = $this->payment;
         $cart = $payment->cart;
 
-        Log::info('🔄 confirmPayment: Cart cargado', [
-            'cart_id' => $cart->id ?? 'NULL',
-            'cart_confirmation_code' => $cart->confirmation_code ?? 'NULL',
-        ]);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 0: Si es solo gift cards (sin inscripciones), confirmar directamente
@@ -172,16 +164,7 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         $hasGiftCards = $cart->gift_cards()->exists();
         $hasInscriptions = $cart->allInscriptions()->exists();
 
-        Log::info('🔄 confirmPayment: Verificando tipo de carrito', [
-            'cart_id' => $cart->id,
-            'has_gift_cards' => $hasGiftCards,
-            'has_inscriptions' => $hasInscriptions,
-        ]);
-
         if ($hasGiftCards && !$hasInscriptions) {
-            Log::info('🔄 confirmPayment: Solo gift cards, confirmando sin verificación de slots', [
-                'cart_id' => $cart->id,
-            ]);
             $this->confirmCartWithoutSlotVerification($payment, $cart);
             return;
         }
@@ -189,10 +172,6 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         // ─────────────────────────────────────────────────────────────────────
         // PASO 1: Verificar slots con lock distribuido
         // ─────────────────────────────────────────────────────────────────────
-        Log::info('🔄 confirmPayment: Llamando a verifyAndConfirmSlots', [
-            'cart_id' => $cart->id,
-        ]);
-
         try {
             $verificationResult = $this->paymentSlotLockService->verifyAndConfirmSlots($cart);
         } catch (\Throwable $e) {
@@ -204,13 +183,6 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
             ]);
             throw $e;
         }
-
-        Log::info('🔄 confirmPayment: Resultado de verifyAndConfirmSlots', [
-            'cart_id' => $cart->id,
-            'success' => $verificationResult['success'] ?? 'NOT_SET',
-            'reason' => $verificationResult['reason'] ?? 'N/A',
-            'conflicts_count' => count($verificationResult['conflicts'] ?? []),
-        ]);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 2: Manejar resultado de la verificación
@@ -230,13 +202,6 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         $isAlreadyConfirmed = $cart->is_confirmed &&
             strpos($cart->confirmation_code, 'XXXXXXXXX') === false;
 
-        Log::info('🔄 confirmPayment: Verificando si ya está confirmado', [
-            'cart_id' => $cart->id,
-            'is_confirmed_attr' => $cart->is_confirmed,
-            'confirmation_code' => $cart->confirmation_code,
-            'is_already_confirmed' => $isAlreadyConfirmed,
-        ]);
-
         if ($isAlreadyConfirmed) {
             Log::info('⚠️ confirmPayment: Cart already confirmed, skipping', [
                 'cart_id' => $cart->id,
@@ -249,29 +214,14 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
         // ─────────────────────────────────────────────────────────────────────
         // PASO 3b: Guardar payment y cart en transacción
         // ─────────────────────────────────────────────────────────────────────
-        Log::info('🔄 confirmPayment: Iniciando transacción DB', [
-            'cart_id' => $cart->id,
-            'payment_id' => $payment->id,
-        ]);
 
         try {
             DB::transaction(function () use ($cart, $payment) {
-                Log::info('🔄 confirmPayment: Dentro de transacción, actualizando payment', [
-                    'payment_id' => $payment->id,
-                ]);
 
                 $payment->paid_at = new \DateTime();
                 $payment->gateway = $this->getGateway()->getName();
 
-                Log::info('🔄 confirmPayment: Gateway name obtenido', [
-                    'gateway' => $payment->gateway,
-                ]);
-
                 $jsonResponse = $this->getJsonResponse();
-                Log::info('🔄 confirmPayment: JSON response obtenido', [
-                    'type' => gettype($jsonResponse),
-                    'is_null' => is_null($jsonResponse),
-                ]);
 
                 $payment->gateway_response = json_encode($jsonResponse);
 
@@ -282,17 +232,9 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
                 }
 
                 $payment->save();
-                Log::info('🔄 confirmPayment: Payment guardado', [
-                    'payment_id' => $payment->id,
-                    'paid_at' => $payment->paid_at,
-                ]);
 
                 $cart->confirmation_code = $payment->order_code;
                 $cart->save();
-                Log::info('🔄 confirmPayment: Cart guardado', [
-                    'cart_id' => $cart->id,
-                    'confirmation_code' => $cart->confirmation_code,
-                ]);
             });
         } catch (\Throwable $e) {
             Log::error('❌ confirmPayment: ERROR en transacción DB', [
@@ -305,28 +247,15 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
             throw $e;
         }
 
-        Log::info('✅ confirmPayment: Payment confirmed successfully', [
-            'cart_id' => $cart->id,
-            'payment_id' => $payment->id,
-            'order_code' => $payment->order_code,
-            'verified_slots' => count($verificationResult['verified_slots'] ?? [])
-        ]);
-
         // ─────────────────────────────────────────────────────────────────────
         // PASO 4: Liberar locks de pago de Redis
         // ─────────────────────────────────────────────────────────────────────
-        Log::info('🔄 confirmPayment: Liberando locks de Redis', [
-            'cart_id' => $cart->id,
-        ]);
 
         $this->releasePaymentLocks($cart);
 
         // ─────────────────────────────────────────────────────────────────────
         // PASO 5: Disparar eventos post-confirmación
         // ─────────────────────────────────────────────────────────────────────
-        Log::info('🔄 confirmPayment: Llamando confirmedPayment()', [
-            'cart_id' => $cart->id,
-        ]);
 
         try {
             $this->confirmedPayment();
@@ -339,11 +268,6 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
             ]);
             // No relanzamos porque el pago ya está confirmado
         }
-
-        Log::info('✅ confirmPayment: COMPLETADO', [
-            'cart_id' => $cart->id,
-            'payment_id' => $payment->id,
-        ]);
     }
 
     /**
@@ -454,11 +378,6 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
             $cart->confirmation_code = $payment->order_code;
             $cart->save();
         });
-
-        Log::info('Gift card payment confirmed', [
-            'cart_id' => $cart->id,
-            'payment_id' => $payment->id
-        ]);
 
         $this->confirmedPayment();
     }

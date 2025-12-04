@@ -120,7 +120,14 @@ return [
         'network' => 'Erro de rede',
         'loading_failed' => 'Erro ao cargar',
         'session_not_found' => 'Sesión non atopada',
-        'slot_not_available' => 'Esta praza xa non está dispoñible'
+        'slot_not_available' => 'Esta praza xa non está dispoñible',
+        'limit_per_user_exceeded' => 'Límite alcanzado para ":session". Este usuario xa mercou :buyed entrada(s). Máximo permitido: :max. Só pode mercar :available máis.',
+        'session_no_web_rates' =>   "A sesión ':name' (ID: :id) non ten tarifas web válidas configuradas.\n\n" .
+                                    "Para solucionar isto:\n" .
+                                    "1. Vai a Admin > Sesións\n" .
+                                    "2. Edita a sesión ':name'\n" .
+                                    "3. Na sección 'Tarifas', marca polo menos unha como 'Dispoñible para o Cliente Web'\n" .
+                                    "4. Garda os cambios",
     ],
 
     // Confirmacións

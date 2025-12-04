@@ -378,7 +378,17 @@ class CartService extends AbstractService
             ->get();
 
         if ($assignatedRates->isEmpty()) {
-            throw new \Exception("La sesión {$session->id} no tiene tarifas web válidas configuradas");
+            $sessionName = $session->name ?? '';
+            $eventName = $session->event ? $session->event->name : '';
+
+            $fullName = $eventName ? "$eventName - $sessionName" : $sessionName;
+
+            $message = __('ticket-office.errors.session_no_web_rates', [
+                'name' => $fullName,
+                'id' => $session->id,
+            ]);
+
+            throw new \App\Exceptions\ApiException($message, 0, null, 422);
         }
 
         $selectedRate = $assignatedRates->firstWhere('is_private', true)

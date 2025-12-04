@@ -13,7 +13,8 @@ class CheckApiCredentials
         '*/rate/*/checkCode',
         '*/rate/*/checkDni',
         '*/rate/*/checkEmail',
-        '*/rate/*/checkIsFull'
+        '*/rate/*/checkIsFull',
+        '*/session/*/check-user-limit'
     ];
 
     /**

@@ -69,6 +69,8 @@ class Session extends BaseModel
         'validate_all_session',
         'brand_id',
         'user_id',
+        'limit_per_user',
+        'max_per_user',
         'deleted_by',
     ];
     public $translatable = [

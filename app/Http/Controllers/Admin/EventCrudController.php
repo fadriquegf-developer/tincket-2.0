@@ -71,7 +71,7 @@ class EventCrudController extends CrudController
         CRUD::addColumn([
             'name' => 'name',
             'label' => __('backend.events.eventname'),
-            'limit'  => 160,
+            'limit' => 160,
             'searchLogic' => function ($query, $column, $searchTerm) {
                 $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
             }
@@ -134,7 +134,7 @@ class EventCrudController extends CrudController
             'label' => __('backend.events.eventname'),
             'type' => 'text',
             'tab' => __('backend.events.tab_basic'),
-            'limit'  => 255,
+            'limit' => 255,
         ]);
 
         CRUD::addColumn([
@@ -431,16 +431,16 @@ class EventCrudController extends CrudController
         $this->setCalendarioTab();
 
         CRUD::addSaveAction([
-            'name'                   => 'save_and_create_session',
-            'button_text'            => __('backend.events.save_and_create_session'),
-            'visible'                => function ($crud) {
+            'name' => 'save_and_create_session',
+            'button_text' => __('backend.events.save_and_create_session'),
+            'visible' => function ($crud) {
                 return $crud->getCurrentOperation() === 'create';
             },
-            'redirect'               => function ($crud, $request, $itemId) {
+            'redirect' => function ($crud, $request, $itemId) {
                 // tras guardar el Event ($itemId), ir a crear Sesión con el event_id preseleccionado
                 return route('session.create', ['event_id' => $itemId]);
             },
-            'order'                  => 5,
+            'order' => 5,
         ]);
     }
 
@@ -468,10 +468,12 @@ class EventCrudController extends CrudController
             $taxonomies = array_merge($taxonomies, $seasonTaxonomies);
         }
 
-        $extraTaxonomies = json_decode($request->get('allTaxonomies'), true) ?? [];
-        $taxonomies = array_merge($taxonomies, $extraTaxonomies);
+        //  Asegurar que son enteros válidos
+        $taxonomies = array_filter(array_map('intval', $taxonomies), function ($value) {
+            return $value > 0;
+        });
 
-        $this->crud->entry->allTaxonomies()->sync(array_map('intval', $taxonomies));
+        $this->crud->entry->allTaxonomies()->sync($taxonomies);
 
         return $response;
     }
@@ -482,8 +484,6 @@ class EventCrudController extends CrudController
         $response = $this->traitUpdate();
 
         $taxonomies = json_decode($request->get('taxonomies'), true) ?? [];
-
-        \Log::info('Taxonomies from request:', ['taxonomies' => $taxonomies]);
 
         foreach (get_current_brand()->partnershipedBrands as $partner) {
             $partnerKey = 'taxonomies_alt_' . $partner->id;
@@ -498,12 +498,12 @@ class EventCrudController extends CrudController
             $taxonomies = array_merge($taxonomies, $seasonTaxonomies);
         }
 
-        $extraTaxonomies = json_decode($request->get('allTaxonomies'), true) ?? [];
-        $taxonomies = array_merge($taxonomies, $extraTaxonomies);
+        // Asegurar que son enteros válidos
+        $taxonomies = array_filter(array_map('intval', $taxonomies), function ($value) {
+            return $value > 0;
+        });
 
-        \Log::info('Final taxonomies to sync:', ['final' => $taxonomies]);
-
-        $this->crud->entry->allTaxonomies()->sync(array_map('intval', $taxonomies));
+        $this->crud->entry->allTaxonomies()->sync($taxonomies);
 
         return $response;
     }
@@ -661,7 +661,7 @@ class EventCrudController extends CrudController
                 'options' => function ($query) use ($main) {
                     return $query
                         ->whereParentId($main)
-                        ->where('active',true)
+                        ->where('active', true)
                         ->pluck('name', 'id')
                         ->toArray();
                 },
@@ -677,8 +677,8 @@ class EventCrudController extends CrudController
             CRUD::addField([
                 'label' => __('backend.events.taxonomies') . " {$partner->name}",
                 'type' => 'checklist',
-                'name' => 'allTaxonomies',
-                'entity' => 'allTaxonomies',
+                'name' => 'taxonomies_alt_' . $partner->id,
+                // ✅ QUITA 'entity' => 'allTaxonomies',
                 'attribute' => 'name',
                 'model' => Taxonomy::class,
                 'options' => function ($query) use ($partner, $mainId) {
@@ -692,6 +692,24 @@ class EventCrudController extends CrudController
                 'hint' => __('backend.events.help-taxonomies-select'),
                 'tab' => __('backend.events.tab_basic'),
             ]);
+        }
+
+        // Cargar valores seleccionados en edición
+        if ($this->crud->getCurrentEntry()) {
+            $entry = $this->crud->getCurrentEntry();
+
+            foreach (get_current_brand()->partnershipedBrands as $partner) {
+                $fieldName = 'taxonomies_alt_' . $partner->id;
+
+                // Obtener taxonomías del partner que ya tiene el evento
+                $partnerTaxonomies = $entry->allTaxonomies()
+                    ->where('taxonomies.brand_id', $partner->id)
+                    ->pluck('taxonomies.id')
+                    ->toArray();
+
+                // Asignar valores al campo
+                CRUD::field($fieldName)->value($partnerTaxonomies);
+            }
         }
 
         CRUD::addField([

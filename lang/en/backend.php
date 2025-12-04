@@ -649,7 +649,7 @@ return [
         'regenerate' => 'Regenerate slot cache',
         'confirm_regenerate' => 'Are you sure you want to regenerate the slot cache for this session?',
         'event' => 'Event (summary)',
-         'event_fullname' => 'Event (complete)',
+        'event_fullname' => 'Event (complete)',
         'space' => 'Space',
         'visibility' => 'Active/visible session',
         'no-visibility' => 'Deactivated/hidden session',
@@ -685,7 +685,7 @@ return [
         'autolock_type' => 'Blocking pattern',
         'limit_x_100' => 'Capacity limit',
         'autolock_n' => 'Blocking N',
-        'code_type' => 'Purchase limitation through:',
+        'code_type' => 'Purchase limitation by rate through:',
         'code_type_null' => 'No limitation',
         'code_type_census' => 'Limitation by registration',
         'code_type_session' => 'Limitation by codes uploaded in the session',
@@ -719,6 +719,9 @@ return [
         'hint_no_space' => 'Don\'t have any space created?',
         'private_url' => 'Private session URL',
         'session_info' => 'Session information',
+        'limit_per_user' => 'Limit purchase per user',
+        'max_per_user' => 'Maximum per user',
+        'max_per_user_hint' => 'Maximum inscriptions that a user can purchase for this session.',
     ],
 
     'cart' => [
@@ -787,6 +790,7 @@ return [
         'total' => 'Total',
         'pending' => 'Pending',
         'deleted' => 'Deleted',
+        'no_payment' => 'No payment information available.'
     ],
 
     'ticket' => [

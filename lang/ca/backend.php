@@ -687,7 +687,7 @@ return [
         'autolock_type' => 'Patró de bloqueig',
         'limit_x_100' => 'Limit aforament',
         'autolock_n' => 'N bloqueig',
-        'code_type' => 'Limitació de compra a traves de:',
+        'code_type' => 'Limitació de compra per tarifa a traves de:',
         'code_type_null' => 'Sense limitació',
         'code_type_census' => 'Limitació per empadronament',
         'code_type_session' => 'Limitació per codis pujats en la sessió ',
@@ -721,6 +721,9 @@ return [
         'hint_no_space' => 'No tens cap espai creat?',
         'private_url' => 'Accés privat via URL',
         'session_info' => 'Informació de la sessió',
+        'limit_per_user' => 'Limitar compra per usuari',
+        'max_per_user' => 'Màxim per usuari',
+        'max_per_user_hint' => 'Màxim d\'inscripcions que un usuari pot comprar per aquesta sessió.',
     ],
 
     'cart' => [
@@ -789,6 +792,7 @@ return [
         'total' => 'Total',
         'pending' => 'Pendent',
         'deleted' => 'Eliminat',
+        'no_payment' => 'No hi ha informació del pagament disponible'
     ],
 
     'ticket' => [

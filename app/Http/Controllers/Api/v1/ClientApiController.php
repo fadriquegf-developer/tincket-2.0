@@ -87,7 +87,7 @@ class ClientApiController extends \App\Http\Controllers\Api\ApiController
     }
 
     /**
-     * Display carts with pagination
+     * Display carts with pagination. Return only confirmed cars with payment
      *
      * @method GET
      * @param  Client  $client
@@ -100,6 +100,12 @@ class ClientApiController extends \App\Http\Controllers\Api\ApiController
         $perPage = min((int) $request->get('per_page', 20), 50); // Máximo 50
 
         $carts = $client->carts()
+            ->whereNotNull('confirmation_code')
+            ->whereHas(
+                'payments',
+                fn($q) =>
+                $q->whereNotNull('paid_at')
+            )
             ->with(['inscriptions.session.event', 'groupPacks.inscriptions.session.event'])
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
@@ -293,7 +299,6 @@ class ClientApiController extends \App\Http\Controllers\Api\ApiController
                 ]);
                 return response()->json(['error' => 'Invalid current password'], 403);
             }
-
         } else {
             Log::error('API: Missing authentication method', [
                 'client_id' => $client->id

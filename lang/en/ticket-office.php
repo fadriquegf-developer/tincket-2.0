@@ -122,7 +122,16 @@ return [
         'network' => 'Network error',
         'loading_failed' => 'Loading failed',
         'session_not_found' => 'Session not found',
-        'slot_not_available' => 'This seat is no longer available'
+        'slot_not_available' => 'This seat is no longer available',
+        'limit_per_user_exceeded' => 'Limit reached for ":session". This user has already purchased :buyed ticket(s). Maximum allowed: :max. Can only purchase :available more.',
+        'session_no_web_rates' =>   "The session ':name' (ID: :id) has no valid web rates configured.\n\n" .
+                                    "To fix this:\n" .
+                                    "1. Go to Admin > Sessions\n" .
+                                    "2. Edit the session ':name'\n" .
+                                    "3. In the 'Rates' section, enable at least one as 'Available for the Web Client'\n" .
+                                    "4. Save the changes",
+
+
     ],
 
     // Confirmation messages

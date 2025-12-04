@@ -29,6 +29,14 @@ class SessionRequest extends FormRequest
             'ends_on' => 'required|after:starts_on',
             'inscription_starts_on' => 'required',
             'inscription_ends_on' => 'required|after:inscription_starts_on',
+            'limit_per_user' => 'nullable|boolean',
+            'max_per_user' => [
+                'nullable',
+                'integer',
+                'min:1',
+                'max:100',
+                'required_if:limit_per_user,1',
+            ],
         ];
     }
 
@@ -41,7 +49,7 @@ class SessionRequest extends FormRequest
             }
 
             $isNumbered = (bool) $this->input('is_numbered');
-            
+
             // Solo validar si la sesión es numerada
             if (!$isNumbered) {
                 return;
@@ -49,7 +57,7 @@ class SessionRequest extends FormRequest
 
             $ratesJson = $this->input('rates');
             $rates = is_string($ratesJson) ? json_decode($ratesJson, true) : $ratesJson;
-            
+
             if (!is_array($rates) || empty($rates)) {
                 return;
             }
@@ -57,10 +65,10 @@ class SessionRequest extends FormRequest
             foreach ($rates as $index => $rate) {
                 // Verificar si la tarifa no tiene zona asignada
                 $zoneId = $rate['zone_id'] ?? null;
-                
+
                 if (empty($zoneId) || $zoneId === '' || $zoneId === 'null') {
                     $rateName = $rate['rate']['name'] ?? __('backend.cart.rate');
-                    
+
                     $validator->errors()->add(
                         'rates',
                         __('La tarifa ":rate" requiere una zona asignada para sesiones numeradas.', [

@@ -109,9 +109,6 @@ class PaymentSlotLockService
 
         // Si no hay inscripciones con slots, no hay nada que bloquear
         if ($inscriptions->isEmpty()) {
-            Log::info('PaymentSlotLock: No slots to lock for cart', [
-                'cart_id' => $cart->id
-            ]);
             return [
                 'success' => true,
                 'locked_slots' => [],

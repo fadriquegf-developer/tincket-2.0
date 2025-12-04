@@ -142,13 +142,15 @@
                     {{ __('backend.cart.platform') }}</label>
                 <div class="col-sm-9">
                     @php
-                        $paymentType = $payment->getTicketOfficePaymentType();
+                        $paymentType = $payment?->getTicketOfficePaymentType();
                     @endphp
-                    {{ $payment->gateway }}
-                    @if ($payment->tpv_name)
-                        ({{ $payment->tpv_name }})
-                    @elseif($paymentType)
-                        ({{ __('backend.ticket.payment_type.' . $paymentType) }})
+                    @if ($payment->gateway === 'TicketOffice' && $paymentType)
+                        TicketOffice ({{ __('backend.ticket.payment_type.' . $paymentType) }})
+                    @else
+                        {{ $payment->gateway }}
+                        @if ($payment->tpv_name)
+                            ({{ $payment->tpv_name }})
+                        @endif
                     @endif
                 </div>
             </div>
@@ -256,7 +258,7 @@
         @else
             <p class="text-muted mb-0">
                 <i class="la la-info-circle me-1"></i>
-                {{ __('backend.cart.no_payment') ?? 'No hay información de pago' }}
+                {{ __('backend.cart.no_payment') }}
             </p>
         @endif
     </div>

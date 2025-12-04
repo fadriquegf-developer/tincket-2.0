@@ -162,15 +162,6 @@ class PartialRefundService
                 return $partialRefund;
             });
 
-            // Log
-            Log::info('Partial refund created', [
-                'partial_refund_id' => $partialRefund->id,
-                'cart_id' => $cart->id,
-                'amount' => $partialRefund->amount,
-                'inscription_count' => $inscriptions->count(),
-                'user_id' => auth()->id(),
-            ]);
-
             return [
                 'success' => true,
                 'partial_refund' => $partialRefund->fresh(['items']),
@@ -243,12 +234,6 @@ class PartialRefundService
                 $cart->comment = trim($cart->comment . $comment);
                 $cart->save();
 
-                Log::info('Partial refund processed with Redsys', [
-                    'partial_refund_id' => $partialRefund->id,
-                    'refund_reference' => $result['refund_reference'],
-                    'amount' => $partialRefund->amount,
-                ]);
-
                 return [
                     'success' => true,
                     'message' => "Devolución procesada correctamente. Referencia: {$result['refund_reference']}",
@@ -310,11 +295,6 @@ class PartialRefundService
 
             $cart->comment = trim($cart->comment . $comment);
             $cart->save();
-
-            Log::info('Partial refund marked as completed manually', [
-                'partial_refund_id' => $partialRefund->id,
-                'reference' => $reference,
-            ]);
 
             return [
                 'success' => true,

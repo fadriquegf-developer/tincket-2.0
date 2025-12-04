@@ -206,14 +206,15 @@ class EventApiController extends \App\Http\Controllers\Api\ApiController
 
             if (!$hasPartners) {
                 $brandId = $brand->id;
-                $query->join('classifiables', function ($join) use ($brandId) {
-                    $join->on('classifiables.classifiable_id', '=', 'events.id')
-                        ->where('classifiables.classifiable_type', '=', 'App\\Models\\Event')
-                        ->join('taxonomies', function ($taxJoin) use ($brandId) {
-                            $taxJoin->on('taxonomies.id', '=', 'classifiables.taxonomy_id')
-                                ->where('taxonomies.brand_id', '=', $brandId);
-                        });
-                });
+                
+                $query->leftJoin('classifiables', function ($join) use ($brandId) {
+                $join->on('classifiables.classifiable_id', '=', 'events.id')
+                    ->where('classifiables.classifiable_type', '=', 'App\\Models\\Event')
+                    ->leftJoin('taxonomies', function ($taxJoin) use ($brandId) {
+                        $taxJoin->on('taxonomies.id', '=', 'classifiables.taxonomy_id')
+                            ->where('taxonomies.brand_id', '=', $brandId);
+                    });
+            });
             }
 
             $query->orderBy('events.publish_on', 'DESC');

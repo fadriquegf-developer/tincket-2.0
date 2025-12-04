@@ -22,7 +22,10 @@
               <td>{{ $session->id }}</td>
               <td>{{ $session->starts_on ? \Carbon\Carbon::parse($session->starts_on)->format('d/m/Y H:i') : '-' }}</td>
               <td>{{ $session->max_places }}</td>
-              <td>{{ $session->inscriptions()->withoutGlobalScope(\App\Scopes\BrandScope::class)->whereNotNull('barcode')->count() }}</td>
+              <td>{{ $session->inscriptions()->withoutGlobalScope(\App\Scopes\BrandScope::class)->whereHas('cart', function ($q) {
+                                    $q->whereNotNull('confirmation_code');
+                                })->count() }}
+              </td>
               <td>{{ $session->updated_at }}</td>
               <td>{{ $session->deleted_at }}</td>
             </tr>

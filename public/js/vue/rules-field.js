@@ -11,15 +11,15 @@
         const t = props.t || {};
 
         const initialRules = Array.isArray(props.initial) ? props.initial.map(rule => ({
-            number_sessions: rule.number_sessions ?? 1,
-            percent_pack: rule.percent_pack ?? 0,
-            price_pack: rule.price_pack ?? 0,
-            all_remaining_sessions: rule.all_remaining_sessions ?? false,
+            number_sessions: rule.number_sessions ?? null,
+            percent_pack: rule.percent_pack ?? null,
+            price_pack: rule.price_pack ?? null,
+            all_sessions: rule.all_sessions ?? false,
         })) : [{
-            number_sessions: 1,
-            percent_pack: 0,
-            price_pack: 0,
-            all_remaining_sessions: false
+            number_sessions: null,
+            percent_pack: null,
+            price_pack: null,
+            all_sessions: false
         }, ];
 
         const state = reactive({
@@ -65,7 +65,7 @@
                       class="form-check-input"
                       type="checkbox"
                       role="switch"
-                      v-model="rule.all_remaining_sessions"
+                      v-model="rule.all_sessions"
                       :id="'all-remaining-' + index"
                     />
                     <label class="form-check-label small" :for="'all-remaining-' + index">
@@ -140,10 +140,10 @@
             setup() {
                 function addRule() {
                     state.rules.push({
-                        number_sessions: 1,
-                        percent_pack: 0,
-                        price_pack: 0,
-                        all_remaining_sessions: false,
+                        number_sessions: null,
+                        percent_pack: null,
+                        price_pack: null,
+                        all_sessions: false,
                     });
                     updateHiddenInput();
 

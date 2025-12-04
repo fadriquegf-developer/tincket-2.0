@@ -120,7 +120,14 @@ return [
         'network' => 'Error de red',
         'loading_failed' => 'Error al cargar',
         'session_not_found' => 'Sesión no encontrada',
-        'slot_not_available' => 'Este asiento ya no está disponible'
+        'slot_not_available' => 'Este asiento ya no está disponible',
+        'limit_per_user_exceeded' => 'Límite alcanzado para ":session". Este usuario ya ha comprado :buyed entrada(s). Máximo permitido: :max. Solo puede comprar :available más.',
+        'session_no_web_rates' =>   "La sesión ':name' (ID: :id) no tiene tarifas web válidas configuradas.\n\n" .
+                                    "Para solucionar esto:\n" .
+                                    "1. Ve a Admin > Sesiones\n" .
+                                    "2. Edita la sesión ':name'\n" .
+                                    "3. En la sección 'Tarifas', marca al menos una como 'Disponible para el Cliente Web'\n" .
+                                    "4. Guarda los cambios",
     ],
 
     // Confirmaciones

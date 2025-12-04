@@ -255,11 +255,11 @@ trait SessionCrudUi
         CRUD::addcolumns([
             [
                 'label' => __('backend.session.sessionname'),
-                'name'  => 'name',
-                'type'  => 'text',
+                'name' => 'name',
+                'type' => 'text',
                 'limit' => 30,
-                'visibleInTable'  => true,
-                'visibleInModal'  => false,
+                'visibleInTable' => true,
+                'visibleInModal' => false,
                 'searchLogic' => function ($query, $column, $searchTerm) {
                     $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
                 },
@@ -272,13 +272,13 @@ trait SessionCrudUi
             ],
             [
                 'name' => 'name',
-                'key'   => 'fullname',
+                'key' => 'fullname',
                 'label' => __('backend.session.sessionfullname'),
-                'limit'  => 255,
+                'limit' => 255,
                 'searchLogic' => false,
                 'orderable' => false,
-                'visibleInTable'  => false,
-                'visibleInModal'  => true,
+                'visibleInTable' => false,
+                'visibleInModal' => true,
                 'searchLogic' => function ($query, $column, $searchTerm) {
                     $query->orWhere(DB::raw('lower(name)'), 'like', '%' . strtolower($searchTerm) . '%');
                 }
@@ -289,11 +289,11 @@ trait SessionCrudUi
             [
                 'name' => 'event_id',
                 'label' => __('backend.session.event'),
-                'type'  => 'select',
+                'type' => 'select',
                 'attribute' => 'name',
                 'limit' => 30,
-                'visibleInTable'  => true,
-                'visibleInModal'  => false,
+                'visibleInTable' => true,
+                'visibleInModal' => false,
                 'model' => Event::class,
                 'searchLogic' => function ($query, $column, $searchTerm) {
                     $query->orWhereHas('event', function ($q) use ($column, $searchTerm) {
@@ -309,15 +309,15 @@ trait SessionCrudUi
             ],
             [
                 'name' => 'event_id',
-                'key'   => 'event_fullname',
+                'key' => 'event_fullname',
                 'label' => __('backend.session.event_fullname'),
-                'type'  => 'select',
+                'type' => 'select',
                 'attribute' => 'name',
-                'limit'  => 255,
+                'limit' => 255,
                 'searchLogic' => false,
                 'orderable' => false,
-                'visibleInTable'  => false,
-                'visibleInModal'  => true,
+                'visibleInTable' => false,
+                'visibleInModal' => true,
                 'model' => Event::class,
             ]
         ]);
@@ -1020,23 +1020,70 @@ trait SessionCrudUi
             'default' => 'null',
             'allows_null' => false,
             'wrapperAttributes' => [
-                'class' => 'form-group',
+                'class' => 'form-group col-md-12',
             ],
             'tab' => __('backend.rate.code'),
         ]);
 
-        //comentado en el antiguo tambien
-
-        /* $this->crud->addField([ // Table
-            'name' => 'codes',
-            'label' => '',
-            'type' => 'table_custom',
-            'entity_singular' => 'codes', // used on the "Add X" button
-            'columns' => [
-                'name' => 'Name',
-                'code' =>  __('tincket/backend.rate.code')
+        CRUD::addField([
+            'name' => 'limit_per_user',
+            'label' => __('backend.session.limit_per_user'),
+            'type' => 'switch',
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-12',
             ],
-            'tab' =>  __('tincket/backend.rate.code'),
-        ]); */
+            'tab' => __('backend.rate.code'),
+        ]);
+
+        CRUD::addField([
+            'name' => 'max_per_user',
+            'label' => __('backend.session.max_per_user'),
+            'type' => 'number',
+            'attributes' => [
+                'min' => 1,
+                'max' => 100,
+            ],
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-4 max-per-user-field',
+            ],
+            'hint' => __('backend.session.max_per_user_hint'),
+            'tab' => __('backend.rate.code'),
+        ]);
+
+        // ✅ Script mejorado
+        CRUD::addField([
+            'name' => 'limit_per_user_script',
+            'type' => 'custom_html',
+            'value' => '<script>
+                    document.addEventListener("DOMContentLoaded", function() {
+                        function toggleMaxPerUser() {
+                            const input = document.querySelector("input[name=\"limit_per_user\"]");
+                            const wrapper = document.querySelector(".max-per-user-field");
+                                            
+                            if (input && wrapper) {
+                                if (input.value === "1") {
+                                    wrapper.style.display = "block";
+                                } else {
+                                    wrapper.style.display = "none";
+                                }
+                            }
+                        }
+                        
+                        setTimeout(toggleMaxPerUser, 500);
+                        
+                        // Observar cambios en el valor del input
+                        const input = document.querySelector("input[name=\"limit_per_user\"]");
+                        if (input) {
+                            // MutationObserver para detectar cambios en el value
+                            const observer = new MutationObserver(toggleMaxPerUser);
+                            observer.observe(input, { attributes: true, attributeFilter: ["value"] });
+                            
+                            // También listener por si acaso
+                            input.addEventListener("change", toggleMaxPerUser);
+                        }
+                    });
+                </script>',
+            'tab' => __('backend.rate.code'),
+        ]);
     }
 }

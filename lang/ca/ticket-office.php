@@ -129,7 +129,14 @@ return [
         'network' => 'Error de xarxa',
         'loading_failed' => 'Error en carregar',
         'session_not_found' => 'Sessió no trobada',
-        'slot_not_available' => 'Aquest assentament ja no està disponible'
+        'slot_not_available' => 'Aquest assentament ja no està disponible',
+        'limit_per_user_exceeded' => 'Límit assolit per ":session". Aquest usuari ja ha comprat :buyed entrada(es). Màxim permès: :max. Només en pot comprar :available més.',
+        'session_no_web_rates' =>   "La sessió ':name' (ID: :id) no té tarifes web vàlides configurades.\n\n" .
+                                    "Per solucionar-ho:\n" .
+                                    "1. Ves a Admin > Sessions\n" .
+                                    "2. Edita la sessió ':name'\n" .
+                                    "3. A la secció 'Tarifes', marca’n almenys una com a 'Disponible per al Client Web'\n" .
+                                    "4. Desa els canvis",
     ],
 
     // Mensajes de confirmación

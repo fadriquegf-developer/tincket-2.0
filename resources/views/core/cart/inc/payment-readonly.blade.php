@@ -171,7 +171,7 @@
                 </label>
                 <div class="col-sm-9">
                     @php
-                        $paymentType = $payment->getTicketOfficePaymentType();
+                        $paymentType = $payment?->getTicketOfficePaymentType();
                     @endphp
                     {{ $payment->gateway }}
                     @if ($payment->tpv_name)
@@ -247,7 +247,7 @@
         @else
             <p class="text-muted mb-0">
                 <i class="la la-info-circle me-1"></i>
-                {{ __('backend.cart.inc.no_payment') ?? 'No hay información de pago disponible' }}
+                {{ __('backend.cart.no_payment') }}
             </p>
         @endif
     </div>

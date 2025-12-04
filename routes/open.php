@@ -19,6 +19,7 @@ Route::group(['prefix' => 'public', 'middleware' => ['setBrand']], function () {
   Route::get('gift-card/{gift}', [\App\Http\Controllers\Open\GiftCardController::class, 'getPDF'])->name('open.gift_card.pdf');
   Route::get('gift-card/{gift}/download', [\App\Http\Controllers\Open\GiftCardController::class, 'download'])->name('open.gift_card.download');
   Route::get('cart/{cart}/download', [\App\Http\Controllers\Open\CartController::class, 'download'])->name('open.cart.download');
+  Route::get('cart/{cart}/pack/{pack}/download', [\App\Http\Controllers\Open\CartController::class, 'downloadPack'])->name('open.cart.pack.download');
 
   /*
   |--------------------------------------------------------------------------
