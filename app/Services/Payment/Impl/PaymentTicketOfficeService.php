@@ -55,8 +55,8 @@ class PaymentTicketOfficeService extends \App\Services\Payment\AbstractPaymentSe
         // do not dispatch the job to the queue to avoid the customer waiting 
         // for queue processing        
         (new \App\Jobs\CartConfirm(
-            $this->payment->cart, 
-            ['send_mail' => false, 'pdf' => config('base.inscription.ticket-office-params')]
+            $this->payment->cart,
+            ['send_mail' => false, 'pdf' => brand_setting('base.inscription.ticket-office-params')]
         ))->handle();
     }
 

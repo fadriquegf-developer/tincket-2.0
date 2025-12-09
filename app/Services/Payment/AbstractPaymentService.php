@@ -446,13 +446,25 @@ abstract class AbstractPaymentService implements PaymentServiceInterface
     }
 
     /**
-     * Is called when a payment is confirmed. By default it will send email 
+     * By default it will send email 
      * and generate PDFs for the client but it can be overriden
      */
     public function confirmedPayment()
     {
-        // Email sending, pdf generation and so on will be done by Event Queue
-        \App\Jobs\CartConfirm::dispatch($this->payment->cart, ['pdf' => brand_setting('base.inscription.ticket-web-params')]);
+        $sellerType = $this->payment->cart->seller_type;
+        $isTicketOffice = ($sellerType === 'App\Models\User');
+
+        // ✅ FIX: Obtener brand del cart y usarlo explícitamente
+        $brand = $this->payment->cart->brand;
+
+        // ✅ FIX: Llamar brand_setting() pasando el brand explícitamente
+        $brandSettingsRepo = app(\App\Services\BrandSettingsRepository::class);
+
+        $pdfParams = $isTicketOffice
+            ? $brandSettingsRepo->get('base.inscription.ticket-office-params', $brand)
+            : $brandSettingsRepo->get('base.inscription.ticket-web-params', $brand);
+
+        \App\Jobs\CartConfirm::dispatch($this->payment->cart, ['pdf' => $pdfParams]);
     }
 
     public function getConfigDecoder(): ?TpvConfigurationDecoder
