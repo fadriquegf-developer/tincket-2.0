@@ -46,6 +46,12 @@
         tbody tr:nth-child(even) {
             background-color: #f9f9f9;
         }
+
+        /* ✨ NUEVO: Estilos para columnas dinámicas */
+        .metadata-column {
+            font-size: 7px;
+            background-color: #f0f8ff;
+        }
     </style>
 </head>
 
@@ -54,22 +60,39 @@
     <table>
         <thead>
             <tr>
-                <th style="width: 8%;">Nombre</th>
-                <th style="width: 10%;">Apellidos</th>
-                <th style="width: 15%;">Email</th>
-                <th style="width: 8%;">Teléfono</th>
-                <th style="width: 8%;">Código</th>
+                {{-- Columnas estándar existentes --}}
+                <th style="width: 6%;">Nombre</th>
+                <th style="width: 8%;">Apellidos</th>
+                <th style="width: 12%;">Email</th>
+                <th style="width: 7%;">Teléfono</th>
+                <th style="width: 7%;">Código</th>
                 <th style="width: 6%;">Gateway</th>
-                <th style="width: 10%;">Tarifa</th>
-                <th style="width: 8%;">Butaca</th>
-                <th style="width: 12%;">Barcode</th>
-                <th style="width: 5%;">Valid.</th>
-                <th style="width: 10%;">Fecha</th>
+                <th style="width: 8%;">Tarifa</th>
+                <th style="width: 7%;">Butaca</th>
+                <th style="width: 10%;">Barcode</th>
+                <th style="width: 4%;">Valid.</th>
+                <th style="width: 8%;">Fecha</th>
+
+                {{-- ✨ NUEVO: Columnas dinámicas de form_fields --}}
+                @if(isset($formFieldsUsed) && count($formFieldsUsed) > 0)
+                    @foreach($formFieldsUsed as $fieldName => $fieldLabel)
+                        <th class="metadata-column" style="width: {{ 100 / (11 + count($formFieldsUsed)) }}%;">
+                            {{ $fieldLabel }}
+                        </th>
+                    @endforeach
+                @endif
             </tr>
         </thead>
         <tbody>
             @foreach ($inscriptions as $i)
+                @php
+                    // Decodificar metadata
+                    $metadata = is_array($i->metadata) ? 
+                        $i->metadata : 
+                        json_decode($i->metadata, true) ?? [];
+                @endphp
                 <tr>
+                    {{-- Columnas estándar --}}
                     <td>{{ $i->cart->client->name ?? '-' }}</td>
                     <td>{{ $i->cart->client->surname ?? '-' }}</td>
                     <td>{{ $i->cart->client->email ?? '-' }}</td>
@@ -87,11 +110,38 @@
                     <td>{{ $i->barcode }}</td>
                     <td>{{ $i->checked_at ? 'Sí' : 'No' }}</td>
                     <td>{{ $i->cart->created_at?->format('d/m/y H:i') }}</td>
+
+                    {{-- ✨ NUEVO: Columnas dinámicas con valores de metadata --}}
+                    @if(isset($formFieldsUsed) && count($formFieldsUsed) > 0)
+                        @foreach($formFieldsUsed as $fieldName => $fieldLabel)
+                            <td class="metadata-column">
+                                @php
+                                    $value = $metadata[$fieldName] ?? '';
+                                    
+                                    // Formatear el valor
+                                    if (is_array($value)) {
+                                        echo implode(', ', $value);
+                                    } elseif (is_bool($value)) {
+                                        echo $value ? 'Sí' : 'No';
+                                    } elseif (empty($value)) {
+                                        echo '-';
+                                    } else {
+                                        echo $value;
+                                    }
+                                @endphp
+                            </td>
+                        @endforeach
+                    @endif
                 </tr>
             @endforeach
         </tbody>
     </table>
-    <p style="margin-top: 10px; font-size: 8px;">Total: {{ count($inscriptions) }} inscripciones</p>
+    <p style="margin-top: 10px; font-size: 8px;">
+        Total: {{ count($inscriptions) }} inscripciones
+        @if(isset($formFieldsUsed) && count($formFieldsUsed) > 0)
+            | Campos adicionales: {{ count($formFieldsUsed) }}
+        @endif
+    </p>
 </body>
 
 </html>

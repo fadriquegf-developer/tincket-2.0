@@ -73,11 +73,14 @@ class CartConfirm implements ShouldQueue
 
     private function updateSlotsLockReason()
     {
-        // 🔥 Usar array en lugar de Collection
         $inscriptionsBySession = [];
 
-        // Inscripciones normales
-        foreach ($this->cart->allInscriptions as $inscription) {
+        // ✅ FIX: Cargar inscripciones sin BrandScope
+        $allInscriptions = $this->cart->inscriptions()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        foreach ($allInscriptions as $inscription) {
             if ($inscription->slot_id && $inscription->session_id) {
                 if (!isset($inscriptionsBySession[$inscription->session_id])) {
                     $inscriptionsBySession[$inscription->session_id] = [];
@@ -86,9 +89,17 @@ class CartConfirm implements ShouldQueue
             }
         }
 
-        // Inscripciones de packs
-        foreach ($this->cart->groupPacks as $groupPack) {
-            foreach ($groupPack->inscriptions as $inscription) {
+        // ✅ FIX: Cargar groupPacks y sus inscripciones sin BrandScope
+        $groupPacks = $this->cart->groupPacks()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        foreach ($groupPacks as $groupPack) {
+            $packInscriptions = $groupPack->inscriptions()
+                ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+                ->get();
+
+            foreach ($packInscriptions as $inscription) {
                 if ($inscription->slot_id && $inscription->session_id) {
                     if (!isset($inscriptionsBySession[$inscription->session_id])) {
                         $inscriptionsBySession[$inscription->session_id] = [];
@@ -103,7 +114,6 @@ class CartConfirm implements ShouldQueue
             $slotIds = array_unique($slotIds);
 
             foreach ($slotIds as $slotId) {
-                // 🔥 Crear o actualizar SessionSlot con status_id = 2 (vendida)
                 \App\Models\SessionSlot::updateOrCreate(
                     [
                         'session_id' => $sessionId,
@@ -156,23 +166,34 @@ class CartConfirm implements ShouldQueue
 
     private function storeInscriptionsPdf($cart)
     {
-        $batchSize = 5; // Reducir a 5 PDFs por lote
-        $inscriptions = $cart->inscriptions; // debería ser colección
+        $batchSize = 5;
 
-        if (!$inscriptions instanceof \Illuminate\Support\Collection) {
-            $inscriptions = $inscriptions->get(); // cargar colección desde relación
+        // ✅ FIX: Usar el método de relación () y deshabilitar BrandScope
+        $inscriptions = $cart->inscriptions()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        // ✅ Validar que hay inscripciones
+        if ($inscriptions->isEmpty()) {
+            \Log::warning('No inscriptions found for cart', [
+                'cart_id' => $cart->id,
+                'cart_brand_id' => $cart->brand_id
+            ]);
+            return;
         }
 
         $chunks = $inscriptions->chunk($batchSize);
 
         foreach ($chunks as $chunk) {
             foreach ($chunk as $inscription) {
-                $this->storeInscriptionPdf($inscription);
+                // ✅ Extra validación defensiva
+                if ($inscription) {
+                    $this->storeInscriptionPdf($inscription);
+                }
             }
             sleep(5);
         }
     }
-
 
     /**
      * Stores, if not exists, the inscription PDF for the given Inscription
@@ -194,7 +215,11 @@ class CartConfirm implements ShouldQueue
 
         \DB::commit();
 
-        $inscription = Inscription::with(['cart'])->find($inscription->id);
+        // ✅ FIX: Deshabilitar BrandScope al recargar la inscripción
+        $inscription = Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->with(['cart'])
+            ->find($inscription->id);
+
         if (!$inscription) {
             \Log::error("Inscription not found after save", ['id' => $inscription->id]);
             throw new \Exception("Inscription {$inscription->id} not found after save");
@@ -255,15 +280,33 @@ class CartConfirm implements ShouldQueue
 
     private function storePacksPdf(Cart $cart)
     {
-        foreach ($cart->groupPacks as $group_pack) {
+        // ✅ FIX: Usar el método de relación () y deshabilitar BrandScope
+        $groupPacks = $cart->groupPacks()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        foreach ($groupPacks as $group_pack) {
             $this->storePackPdf($group_pack);
         }
     }
 
     private function storePackPdf(GroupPack $pack)
     {
-        foreach ($pack->inscriptions as $inscription) {
-            $pdfs[] = $this->storeInscriptionPdf($inscription);
+        // ✅ FIX: Deshabilitar BrandScope en las inscripciones del pack
+        $inscriptions = $pack->inscriptions()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        $pdfs = [];
+        foreach ($inscriptions as $inscription) {
+            if ($inscription) {
+                $pdfs[] = $this->storeInscriptionPdf($inscription);
+            }
+        }
+
+        if (empty($pdfs)) {
+            \Log::warning('No PDFs to merge for pack', ['pack_id' => $pack->id]);
+            return;
         }
 
         $tmp_file = $this->mergePdfs($pdfs);
@@ -271,7 +314,6 @@ class CartConfirm implements ShouldQueue
         $destination_path = 'pdf/packs';
 
         if (\Storage::disk()->put("$destination_path/$pack->pdf_name", fopen($tmp_file, 'r'))) {
-            # we need the magic string "/app" due to this bug: https://github.com/laravel/framework/issues/13610
             $pack->pdf = "app/public/$destination_path/$pack->pdf_name";
             $pack->save();
         }
@@ -280,7 +322,12 @@ class CartConfirm implements ShouldQueue
 
     private function storeGiftCardsPdf(Cart $cart)
     {
-        foreach ($cart->gift_cards as $gift_card) {
+        // ✅ FIX: Usar el método de relación () y deshabilitar BrandScope  
+        $giftCards = $cart->gift_cards()
+            ->withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->get();
+
+        foreach ($giftCards as $gift_card) {
             $this->storeGiftCardPdf($gift_card);
         }
     }

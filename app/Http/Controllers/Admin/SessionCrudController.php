@@ -496,14 +496,33 @@ class SessionCrudController extends CrudController
     }
 
 
+    /**
+     * Exporta las inscripciones de una sesión a Excel
+     * INCLUYE COLUMNAS DINÁMICAS DE METADATA DE FORMULARIOS
+     */
     public function exportExcel($sessionId)
     {
-        // 1) Cargo la sesión
-        $session = Session::findOrFail($sessionId);
+        \Log::info("=== INICIO EXPORT EXCEL - Session ID: {$sessionId} ===");
 
-        // 2) Cargo las inscripciones SIN BrandScope y sin el eager loading automático
+        // 1) Cargo la sesión CON allRates (AssignatedRates) y sus rates con forms
+        $session = Session::with([
+            'allRates' => function ($q) {
+                $q->with(['rate' => function ($r) {
+                    $r->with(['form' => function ($f) {
+                        $f->with(['form_fields' => function ($ff) {
+                            $ff->orderBy('form_form_field.order');
+                        }]);
+                    }]);
+                }]);
+            }
+        ])->findOrFail($sessionId);
+        \Log::info("Session cargada: {$session->name}");
+        \Log::info("Session->allRates después del with(): " . ($session->allRates === null ? 'NULL' : 'EXISTS'));
+        \Log::info("Relaciones cargadas: " . json_encode($session->getRelations()));
+
+        // 2) Cargo las inscripciones SIN BrandScope
         $inscriptions = Inscription::withoutGlobalScope(BrandScope::class)
-            ->without(['session', 'rate', 'slot']) // <-- IMPORTANTE: Deshabilitar el eager loading automático del modelo
+            ->without(['session', 'rate', 'slot'])
             ->where('session_id', $session->id)
             ->whereHas('cart', function ($q) {
                 $q->withoutGlobalScope(BrandScope::class)
@@ -518,21 +537,48 @@ class SessionCrudController extends CrudController
                                 ->whereNotNull('payments.paid_at')
                         ]);
                 },
-                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class),
-                'slot' // <-- Slot no necesita withoutGlobalScope porque no lo tiene
+                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class)
+                    ->with(['form' => function ($f) {
+                        $f->with(['form_fields' => function ($ff) {
+                            $ff->orderBy('form_form_field.order');
+                        }]);
+                    }]),
+                'slot'
             ])
             ->get();
 
-        // 3) Preparo los datos
-        $rows = $inscriptions->map(function ($i) {
+        \Log::info("Total inscripciones cargadas: " . $inscriptions->count());
+
+        // LOG: Mostrar metadata de cada inscripción
+        foreach ($inscriptions->take(5) as $idx => $i) {
+            $meta = is_array($i->metadata) ? $i->metadata : json_decode($i->metadata, true) ?? [];
+            \Log::info("Inscripción #{$idx} - ID: {$i->id}");
+            \Log::info("  - Rate ID: " . ($i->rate_id ?? 'NULL'));
+            \Log::info("  - Rate Name: " . ($i->rate->name ?? 'NULL'));
+            \Log::info("  - Rate Form ID: " . ($i->rate->form_id ?? 'NULL'));
+            \Log::info("  - Metadata RAW: " . json_encode($i->metadata));
+            \Log::info("  - Metadata DECODED: " . json_encode($meta));
+            \Log::info("  - Metadata KEYS: " . implode(', ', array_keys($meta)));
+        }
+
+        // 3) Detectar todos los form_fields que tienen respuestas en metadata
+        // Passem allRates directament per evitar problemes amb relacions
+        $formFieldsUsed = $this->detectUsedFormFields($inscriptions, $session->allRates);
+
+        \Log::info("Form fields detectados: " . count($formFieldsUsed));
+        \Log::info("Form fields used: " . json_encode($formFieldsUsed));
+
+        // 4) Preparo los datos con columnas dinámicas
+        $rows = $inscriptions->map(function ($i) use ($formFieldsUsed) {
             $client = $i->cart?->client;
             $slot = $i->slot;
-            $meta = is_array($i->metadata) ? $i->metadata : json_decode($i->metadata, true) ?? [];
+            $meta = is_array($i->metadata) ?
+                $i->metadata : json_decode($i->metadata, true) ?? [];
 
-            // Obtiene el primer payment de la colección payments
             $payment = $i->cart?->payments?->first();
 
-            return [
+            // Columnas estándar (las que ya existían)
+            $row = [
                 'Nombre' => $client?->name ?? '',
                 'Apellidos' => $client?->surname ?? '',
                 'Email' => $client?->email ?? '',
@@ -547,9 +593,16 @@ class SessionCrudController extends CrudController
                 'DNI' => $meta['dni'] ?? '',
                 'Creado' => $i->cart?->created_at?->format('d/m/Y H:i') ?? '',
             ];
+
+            // ✨ NUEVO: Añadir columnas dinámicas de form_fields
+            foreach ($formFieldsUsed as $fieldName => $fieldLabel) {
+                $row[$fieldLabel] = $this->formatMetadataValue($meta[$fieldName] ?? '');
+            }
+
+            return $row;
         })->toArray();
 
-        // 4) Clase anónima que implementa FromCollection, WithHeadings y WithEvents
+        // 5) Clase anónima para Excel con columnas dinámicas
         $export = new class(collect($rows)) implements FromCollection, WithHeadings, WithEvents {
             private $collection;
 
@@ -575,6 +628,7 @@ class SessionCrudController extends CrudController
                         $sheet = $event->sheet->getDelegate();
                         $rowCount = $this->collection->count() + 1;
 
+                        // Estilo zebra
                         for ($row = 2; $row <= $rowCount; $row++) {
                             if ($row % 2 === 0) {
                                 $sheet
@@ -590,24 +644,36 @@ class SessionCrudController extends CrudController
             }
         };
 
-        // 5) Descarga
+        // 6) Descarga
         return Excel::download($export, "inscripciones-{$sessionId}.xlsx");
     }
 
     /**
-     * Genera un PDF imprimible de las inscripciones.
+     * Genera un PDF imprimible de las inscripciones
+     * INCLUYE METADATA DE FORMULARIOS
      */
     public function printInscr($sessionId)
     {
         // ✅ Aumentar límite de memoria temporalmente
         ini_set('memory_limit', '256M');
 
-        // 1) Cargar sesión con solo campos necesarios
+        // 1) Cargar sesión CON allRates (AssignatedRates) y sus rates con forms
         $session = Session::select('id', 'name', 'event_id', 'starts_on')
-            ->with('event:id,name')
+            ->with([
+                'event:id,name',
+                'allRates' => function ($q) {
+                    $q->with(['rate' => function ($r) {
+                        $r->with(['form' => function ($f) {
+                            $f->with(['form_fields' => function ($ff) {
+                                $ff->orderBy('form_form_field.order');
+                            }]);
+                        }]);
+                    }]);
+                }
+            ])
             ->findOrFail($sessionId);
 
-        // 2) ✅ QUERY OPTIMIZADA: Solo campos necesarios + chunk processing
+        // 2) ✅ QUERY OPTIMIZADA con form_fields
         $inscriptions = Inscription::withoutGlobalScope(BrandScope::class)
             ->select([
                 'inscriptions.id',
@@ -628,24 +694,188 @@ class SessionCrudController extends CrudController
                     $q->withoutGlobalScope(BrandScope::class)
                         ->with([
                             'client' => fn($c) => $c->withoutGlobalScope(BrandScope::class),
-                            'confirmedPayment' => fn($p) => $p->withoutGlobalScope(BrandScope::class)->whereNotNull('payments.paid_at')
+                            'confirmedPayment' => fn($p) => $p->withoutGlobalScope(BrandScope::class)
+                                ->whereNotNull('payments.paid_at')
                         ]);
                 },
-                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class),
+                'rate' => fn($q) => $q->withoutGlobalScope(BrandScope::class)
+                    ->with(['form' => function ($f) {
+                        $f->with(['form_fields' => function ($ff) {
+                            $ff->orderBy('form_form_field.order');
+                        }]);
+                    }]),
                 'slot',
                 'slot.zone'
             ])
             ->orderBy('inscriptions.created_at')
             ->get();
 
+        // ✨ NUEVO: Detectar form_fields usados para el PDF (passem allRates directament)
+        $formFieldsUsed = $this->detectUsedFormFields($inscriptions, $session->allRates);
+
         // 3) Generar PDF con configuración optimizada
-        $pdf = Pdf::loadView('core.session.print-inscriptions', compact('session', 'inscriptions'))
+        $pdf = Pdf::loadView('core.session.print-inscriptions', compact('session', 'inscriptions', 'formFieldsUsed'))
             ->setPaper('a4', 'landscape')
             ->setOption('isHtml5ParserEnabled', true)
             ->setOption('isRemoteEnabled', false)
             ->setOption('dpi', 96);
 
         return $pdf->stream("inscripciones-{$sessionId}.pdf");
+    }
+
+    /**
+     * ✨ NUEVA FUNCIÓN: Detecta qué form_fields tienen respuestas en metadata
+     * 
+     * @param Collection $inscriptions
+     * @param Collection $allRates - Col·lecció de AssignatedRates amb rates carregats
+     * @return array ['field_name' => 'Field Label', ...]
+     */
+    private function detectUsedFormFields($inscriptions, $allRates)
+    {
+        \Log::info("=== INICIO detectUsedFormFields ===");
+
+        $formFieldsUsed = [];
+        $locale = app()->getLocale();
+        \Log::info("Locale actual: {$locale}");
+
+        // Obtener todos los form_fields de los allRates (AssignatedRates)
+        $allFormFields = collect();
+
+        \Log::info("Total AssignatedRates recibidos: " . $allRates->count());
+
+        foreach ($allRates as $assignatedRate) {
+            $rate = $assignatedRate->rate; // El modelo Rate real
+
+            if (!$rate) {
+                \Log::info("AssignatedRate ID {$assignatedRate->id} NO tiene rate asociado");
+                continue;
+            }
+
+            \Log::info("Rate ID {$rate->id} - Name: {$rate->name} - Form ID: " . ($rate->form_id ?? 'NULL'));
+
+            if ($rate->form_id && $rate->form) {
+                \Log::info("  Form encontrado - ID: {$rate->form->id} - Name: {$rate->form->name}");
+                \Log::info("  Form tiene " . $rate->form->form_fields->count() . " form_fields");
+
+                foreach ($rate->form->form_fields as $field) {
+                    \Log::info("    Field ID: {$field->id} - Name: {$field->name} - Type: {$field->type}");
+                    \Log::info("    Field Label RAW: " . json_encode($field->label));
+
+                    // Evitar duplicados por ID
+                    if (!$allFormFields->contains('id', $field->id)) {
+                        $allFormFields->push($field);
+                    }
+                }
+            } else {
+                \Log::info("  Rate NO tiene form asignado");
+            }
+        }
+
+        \Log::info("Total form_fields únicos encontrados: " . $allFormFields->count());
+
+        // Iterar sobre todas las inscripciones para detectar qué campos tienen respuestas
+        $inscriptionsChecked = 0;
+        foreach ($inscriptions as $inscription) {
+            $meta = is_array($inscription->metadata) ?
+                $inscription->metadata :
+                json_decode($inscription->metadata, true) ?? [];
+
+            if (!empty($meta)) {
+                $inscriptionsChecked++;
+                if ($inscriptionsChecked <= 3) { // Solo log las primeras 3
+                    \Log::info("Inscription ID {$inscription->id} - Metadata keys: " . implode(', ', array_keys($meta)));
+                }
+            }
+
+            // Comprobar cada form_field
+            foreach ($allFormFields as $field) {
+                $fieldName = $field->name;
+
+                // Si este campo tiene respuesta y aún no lo hemos añadido
+                if (isset($meta[$fieldName]) && !empty($meta[$fieldName]) && !isset($formFieldsUsed[$fieldName])) {
+                    // Obtener label traducido
+                    $label = $this->getTranslatedLabel($field->label, $locale);
+                    $formFieldsUsed[$fieldName] = $label;
+                    \Log::info("✓ Campo '{$fieldName}' AÑADIDO con label: '{$label}' - Valor ejemplo: " . json_encode($meta[$fieldName]));
+                }
+            }
+        }
+
+        \Log::info("Inscripciones con metadata: {$inscriptionsChecked}");
+        \Log::info("Total campos usados detectados: " . count($formFieldsUsed));
+        \Log::info("Campos finales: " . json_encode($formFieldsUsed));
+        \Log::info("=== FIN detectUsedFormFields ===");
+
+        return $formFieldsUsed;
+    }
+
+    /**
+     * ✨ NUEVA FUNCIÓN: Obtiene el label traducido de un form_field
+     * 
+     * @param mixed $jsonLabel
+     * @param string $locale
+     * @return string
+     */
+    private function getTranslatedLabel($jsonLabel, $locale)
+    {
+        if (empty($jsonLabel)) {
+            return 'Campo sin nombre';
+        }
+
+        // Si es string, intentar decodificar
+        if (is_string($jsonLabel)) {
+            $decoded = json_decode($jsonLabel, true);
+            if (is_array($decoded)) {
+                return $decoded[$locale] ??
+                    $decoded['es'] ??
+                    $decoded['ca'] ??
+                    array_values($decoded)[0] ??
+                    $jsonLabel;
+            }
+            return $jsonLabel;
+        }
+
+        // Si ya es array
+        if (is_array($jsonLabel)) {
+            return $jsonLabel[$locale] ??
+                $jsonLabel['es'] ??
+                $jsonLabel['ca'] ??
+                array_values($jsonLabel)[0] ??
+                'Campo sin nombre';
+        }
+
+        return 'Campo sin nombre';
+    }
+
+    /**
+     * ✨ NUEVA FUNCIÓN: Formatea un valor de metadata para mostrar
+     * 
+     * @param mixed $value
+     * @return string
+     */
+    private function formatMetadataValue($value)
+    {
+        if (empty($value)) {
+            return '';
+        }
+
+        // Si es un array (checkbox múltiple, etc.)
+        if (is_array($value)) {
+            return implode(', ', $value);
+        }
+
+        // Si es string con comas (puede ser un checkbox guardado como string)
+        if (is_string($value) && strpos($value, ',') !== false) {
+            return $value; // Ya está formateado
+        }
+
+        // Si es boolean
+        if (is_bool($value)) {
+            return $value ? 'Sí' : 'No';
+        }
+
+        // Por defecto, convertir a string
+        return (string) $value;
     }
 
     public function liquidation($id)

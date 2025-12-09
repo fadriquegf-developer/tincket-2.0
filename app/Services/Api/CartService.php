@@ -181,6 +181,10 @@ class CartService extends AbstractService
     public function setPack(Cart $cart, Request $request)
     {
         DB::transaction(function () use ($cart, $request) {
+
+            // ✅ Detectar si es taquilla
+            $isTicketOffice = $cart->seller_type === \App\Models\User::class;
+
             // ✅ DESHABILITAR BrandScope para permitir packs de promotores hijos
             $pack = Pack::withoutGlobalScope(\App\Scopes\BrandScope::class)
                 ->findOrFail($request->get('pack_id'));
@@ -248,7 +252,8 @@ class CartService extends AbstractService
                                 $slot,
                                 $cart,
                                 $this->getDefaultRateId($session),
-                                ['code' => $slotData['code'] ?? null]
+                                ['code' => $slotData['code'] ?? null],
+                                $isTicketOffice
                             );
 
                             // Asociar al pack

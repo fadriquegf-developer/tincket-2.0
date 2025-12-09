@@ -130,7 +130,7 @@ class CheckBrandHost
                 [
                     'driver' => 'LocalFileSystem',
                     'path' => $fullPath,
-                    'URL' => url("storage/{$brandPath}"),
+                    'URL' => asset("storage/{$brandPath}"),
                     'alias' => $codeName,
                     'accessControl' => new \App\Services\ElfinderAccessControl(),
                     // Slugify nombres de archivos
