@@ -413,10 +413,7 @@
     <!-- Header Personalitzat -->
     <div class="container" style="padding-left: 6%; padding-right: 6%;">
         <div class="row">
-            <div class="col-8">
-                <p></p>
-            </div>
-            <div class="col-4" style="padding-left: 6px; text-align:right;">
+            <div class="col-12" style="padding-left: 6px; text-align:right;">
                 <img class="img-fluid logo" alt="{{ $inscription->cart->brand->name }}"
                     src="{{ $inscription->getLogo() }}" />
             </div>

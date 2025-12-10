@@ -720,9 +720,10 @@ return [
         'hint_no_space' => '¿Non tes ningún espazo creado?',
         'private_url' => 'Acceso privado vía URL',
         'session_info' => 'Información da sesión',
-        'limit_per_user' => 'Limitar compra por usuario',
-        'max_per_user' => 'Máximo por usuario',
-        'max_per_user_hint' => 'Máximo de inscricións que un usuario pode mercar para esta sesión.',
+        'limit_per_user' => 'Limitar número TOTAL de entradas por usuario',
+        'max_per_user' => 'Máximo TOTAL por usuario',
+        'max_per_user_info_title' => 'Como funciona este límite?',
+        'max_per_user_info' => 'Este é un <strong>límite global</strong> independente das tarifas. Exemplo: se pos 4, o usuario pode mercar máximo 4 entradas en total, sen importar a combinación de tarifas (2 de tarifa A + 2 de tarifa B, ou 4 de tarifa A, etc). <br><br><strong>Importante:</strong> Este límite é independente dos límites configurados en cada tarifa individual.',
     ],
 
     'cart' => [

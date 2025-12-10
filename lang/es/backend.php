@@ -722,9 +722,10 @@ return [
         'hint_no_space' => '¿No tienes un espacio creado?',
         'private_url' => 'Acceso privado via URL',
         'session_info' => 'Información de la sesión',
-        'limit_per_user' => 'Limitar compra por usuario',
-        'max_per_user' => 'Máximo por usuario',
-        'max_per_user_hint' => 'Máximo de inscripciones que un usuario puede comprar para esta sesión.',
+        'limit_per_user' => 'Limitar número TOTAL de entradas por usuario',
+        'max_per_user' => 'Máximo TOTAL por usuario',
+        'max_per_user_info_title' => '¿Cómo funciona este límite?',
+        'max_per_user_info' => 'Este es un <strong>límite global</strong> independiente de las tarifas. Ejemplo: si pones 4, el usuario puede comprar máximo 4 entradas en total, sin importar la combinación de tarifas (2 de tarifa A + 2 de tarifa B, o 4 de tarifa A, etc). <br><br><strong>Importante:</strong> Este límite es independiente de los límites configurados en cada tarifa individual.',
     ],
 
     'cart' => [

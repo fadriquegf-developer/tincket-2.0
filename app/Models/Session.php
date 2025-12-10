@@ -126,12 +126,14 @@ class Session extends BaseModel
 
     public function space()
     {
-        return $this->belongsTo(Space::class)->withTrashed();
+        return $this->belongsTo(Space::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     public function event()
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(Event::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     /**

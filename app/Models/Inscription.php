@@ -203,11 +203,11 @@ class Inscription extends BaseModel
 
     public function getLogo()
     {
-        $cartBrand = $this->brand; // Usar relación brand directamente
+        $cartBrand = $this->brand;
         $defaultLogo = $cartBrand->logo;
 
         // check if event has custom logo
-        $customLogo = $this->session->event->custom_logo ? $this->session->event->custom_logo : null;
+        $customLogo = $this->session->event->custom_logo;
 
         // priority logo who sell event(cart owner)
         if (!$customLogo || $cartBrand->id !== $this->session->event->brand->id) {
@@ -217,7 +217,15 @@ class Inscription extends BaseModel
             return $defaultLogo;
         }
 
-        return brand_asset(\Storage::url('uploads/' . $customLogo), $cartBrand);
+        //  Manejar correctamente el prefijo 'uploads/'
+        $logoPath = $customLogo;
+
+        // Si ya empieza con 'uploads/', no añadirlo de nuevo
+        if (!str_starts_with($logoPath, 'uploads/')) {
+            $logoPath = 'uploads/' . ltrim($logoPath, '/');
+        }
+
+        return brand_asset(\Storage::url($logoPath), $cartBrand);
     }
 
     // Añadir en Inscription.php

@@ -523,23 +523,17 @@ class CartCrudController extends CrudController
 
         $send_mail = $request->input('send') === "true";
 
-        if ($cart->seller instanceof Application) {
-            \App\Jobs\CartConfirm::dispatchSync($cart, [
-                'send_mail' => $send_mail,
-                'pdf' => brand_setting('base.inscription.ticket-web-params')
-            ]);
-        } else {
-            \App\Jobs\CartConfirm::dispatchSync($cart, [
-                'send_mail' => $send_mail,
-                'pdf' => brand_setting('base.inscription.ticket-office-params')
-            ]);
-        }
+        $params = $cart->seller instanceof Application
+            ? ['send_mail' => $send_mail, 'pdf' => brand_setting('base.inscription.ticket-web-params')]
+            : ['send_mail' => $send_mail, 'pdf' => brand_setting('base.inscription.ticket-office-params')];
 
-        // Mensaje diferente ya que es asíncrono
+        // Si envía email, usar cola; si no, ejecutar inmediatamente
         if ($send_mail) {
+            \App\Jobs\CartConfirm::dispatch($cart, $params);
             Alert::success('La regeneración de PDFs y el envío de emails se están procesando. Recibirás el email en unos minutos.')->flash();
         } else {
-            Alert::success('La regeneración de PDFs se está procesando. Actualiza la página en unos minutos para verlos.')->flash();
+            \App\Jobs\CartConfirm::dispatchSync($cart, $params);
+            Alert::success('PDFs regenerados correctamente.')->flash();
         }
 
         return redirect()->route('cart.show', $cart);

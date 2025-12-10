@@ -89,25 +89,6 @@ class Brand extends BaseModel
         static::observe(BrandObserver::class);
     }
 
-    /* public function getLogoAttribute($value)
-    {
-        if (!$value) {
-            return config('base.default_img', 'https://engine.yesweticket.com/images/placeholder.png');
-        }
-
-        return brand_asset(\Storage::url($value), $this);
-    }
-
-    public function getBannerAttribute($value)
-    {
-        if (!$value) {
-            return false;
-        }
-
-        return brand_asset(\Storage::url($value), $this);
-    } */
-
-
     /**
      * Obtiene las marcas que tienen a esta marca como hija
      * (es decir, las marcas "padre" que pueden vender mis eventos)
@@ -136,16 +117,6 @@ class Brand extends BaseModel
     {
         return $this->children;
     }
-
-    /* public function getLogoPathAttribute()
-    {
-        $value = $this->attributes['logo'];
-        if (!$value) {
-            return config('base.default_img', '/images/placeholder.png');
-        }
-
-        return $value;
-    } */
 
     public function hasRelations(): bool
     {

@@ -719,9 +719,10 @@ return [
         'hint_no_space' => 'Don\'t have any space created?',
         'private_url' => 'Private session URL',
         'session_info' => 'Session information',
-        'limit_per_user' => 'Limit purchase per user',
-        'max_per_user' => 'Maximum per user',
-        'max_per_user_hint' => 'Maximum inscriptions that a user can purchase for this session.',
+        'limit_per_user' => 'Limit TOTAL number of tickets per user',
+        'max_per_user' => 'Maximum TOTAL per user',
+        'max_per_user_info_title' => 'How does this limit work?',
+        'max_per_user_info' => 'This is a <strong>global limit</strong> independent of rates. Example: if you set 4, the user can purchase a maximum of 4 tickets in total, regardless of the rate combination (2 from rate A + 2 from rate B, or 4 from rate A, etc). <br><br><strong>Important:</strong> This limit is independent of the limits configured on each individual rate.',
     ],
 
     'cart' => [

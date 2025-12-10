@@ -90,7 +90,8 @@ class Cart extends BaseModel
 
     public function brand()
     {
-        return $this->belongsTo(Brand::class);
+        return $this->belongsTo(Brand::class)
+            ->withoutGlobalScope(BrandScope::class);
     }
 
     public function client()

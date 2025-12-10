@@ -230,7 +230,7 @@
   <div class="container">
     <div class="row border-bottom">
       <div class="col-2">
-        <img class="img-fluid logo" alt="{{ $inscription->cart->brand->name }}" src="{{ $inscription->getLogo() }}" />
+        <img class="img-fluid logo" alt="{{ $inscription->cart->brand->name }}" src="{{ $inscription->getLogo(true) }}" />
       </div>
       <div class="col-10">
         <div class="pl">

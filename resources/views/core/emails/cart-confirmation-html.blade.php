@@ -1,6 +1,28 @@
 @extends('core.emails.layout')
 @php
+    \Log::info('Email blade - Cart info', [
+        'cart_id' => $cart->id,
+        'brand_id' => $cart->brand_id,
+        'brand_exists' => !is_null($cart->brand),
+        'brand_name' => $cart->brand?->name ?? 'NULL',
+        'client_exists' => !is_null($cart->client),
+        'client_name' => $cart->client?->name ?? 'NULL',
+        'inscriptions_count' => $cart->inscriptions->count(),
+    ]);
+
     $brand = $cart->brand;
+
+    // Verificar cada inscripción
+    foreach ($cart->inscriptions->groupBy('session_id') as $sessionId => $set) {
+        $baseInscription = $set->first();
+        \Log::info('Inscription check', [
+            'session_id' => $sessionId,
+            'session_exists' => !is_null($baseInscription->session),
+            'event_exists' => !is_null($baseInscription->session?->event),
+            'event_name' => $baseInscription->session?->event?->name ?? 'NULL',
+        ]);
+    }
+
     setlocale(LC_TIME, 'es_ES.utf8');
     $emailInfo = config('ywt.contact_mail', 'info@yesweticket.com');
 @endphp

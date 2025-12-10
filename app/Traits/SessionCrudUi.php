@@ -1030,7 +1030,7 @@ trait SessionCrudUi
             'label' => __('backend.session.limit_per_user'),
             'type' => 'switch',
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-12',
+                'class' => 'form-group col-md-6',
             ],
             'tab' => __('backend.rate.code'),
         ]);
@@ -1044,45 +1044,52 @@ trait SessionCrudUi
                 'max' => 100,
             ],
             'wrapperAttributes' => [
-                'class' => 'form-group col-md-4 max-per-user-field',
+                'class' => 'form-group col-md-6 max-per-user-field',
             ],
-            'hint' => __('backend.session.max_per_user_hint'),
             'tab' => __('backend.rate.code'),
         ]);
 
-        // ✅ Script mejorado
+        CRUD::addField([
+            'name' => 'max_per_user_info',
+            'type' => 'custom_html',
+            'value' => '<div class="alert alert-info mb-0">
+        <strong><i class="la la-info-circle"></i> ' . __('backend.session.max_per_user_info_title') . '</strong><br>
+        ' . __('backend.session.max_per_user_info') . '
+    </div>',
+            'wrapperAttributes' => [
+                'class' => 'form-group col-md-12',
+            ],
+            'tab' => __('backend.rate.code'),
+        ]);
+
         CRUD::addField([
             'name' => 'limit_per_user_script',
             'type' => 'custom_html',
             'value' => '<script>
-                    document.addEventListener("DOMContentLoaded", function() {
-                        function toggleMaxPerUser() {
-                            const input = document.querySelector("input[name=\"limit_per_user\"]");
-                            const wrapper = document.querySelector(".max-per-user-field");
-                                            
-                            if (input && wrapper) {
-                                if (input.value === "1") {
-                                    wrapper.style.display = "block";
-                                } else {
-                                    wrapper.style.display = "none";
-                                }
-                            }
-                        }
-                        
-                        setTimeout(toggleMaxPerUser, 500);
-                        
-                        // Observar cambios en el valor del input
-                        const input = document.querySelector("input[name=\"limit_per_user\"]");
-                        if (input) {
-                            // MutationObserver para detectar cambios en el value
-                            const observer = new MutationObserver(toggleMaxPerUser);
-                            observer.observe(input, { attributes: true, attributeFilter: ["value"] });
-                            
-                            // También listener por si acaso
-                            input.addEventListener("change", toggleMaxPerUser);
-                        }
-                    });
-                </script>',
+        document.addEventListener("DOMContentLoaded", function() {
+            function toggleMaxPerUser() {
+                const input = document.querySelector("input[name=\"limit_per_user\"]");
+                const field = document.querySelector(".max-per-user-field"); // Solo el input numérico
+                
+                if (input && field) {
+                    if (input.value === "1") {
+                        field.style.display = "block";
+                    } else {
+                        field.style.display = "none";
+                    }
+                }
+            }
+            
+            setTimeout(toggleMaxPerUser, 500);
+            
+            const input = document.querySelector("input[name=\"limit_per_user\"]");
+            if (input) {
+                const observer = new MutationObserver(toggleMaxPerUser);
+                observer.observe(input, { attributes: true, attributeFilter: ["value"] });
+                input.addEventListener("change", toggleMaxPerUser);
+            }
+        });
+    </script>',
             'tab' => __('backend.rate.code'),
         ]);
     }

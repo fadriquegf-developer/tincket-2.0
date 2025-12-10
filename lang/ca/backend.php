@@ -721,9 +721,10 @@ return [
         'hint_no_space' => 'No tens cap espai creat?',
         'private_url' => 'Accés privat via URL',
         'session_info' => 'Informació de la sessió',
-        'limit_per_user' => 'Limitar compra per usuari',
-        'max_per_user' => 'Màxim per usuari',
-        'max_per_user_hint' => 'Màxim d\'inscripcions que un usuari pot comprar per aquesta sessió.',
+        'limit_per_user' => 'Limitar nombre TOTAL d\'entrades per usuari',
+        'max_per_user' => 'Màxim TOTAL per usuari',
+        'max_per_user_info_title' => 'Com funciona aquest límit?',
+        'max_per_user_info' => 'Aquest és un <strong>límit global</strong> independent de les tarifes. Exemple: si poses 4, l\'usuari pot comprar màxim 4 entrades en total, sense importar la combinació de tarifes (2 de tarifa A + 2 de tarifa B, o 4 de tarifa A, etc). <br><br><strong>Important:</strong> Aquest límit és independent dels límits configurats a cada tarifa individual.',
     ],
 
     'cart' => [
@@ -1011,14 +1012,14 @@ return [
         'color' => 'Color Pack',
         'extra' => 'Extra',
         'config' =>
-        [
-            'round-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
-            'round-nearest' => 'Activar factor d\'arrodoniment per als packs amb %',
-            'one-session-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
-            'one-session-x-event' => 'Activar per permetre només una sessió per esdeveniment',
-            'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
-            'cart_rounded' => 'Activar arrodonir el preu total del pack o packs',
-        ],
+            [
+                'round-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> Arrodonirà el preu dels packs en % al Euro o Cinquanta Céntims més propers </p> </div>',
+                'round-nearest' => 'Activar factor d\'arrodoniment per als packs amb %',
+                'one-session-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p> </p> </div>',
+                'one-session-x-event' => 'Activar per permetre només una sessió per esdeveniment',
+                'cart_rounded-alert' => '<div class="text-info"> <strong> Funcionalitat en proves </strong> <p>Arrodonirà el preu total de tots els packs que es comprin al Euro mes proper</p> </div>',
+                'cart_rounded' => 'Activar arrodonir el preu total del pack o packs',
+            ],
         'available_sessions' => 'Sessions disponibles',
         'no_available' => 'No hi ha sessions disponibles',
         'add_to_pack' => 'Afegir al pack',
