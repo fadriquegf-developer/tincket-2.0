@@ -56,24 +56,53 @@
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title" id="mailPaymentModalLabel">
-                                    Alerta sobre enviament del email de Pagament
+                                    <i class="la la-exclamation-triangle text-warning me-2"></i>
+                                    Enviar email de pagament
                                 </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tancar"></button>
                             </div>
                             <div class="modal-body">
-                                Tenir en compte que enviar l’email de pagament implicarà que s’eliminarà la línia de pagament
-                                del carrito,
-                                i el codi de confirmació es convertirà en XXXXXXXXX-{{ $entry->getKey() }}.
-                                Utilitzar només en casos on el TPV hagi tingut un error en el pagament.
-                                També es guardarà el codi de confirmació actual dins del camp comentaris, per poder verificar
-                                que al TPV va donar error.
+                                <div class="alert alert-warning mb-3">
+                                    <strong>Atenció:</strong> Aquesta acció realitzarà els següents canvis:
+                                </div>
+
+                                <ul class="mb-3">
+                                    @if ($entry->payment)
+                                        <li>
+                                            El pagament actual <code>{{ $entry->payment->order_code }}</code>
+                                            s'eliminarà (soft-delete) i quedarà registrat a l'historial.
+                                        </li>
+                                    @endif
+                                    <li>
+                                        El codi de confirmació es canviarà a <code>XXXXXXXXX-{{ $entry->getKey() }}</code>
+                                        per indicar que està pendent de pagament.
+                                    </li>
+                                    <li>
+                                        S'estendrà el temps d'expiració del carrito a <strong>60 dies</strong>.
+                                    </li>
+                                    <li>
+                                        El client rebrà un email amb l'enllaç per realitzar el nou pagament.
+                                    </li>
+                                </ul>
+
+                                @if ($entry->confirmation_code && !str_starts_with($entry->confirmation_code, 'XXXXXXXXX'))
+                                    <div class="alert alert-info mb-0">
+                                        <small>
+                                            <i class="la la-info-circle me-1"></i>
+                                            El codi de confirmació actual <code>{{ $entry->confirmation_code }}</code>
+                                            es guardarà als comentaris del carrito per a auditoria.
+                                        </small>
+                                    </div>
+                                @endif
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tancar</button>
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                    <i class="la la-times me-1"></i> Cancel·lar
+                                </button>
                                 <a href="{{ url($crud->route . '/' . $entry->getKey() . '/send-mail-payment') }}"
                                     class="btn btn-primary">
-                                    <i class="la la-credit-card-alt me-1"></i>
-                                    {{ __('backend.cart.send_mail_payment') }}
+                                    <i class="la la-paper-plane me-1"></i>
+                                    Enviar email de pagament
                                 </a>
                             </div>
                         </div>
@@ -81,60 +110,62 @@
                 </div>
             @endpush
 
-            {{-- Botón: Cambiar Plataforma de Pagament --}}
-            <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal"
-                data-bs-target="#changePaymentGateway">
-                <i class="la la-money me-1"></i>
-                {{ __('backend.cart.changeGateway') }}
-            </button>
-            @php
-                $currentGateway = $entry->payment->gateway ?? null;
-            @endphp
-            @push('after_scripts')
-                {{-- Modal: Cambiar Plataforma de Pagament --}}
-                <div class="modal fade" id="changePaymentGateway" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog">
-                        <div class="modal-content">
-                            <form action="{{ route('crud.cart.change-gateway', $entry->getKey()) }}" method="POST">
-                                @csrf
-                                <input type="hidden" name="cart_id" value="{{ $entry->getKey() }}">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">{{ __('backend.cart.select_gateway') }}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                        aria-label="Tancar"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <div class="mb-3">
-                                        @php
-                                            $paymentType = $entry->payment->getTicketOfficePaymentType();
-                                        @endphp
-                                        <label for="gateway" class="form-label">Gateway</label>
-                                        <select id="gateway" name="gateway" class="form-select">
-                                            <option value="cash"
-                                                {{ $currentGateway === 'TicketOffice' && $paymentType === 'cash' ? 'selected' : '' }}>
-                                                {{ __('backend.ticket.payment_type.cash') }} (Taquilla)
-                                            </option>
-                                            <option value="card"
-                                                {{ $currentGateway === 'TicketOffice' && $paymentType === 'card' ? 'selected' : '' }}>
-                                                {{ __('backend.ticket.payment_type.card') }} (Taquilla TPV)
-                                            </option>
-                                            <option value="Redsys Redirect"
-                                                {{ $currentGateway === 'Redsys Redirect' ? 'selected' : '' }}>
-                                                Redsys Redirect (Online)
-                                            </option>
-                                        </select>
+            {{-- Botón: Cambiar Plataforma de Pagament (solo si hay payment) --}}
+            @if ($entry->payment)
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal"
+                    data-bs-target="#changePaymentGateway">
+                    <i class="la la-money me-1"></i>
+                    {{ __('backend.cart.changeGateway') }}
+                </button>
+                @php
+                    $currentGateway = $entry->payment->gateway ?? null;
+                @endphp
+                @push('after_scripts')
+                    {{-- Modal: Cambiar Plataforma de Pagament --}}
+                    <div class="modal fade" id="changePaymentGateway" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <form action="{{ route('crud.cart.change-gateway', $entry->getKey()) }}" method="POST">
+                                    @csrf
+                                    <input type="hidden" name="cart_id" value="{{ $entry->getKey() }}">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">{{ __('backend.cart.select_gateway') }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                            aria-label="Tancar"></button>
                                     </div>
-                                </div>
-                                <div class="modal-footer">
-                                    <button type="button" class="btn btn-secondary"
-                                        data-bs-dismiss="modal">{{ __('backend.cart.close') }}</button>
-                                    <button type="submit" class="btn btn-primary">{{ __('backend.cart.change') }}</button>
-                                </div>
-                            </form>
+                                    <div class="modal-body">
+                                        <div class="mb-3">
+                                            @php
+                                                $paymentType = $entry->payment?->getTicketOfficePaymentType();
+                                            @endphp
+                                            <label for="gateway" class="form-label">Gateway</label>
+                                            <select id="gateway" name="gateway" class="form-select">
+                                                <option value="cash"
+                                                    {{ $currentGateway === 'TicketOffice' && $paymentType === 'cash' ? 'selected' : '' }}>
+                                                    {{ __('backend.ticket.payment_type.cash') }} (Taquilla)
+                                                </option>
+                                                <option value="card"
+                                                    {{ $currentGateway === 'TicketOffice' && $paymentType === 'card' ? 'selected' : '' }}>
+                                                    {{ __('backend.ticket.payment_type.card') }} (Taquilla TPV)
+                                                </option>
+                                                <option value="Redsys Redirect"
+                                                    {{ $currentGateway === 'Redsys Redirect' ? 'selected' : '' }}>
+                                                    Redsys Redirect (Online)
+                                                </option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary"
+                                            data-bs-dismiss="modal">{{ __('backend.cart.close') }}</button>
+                                        <button type="submit" class="btn btn-primary">{{ __('backend.cart.change') }}</button>
+                                    </div>
+                                </form>
+                            </div>
                         </div>
                     </div>
-                </div>
-            @endpush
+                @endpush
+            @endif
 
         </div>
     @endif
@@ -203,6 +234,12 @@
                     {{ __('backend.cart.payment_url') }}
                 </button>
 
+                @php
+                    // Construir URL correctamente, evitando doble slash
+                    $frontendUrl = rtrim(brand_setting('clients.frontend.url', config('app.url')), '/');
+                    $paymentUrl = "{$frontendUrl}/reserva/pagament/carrito/{$entry->token}";
+                @endphp
+
                 @push('after_scripts')
                     {{-- Modal: URL de Pagament --}}
                     <div class="modal fade" id="urlPaymentModal" tabindex="-1" aria-labelledby="urlPaymentModalLabel"
@@ -210,12 +247,29 @@
                         <div class="modal-dialog modal-lg">
                             <div class="modal-content">
                                 <div class="modal-header">
-                                    <h5 class="modal-title" id="urlPaymentModalLabel">URL de Pagament</h5>
+                                    <h5 class="modal-title" id="urlPaymentModalLabel">
+                                        <i class="la la-link me-2"></i>URL de Pagament
+                                    </h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"
                                         aria-label="Tancar"></button>
                                 </div>
                                 <div class="modal-body">
-                                    {{ brand_setting('clients.frontend.url') }}reserva/pagament/carrito/{{ $entry->token }}
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="paymentUrlInput"
+                                            value="{{ $paymentUrl }}" readonly>
+                                        <button class="btn btn-outline-primary" type="button" onclick="copyPaymentUrl()"
+                                            title="Copiar URL">
+                                            <i class="la la-copy"></i>
+                                        </button>
+                                        <a href="{{ $paymentUrl }}" target="_blank" class="btn btn-outline-secondary"
+                                            title="Obrir en nova pestanya">
+                                            <i class="la la-external-link-alt"></i>
+                                        </a>
+                                    </div>
+                                    <small class="text-muted mt-2 d-block">
+                                        <i class="la la-info-circle me-1"></i>
+                                        Aquesta URL permet al client completar el pagament del carrito.
+                                    </small>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tancar</button>
@@ -223,6 +277,46 @@
                             </div>
                         </div>
                     </div>
+
+                    <script>
+                        function copyPaymentUrl() {
+                            const input = document.getElementById('paymentUrlInput');
+                            input.select();
+                            input.setSelectionRange(0, 99999); // Para móviles
+
+                            // Intentar con la API moderna primero, fallback a execCommand
+                            if (navigator.clipboard && window.isSecureContext) {
+                                navigator.clipboard.writeText(input.value).then(() => {
+                                    showCopySuccess();
+                                }).catch(() => {
+                                    fallbackCopy();
+                                });
+                            } else {
+                                fallbackCopy();
+                            }
+
+                            function fallbackCopy() {
+                                try {
+                                    document.execCommand('copy');
+                                    showCopySuccess();
+                                } catch (err) {
+                                    alert('No s\'ha pogut copiar. Selecciona i copia manualment.');
+                                }
+                            }
+
+                            function showCopySuccess() {
+                                if (typeof Noty !== 'undefined') {
+                                    new Noty({
+                                        type: 'success',
+                                        text: 'URL copiada al portapapers!',
+                                        timeout: 2000
+                                    }).show();
+                                } else {
+                                    alert('URL copiada!');
+                                }
+                            }
+                        }
+                    </script>
                 @endpush
             @endif
         </div>

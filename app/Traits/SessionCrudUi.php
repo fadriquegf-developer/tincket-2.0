@@ -14,6 +14,7 @@ use App\Scopes\BrandScope;
 use Illuminate\Support\Facades\DB;
 use App\Uploaders\WebpImageUploader;
 use App\Http\Requests\SessionRequest;
+use App\Uploaders\PngImageUploader;
 use Backpack\CRUD\app\Library\Widget;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
@@ -970,10 +971,11 @@ trait SessionCrudUi
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'custom-logo',
                 'resize' => [
-                    'max' => 1200
+                    'max' => 300
                 ]
             ],
             'hint' => __('backend.session.minWidth'),
@@ -991,6 +993,7 @@ trait SessionCrudUi
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/session/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'banner',
                 'resize' => [

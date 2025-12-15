@@ -1106,4 +1106,176 @@ class CartCrudController extends CrudController
         return in_array($cart->payment->gateway, $supportedGateways)
             && auth()->user()?->isSuperuser();
     }
+
+    /**
+     * Enviar email de pago al cliente
+     * 
+     * Este método se usa cuando:
+     * 1. El TPV tuvo un error y necesitamos que el cliente vuelva a pagar
+     * 2. Se cambió el precio del carrito y necesitamos que pague la diferencia
+     * 3. El carrito nunca se pagó y queremos enviar el enlace
+     * 
+     * IMPORTANTE: El payment anterior se elimina con soft-delete para mantener
+     * el historial de pagos anteriores.
+     * 
+     * @param Cart $cart
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function sendPaymentEmail(Cart $cart)
+    {
+        try {
+            // ─────────────────────────────────────────────────────────────────
+            // CARGAR RELACIONES NECESARIAS (sin BrandScope para promotores)
+            // ─────────────────────────────────────────────────────────────────
+            $cart->load([
+                'client',
+                'brand',
+                'allInscriptions' => function ($q) {
+                    $q->withoutGlobalScope(BrandScope::class);
+                },
+                'gift_cards',
+            ]);
+
+            // ─────────────────────────────────────────────────────────────────
+            // VALIDACIONES
+            // ─────────────────────────────────────────────────────────────────
+
+            if (!$cart->client_id || !$cart->client) {
+                Alert::error('El carrito no té un client assignat.')->flash();
+                return redirect()->route('cart.show', $cart);
+            }
+
+            if (empty($cart->client->email)) {
+                Alert::error('El client no té email configurat.')->flash();
+                return redirect()->route('cart.show', $cart);
+            }
+
+            if (!$cart->allInscriptions->count() && !$cart->gift_cards->count()) {
+                Alert::error('El carrito està buit.')->flash();
+                return redirect()->route('cart.show', $cart);
+            }
+
+            // ─────────────────────────────────────────────────────────────────
+            // OBTENER BRAND CORRECTA (puede ser de un promotor hijo)
+            // ─────────────────────────────────────────────────────────────────
+            $brand = $cart->brand;
+
+            // Si el carrito pertenece a un brand padre pero las inscripciones son de un hijo
+            if (!$brand && $cart->allInscriptions->isNotEmpty()) {
+                $firstInscription = $cart->allInscriptions->first();
+                $firstInscription->load(['session.event.brand']);
+                $brand = $firstInscription->session?->event?->brand;
+            }
+
+            if (!$brand) {
+                Alert::error('No s\'ha pogut determinar la brand del carrito.')->flash();
+                return redirect()->route('cart.show', $cart);
+            }
+
+            // ─────────────────────────────────────────────────────────────────
+            // GUARDAR ESTADO ANTERIOR EN COMENTARIOS (para auditoría)
+            // ─────────────────────────────────────────────────────────────────
+            $auditComment = $this->buildPaymentEmailAuditComment($cart);
+            $oldConfirmationCode = $cart->confirmation_code;
+
+            // ─────────────────────────────────────────────────────────────────
+            // SOFT DELETE DEL PAYMENT ANTERIOR (si existe)
+            // ─────────────────────────────────────────────────────────────────
+            $payment = $cart->payment;
+
+            if ($payment) {
+                \Log::info('sendPaymentEmail: Soft-delete del payment anterior', [
+                    'cart_id' => $cart->id,
+                    'payment_id' => $payment->id,
+                    'order_code' => $payment->order_code,
+                    'paid_at' => $payment->paid_at,
+                    'gateway' => $payment->gateway,
+                ]);
+
+                // Soft delete - el payment queda en BD con deleted_at
+                $payment->delete();
+            }
+
+            // ─────────────────────────────────────────────────────────────────
+            // ACTUALIZAR CARRITO PARA NUEVO PAGO
+            // ─────────────────────────────────────────────────────────────────
+
+            // Cambiar confirmation_code a XXXXXXXXX-{id} si no lo está ya
+            if (!str_starts_with($cart->confirmation_code ?? '', 'XXXXXXXXX')) {
+                $cart->confirmation_code = 'XXXXXXXXX-' . $cart->id;
+            }
+
+            // Extender expires_on para dar tiempo al cliente (60 días)
+            $cart->expires_on = now()->addDays(60);
+
+            // Añadir comentario de auditoría
+            $cart->comment = trim(($cart->comment ?? '') . $auditComment);
+
+            $cart->save();
+
+            // ─────────────────────────────────────────────────────────────────
+            // CARGAR CONTEXTO DE LA BRAND Y ENVIAR EMAIL
+            // ─────────────────────────────────────────────────────────────────
+
+            // Cargar configuración de la brand para que brand_setting() funcione
+            app(\App\Http\Middleware\CheckBrandHost::class)
+                ->loadBrandConfig($brand->code_name);
+
+            $mailer = app(\App\Services\MailerService::class)->getMailerForBrand($brand);
+            $mailer->to(trim($cart->client->email))
+                ->send(new \App\Mail\PaymentCartMail($cart));
+
+            \Log::info('sendPaymentEmail: Email enviat correctament', [
+                'cart_id' => $cart->id,
+                'client_email' => $cart->client->email,
+                'brand_id' => $brand->id,
+                'brand_code' => $brand->code_name,
+                'old_confirmation_code' => $oldConfirmationCode,
+                'new_confirmation_code' => $cart->confirmation_code,
+                'user_id' => auth()->id(),
+                'user_email' => auth()->user()?->email,
+            ]);
+
+            Alert::success(trans('backpack::crud.sended_payment_email'))->flash();
+        } catch (\Exception $e) {
+            \Log::error('sendPaymentEmail: Error al enviar email', [
+                'cart_id' => $cart->id,
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            Alert::error('Error al enviar l\'email: ' . $e->getMessage())->flash();
+        }
+
+        return redirect()->route('cart.show', $cart);
+    }
+
+    /**
+     * Construir comentario de auditoría para el envío de email de pago
+     */
+    private function buildPaymentEmailAuditComment(Cart $cart): string
+    {
+        $comment = "\n\n[EMAIL PAGAMENT ENVIAT " . now()->format('d/m/Y H:i') . "]";
+
+        // Guardar código de confirmación anterior si existe y no es XXXXXXXXX
+        if ($cart->confirmation_code && !str_starts_with($cart->confirmation_code, 'XXXXXXXXX')) {
+            $comment .= "\nCodi confirmació anterior: {$cart->confirmation_code}";
+        }
+
+        // Registrar el payment que se elimina
+        if ($cart->payment) {
+            $comment .= "\nPayment anterior (soft-deleted):";
+            $comment .= "\n  - Order code: {$cart->payment->order_code}";
+            $comment .= "\n  - Gateway: {$cart->payment->gateway}";
+            if ($cart->payment->paid_at) {
+                $comment .= "\n  - Pagat el: " . $cart->payment->paid_at->format('d/m/Y H:i');
+            }
+        }
+
+        $comment .= "\nEnviat per: " . (auth()->user()->email ?? 'sistema');
+
+        return $comment;
+    }
 }

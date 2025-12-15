@@ -558,12 +558,20 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
 
     /**
      * Obtener pago desde email
+     * 
+     * Permite carritos con:
+     * - confirmation_code NULL (nunca pagados)
+     * - confirmation_code que empieza con 'XXXXXXXXX' (pendientes de repago)
      */
     public function getPaymentForEmail($token)
     {
         $cart = $this->getCartBuilder($token)
             ->notExpired()
-            ->whereNull('confirmation_code')
+            ->where(function ($q) {
+                // Sin confirmation_code O con código pendiente de pago
+                $q->whereNull('confirmation_code')
+                    ->orWhere('confirmation_code', 'like', 'XXXXXXXXX%');
+            })
             ->where(function ($q) {
                 $q->withInscriptions()
                     ->orWhereHas('gift_cards');
@@ -594,11 +602,16 @@ class CartApiController extends \App\Http\Controllers\Api\ApiController
 
     /**
      * Verificar si el pago está confirmado
+     * 
+     * Un carrito se considera pagado si:
+     * 1. Tiene confirmation_code no null
+     * 2. El confirmation_code NO empieza con 'XXXXXXXXX' (pendientes de pago)
      */
     public function checkPaymentPaid($token)
     {
         $cart = $this->getCartBuilder($token)
             ->whereNotNull('confirmation_code')
+            ->where('confirmation_code', 'not like', 'XXXXXXXXX%')  // Excluir pendientes de pago
             ->first();
 
         return $this->json((bool) $cart, 200);

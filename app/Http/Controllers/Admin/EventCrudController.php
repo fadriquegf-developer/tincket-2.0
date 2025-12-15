@@ -19,6 +19,7 @@ use App\Http\Requests\EventCrudRequest;
 use Illuminate\Support\Facades\Storage;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use App\Uploaders\PngImageUploader;
 
 class EventCrudController extends CrudController
 {
@@ -827,10 +828,11 @@ class EventCrudController extends CrudController
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'custom-logo',
                 'resize' => [
-                    'max' => 1200
+                    'max' => 300
                 ]
             ],
             'wrapperAttributes' => [
@@ -847,6 +849,7 @@ class EventCrudController extends CrudController
             'crop' => true,
             'withFiles' => [
                 'disk' => 'public',
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/event/' . ($this->crud->getCurrentEntry()?->id ?? 'temp'),
                 'custom_name' => 'banner',
                 'resize' => [

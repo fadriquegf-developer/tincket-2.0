@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Taxonomy;
 use App\Models\RegisterInput;
 use App\Traits\AllowUsersTrait;
+use App\Uploaders\PngImageUploader;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Support\Facades\DB;
@@ -82,8 +83,8 @@ class SettingsBrandCrudController extends CrudController
             ->withFiles([
                 'disk' => 'public',
                 'path' => "uploads/{$brand->code_name}/media",
-                'uploader' => \App\Uploaders\WebpImageUploader::class,
-                'fileNamer' => fn($file, $u) => 'logo-' . $u->entry->code_name . '.webp',
+                'uploader' => PngImageUploader::class,
+                'fileNamer' => fn($file, $u) => 'logo-' . $u->entry->code_name . '.png',
                 'resize' => ['max' => 300],
             ])
             ->wrapper(['class' => 'form-group col-md-6'])
@@ -97,8 +98,8 @@ class SettingsBrandCrudController extends CrudController
             ->withFiles([
                 'disk' => 'public',
                 'path' => "uploads/{$brand->code_name}/media",
-                'uploader' => \App\Uploaders\WebpImageUploader::class,
-                'fileNamer' => fn($file, $u) => 'banner-' . $u->entry->code_name . '.webp',
+                'uploader' => PngImageUploader::class,
+                'fileNamer' => fn($file, $u) => 'banner-' . $u->entry->code_name . '.png',
                 'resize' => ['max' => 1200],
                 'conversions' => [],
             ])

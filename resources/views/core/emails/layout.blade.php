@@ -496,6 +496,16 @@
                                         @yield('extra_content')
                                     </td>
                                 </tr>
+                                {{-- Mensaje navideño --}}
+                                @if (config('seasonal.christmas.enabled'))
+                                    <tr>
+                                        <td class="content-cell" style="padding: 0 32px 32px 32px; text-align: center;">
+                                            <p style="font-size: 15px; margin: 0; color: #2d5a27;">
+                                                {{ config('seasonal.christmas.messages.' . app()->getLocale(), config('seasonal.christmas.messages.ca')) }}
+                                            </p>
+                                        </td>
+                                    </tr>
+                                @endif
                             </table>
                         </td>
                     </tr>

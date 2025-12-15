@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 use App\Traits\CrudPermissionTrait;
 use App\Uploaders\WebpImageUploader;
 use App\Http\Requests\PackCrudRequest;
+use App\Uploaders\PngImageUploader;
 use Backpack\CRUD\app\Http\Requests\CrudRequest;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
@@ -283,7 +284,7 @@ class PackCrudController extends CrudController
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/pack',
                 'resize' => [
                     'max' => 200,
@@ -320,7 +321,7 @@ class PackCrudController extends CrudController
             'upload' => true,
             'withFiles' => [
                 'disk' => 'public',
-                'uploader' => WebpImageUploader::class,
+                'uploader' => PngImageUploader::class,
                 'path' => 'uploads/' . get_current_brand()->code_name . '/pack',
                 'resize' => [
                     'max' => 1200,
