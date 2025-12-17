@@ -394,7 +394,7 @@ trait SessionCrudUi
     protected function setupCreateOperation()
     {
         CRUD::setValidation(SessionRequest::class);
-        Widget::add()->type('script')->content(asset('js/session-fill-max-places.js'));
+        Widget::add()->type('script')->content(\Illuminate\Support\Facades\Vite::asset('resources/js/session-fill-max-places.js'));
 
         $this->setBasicTab();
         $this->setInscriptionsTab();

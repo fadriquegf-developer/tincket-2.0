@@ -548,7 +548,18 @@ class InscriptionCrudController extends CrudController
             'price' => 'required|numeric|min:0',
         ]);
 
-        $inscription = Inscription::findOrFail($request->inscription_id);
+        // ✅ Obtener brand actual y sus hijos permitidos
+        $currentBrand = get_current_brand();
+        $allowedBrandIds = array_merge(
+            [$currentBrand->id],
+            $currentBrand->children->pluck('id')->toArray()
+        );
+
+        // ✅ Buscar inscripción SIN BrandScope pero verificando que pertenece a brands permitidos
+        $inscription = Inscription::withoutGlobalScope(\App\Scopes\BrandScope::class)
+            ->whereIn('brand_id', $allowedBrandIds)
+            ->findOrFail($request->inscription_id);
+
         $inscription->rate_id = $request->rate_id;
         $inscription->price = $request->price;
         $inscription->price_sold = $request->price;

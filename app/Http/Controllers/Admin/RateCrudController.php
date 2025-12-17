@@ -58,7 +58,7 @@ class RateCrudController extends CrudController
     {
 
         CRUD::setValidation(RateCrudRequest::class);
-        Widget::add()->type('script')->content(asset('js/rate-toggle.js'));
+        Widget::add()->type('script')->content(\Illuminate\Support\Facades\Vite::asset('resources/js/rate-toggle.js'));
 
         CRUD::addField([
             'name' => 'name',

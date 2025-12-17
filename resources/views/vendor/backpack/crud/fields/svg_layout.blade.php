@@ -135,5 +135,5 @@
 
 @push('after_scripts')
     <script src="https://unpkg.com/@panzoom/panzoom@4.6.0/dist/panzoom.min.js"></script>
-    <script src="{{ asset('js/vue/svg-layout.js') }}?v={{ filemtime(public_path('js/vue/svg-layout.js')) }}"></script>
+    @vite('resources/js/vue/svg-layout.js')
 @endpush

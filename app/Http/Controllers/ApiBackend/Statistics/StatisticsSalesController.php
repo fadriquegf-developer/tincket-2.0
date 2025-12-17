@@ -31,15 +31,15 @@ class StatisticsSalesController extends Controller
             ->values();
 
         $breakdown = (string) $request->get('breakdown', 'R'); // R|P|U|T
-        $summary   = (bool) $request->boolean('summary', false);
+        $summary = (bool) $request->boolean('summary', false);
 
-        $range     = $this->parseRange($request->get('sales_range'));
-        $from      = $range['from'] ?? null; // Carbon|null
-        $to        = $range['to']   ?? null; // Carbon|null
+        $range = $this->parseRange($request->get('sales_range'));
+        $from = $range['from'] ?? null; // Carbon|null
+        $to = $range['to'] ?? null; // Carbon|null
 
         // Paginación para detalle (si el front no la usa, al menos capea el tamaño)
-        $perPage   = (int) $request->get('per_page', 5000);
-        $perPage   = max(1, min(10000, $perPage)); // límite duro para no matar el navegador
+        $perPage = (int) $request->get('per_page', 5000);
+        $perPage = max(1, min(10000, $perPage)); // límite duro para no matar el navegador
 
         // Locale para extraer cadenas JSON traducidas
         $locale = app()->getLocale() ?: 'es';
@@ -131,6 +131,7 @@ class StatisticsSalesController extends Controller
                     END AS seller_name"),
             'pay.gateway as payment_method',
             DB::raw("$ticketPaymentType as ticket_payment_type"),
+            'i.metadata as inscription_metadata',
         ];
 
         $sql = $base->toSql();
@@ -151,7 +152,25 @@ class StatisticsSalesController extends Controller
         $rows = $detailQuery
             ->select($detailSelect)
             ->limit($perPage)
-            ->get();
+            ->get()
+            ->map(function ($row) {
+                // Parsear inscription_metadata si existe
+                if (isset($row->inscription_metadata) && is_string($row->inscription_metadata)) {
+                    // Puede venir doblemente codificado, intentar decodificar hasta obtener array
+                    $metadata = $row->inscription_metadata;
+
+                    // Primer decode (quita el string externo)
+                    if (is_string($metadata)) {
+                        $decoded = json_decode($metadata, true);
+                        if (is_string($decoded)) {
+                            // Estaba doblemente codificado, decodificar de nuevo
+                            $decoded = json_decode($decoded, true);
+                        }
+                        $row->inscription_metadata = is_array($decoded) ? $decoded : null;
+                    }
+                }
+                return $row;
+            });
 
         // Si solo quieren summary, devolvemos results para que el frontend construya la jerarquía
         // El frontend decidirá si mostrar o no la tabla de detalle según summaryOnly
@@ -171,13 +190,13 @@ class StatisticsSalesController extends Controller
     private function buildSummarySQL($base, string $bk, string $jsonLocalePath, string $ticketPaymentType)
     {
         // Expresiones que usaremos en SELECT/GROUP BY (compatibles con ONLY_FULL_GROUP_BY)
-        $sellerExpr =   "CASE
+        $sellerExpr = "CASE
                             WHEN c.seller_type = 'App\\\\Models\\\\User' THEN COALESCE(u.name, 'Usuario desconocido')
                             WHEN c.seller_type = 'App\\\\Models\\\\Application' THEN COALESCE(app.code_name, 'API')
                             ELSE '—'
                         END";
-        $methodExpr    = "COALESCE(pay.gateway, '—')";
-        $ratePackExpr  = "
+        $methodExpr = "COALESCE(pay.gateway, '—')";
+        $ratePackExpr = "
             COALESCE(
                 NULLIF(COALESCE(JSON_EXTRACT(r.name, '$jsonLocalePath'), r.name, ''), ''),
                 COALESCE(JSON_EXTRACT(pk.name, '$jsonLocalePath'), pk.name, ''),
@@ -233,11 +252,12 @@ class StatisticsSalesController extends Controller
      */
     private function parseRange($raw): array
     {
-        if (empty($raw)) return ['from' => null, 'to' => null];
+        if (empty($raw))
+            return ['from' => null, 'to' => null];
 
         $arr = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
         $from = null;
-        $to   = null;
+        $to = null;
 
         if (isset($arr['from']) && is_numeric($arr['from'])) {
             $from = Carbon::createFromTimestampMs($arr['from'])->startOfDay();

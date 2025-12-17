@@ -159,6 +159,5 @@
         };
         window.currentLocale = '{{ app()->getLocale() }}';
     </script>
-    <script
-        src="{{ asset('js/vue/svg-layaout-session.js') }}?v={{ filemtime(public_path('js/vue/svg-layaout-session.js')) }}"></script>
+    @vite('resources/js/vue/svg-layaout-session.js')
 @endpush

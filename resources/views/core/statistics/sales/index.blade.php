@@ -31,5 +31,5 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script>window.appLocale = "{{ app()->getLocale() }}"</script>
-    <script src="{{ asset('js/vue/statistics/sales.js') }}?v={{ filemtime(public_path('js/vue/statistics/sales.js')) }}"></script>
+    @vite('resources/js/vue/statistics/sales.js')
 @endpush

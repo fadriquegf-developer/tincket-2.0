@@ -164,5 +164,5 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     {{-- Nuestro widget Vue autónomo --}}
-    <script src="{{ asset('js/vue/rates-field.js') }}?v={{ filemtime(public_path('js/vue/rates-field.js')) }}"></script>
+    @vite('resources/js/vue/rates-field.js')
 @endpush

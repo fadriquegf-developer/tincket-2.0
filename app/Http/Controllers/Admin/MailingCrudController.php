@@ -227,7 +227,7 @@ class MailingCrudController extends CrudController
 
         Widget::add([
             'type' => 'script',
-            'content' => asset('js/mailing.js'),
+            'content' => \Illuminate\Support\Facades\Vite::asset('resources/js/mailing.js'),
         ]);
 
         CRUD::addField([

@@ -1,6 +1,6 @@
 {
   "resources/css/app.css": {
-    "file": "assets/app-864a9d8l.css",
+    "file": "assets/app-BxQbML-0.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
@@ -8,6 +8,30 @@
     "file": "assets/app-T1DpEqax.js",
     "name": "app",
     "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/crud/inscriptions_validator.js": {
+    "file": "assets/inscriptions_validator-BE86b2vb.js",
+    "name": "inscriptions_validator",
+    "src": "resources/js/crud/inscriptions_validator.js",
+    "isEntry": true
+  },
+  "resources/js/mailing.js": {
+    "file": "assets/mailing-DYryKibN.js",
+    "name": "mailing",
+    "src": "resources/js/mailing.js",
+    "isEntry": true
+  },
+  "resources/js/rate-toggle.js": {
+    "file": "assets/rate-toggle-pJwRPMFo.js",
+    "name": "rate-toggle",
+    "src": "resources/js/rate-toggle.js",
+    "isEntry": true
+  },
+  "resources/js/session-fill-max-places.js": {
+    "file": "assets/session-fill-max-places-C-022Ybf.js",
+    "name": "session-fill-max-places",
+    "src": "resources/js/session-fill-max-places.js",
     "isEntry": true
   },
   "resources/js/ticket-office/main.js": {
@@ -18,5 +42,59 @@
     "css": [
       "assets/main-LeBChn-X.css"
     ]
+  },
+  "resources/js/vue/embedded-entities-field.js": {
+    "file": "assets/embedded-entities-field-Dymldnhx.js",
+    "name": "embedded-entities-field",
+    "src": "resources/js/vue/embedded-entities-field.js",
+    "isEntry": true
+  },
+  "resources/js/vue/multi-session.js": {
+    "file": "assets/multi-session-BabiyXNk.js",
+    "name": "multi-session",
+    "src": "resources/js/vue/multi-session.js",
+    "isEntry": true
+  },
+  "resources/js/vue/rates-field.js": {
+    "file": "assets/rates-field-Dc4EWKKn.js",
+    "name": "rates-field",
+    "src": "resources/js/vue/rates-field.js",
+    "isEntry": true
+  },
+  "resources/js/vue/rules-field.js": {
+    "file": "assets/rules-field-Dan2PzGm.js",
+    "name": "rules-field",
+    "src": "resources/js/vue/rules-field.js",
+    "isEntry": true
+  },
+  "resources/js/vue/sessions-field.js": {
+    "file": "assets/sessions-field-dkhl_gVo.js",
+    "name": "sessions-field",
+    "src": "resources/js/vue/sessions-field.js",
+    "isEntry": true
+  },
+  "resources/js/vue/statistics/balance.js": {
+    "file": "assets/balance-BcR8JZbO.js",
+    "name": "balance",
+    "src": "resources/js/vue/statistics/balance.js",
+    "isEntry": true
+  },
+  "resources/js/vue/statistics/sales.js": {
+    "file": "assets/sales-DeAHv6rS.js",
+    "name": "sales",
+    "src": "resources/js/vue/statistics/sales.js",
+    "isEntry": true
+  },
+  "resources/js/vue/svg-layaout-session.js": {
+    "file": "assets/svg-layaout-session-D7fGDBJb.js",
+    "name": "svg-layaout-session",
+    "src": "resources/js/vue/svg-layaout-session.js",
+    "isEntry": true
+  },
+  "resources/js/vue/svg-layout.js": {
+    "file": "assets/svg-layout-B3h-XSVQ.js",
+    "name": "svg-layout",
+    "src": "resources/js/vue/svg-layout.js",
+    "isEntry": true
   }
 }

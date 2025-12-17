@@ -1,0 +1,1 @@
+jQuery(document).ready(function(c){var a=c('input[name="max_places"]'),n=c('select[name="space"]');n.length&&a.length&&n.on("change",function(){var i=c(this).val();i&&fetch("/space-capacity/"+i).then(e=>e.json()).then(e=>{console.log("📦 Capacidad recibida:",e),e&&e.capacity!==void 0&&a.val(e.capacity)})})});

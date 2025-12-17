@@ -1,10 +1,21 @@
 @php
     use App\Models\Slot;
     use App\Models\Rate;
-    $rates = Rate::query()->get();
+    use App\Scopes\BrandScope;
+
+    // Obtener los session_ids de las inscripciones del carrito
+    $sessionIds = $entry->inscriptions->pluck('session_id')->unique()->filter();
+
+    // Obtener las tarifas de esas sesiones específicas (sin BrandScope)
+    // Esto permite que brands padre vean tarifas de sus hijos
+    $rates = Rate::withoutGlobalScope(BrandScope::class)
+        ->whereHas('assignatedRates', function ($query) use ($sessionIds) {
+            $query->whereIn('session_id', $sessionIds);
+        })
+        ->get();
 @endphp
 
-@if($entry->inscriptions->isNotEmpty())
+@if ($entry->inscriptions->isNotEmpty())
     <div class="card mb-3">
         <div class="card-header">
             <h5 class="mb-0">{{ __('backend.cart.inc.inscriptionsset') }}</h5>
@@ -28,22 +39,19 @@
                             $first = $set->first();
                             $session = $first->session;
                             // Formatear la fecha de inicio con Carbon, o mostrar guión si es null
-                            $sessionDate = $session && $session->starts_on
-                                ? $session->starts_on->format('d/m/Y H:i')
-                                : '—';
+                            $sessionDate =
+                                $session && $session->starts_on ? $session->starts_on->format('d/m/Y H:i') : '—';
                             // Nombre de la sesión, si existe
-                            $sessionName = $session && $session->name
-                                ? $session->name
-                                : null;
+                            $sessionName = $session && $session->name ? $session->name : null;
                         @endphp
 
                         {{-- Fila “padre”: muestra datos de sesión y número de inscripciones --}}
-                        <tr data-bs-toggle="collapse" data-bs-target="#inscriptions_{{ $sessionId }}" aria-expanded="false"
-                            style="cursor: pointer; border-bottom: 1px solid #dee2e6;">
+                        <tr data-bs-toggle="collapse" data-bs-target="#inscriptions_{{ $sessionId }}"
+                            aria-expanded="false" style="cursor: pointer; border-bottom: 1px solid #dee2e6;">
                             <td>{{ $session?->id ?? '—' }}</td>
                             <td>{{ $session?->event->name ?? '—' }}</td>
                             <td>
-                                @if($sessionName)
+                                @if ($sessionName)
                                     {{ $sessionName }}<br>
                                 @endif
                                 <small class="text-muted">{{ $sessionDate }}</small>
@@ -71,7 +79,8 @@
                                 <td>
                                     <i class="la la-long-arrow-right"></i>
                                     @if ($inscription->isGift())
-                                        <i class="la la-gift text-warning" title="{{ __('backend.cart.gift_card') }}"></i>
+                                        <i class="la la-gift text-warning"
+                                            title="{{ __('backend.cart.gift_card') }}"></i>
                                     @endif
                                 </td>
                                 <td>
@@ -89,32 +98,36 @@
                                 <td colspan="1" class="d-flex align-items-center gap-2">
                                     {{-- Botón Modificar --}}
                                     @can('carts.edit')
-                                        <button type="button" class="btn btn-sm btn-outline-primary ms-2 pe-2" data-bs-toggle="modal"
-                                            data-bs-target="#editInscriptionModal" data-inscription-id="{{ $inscription->id }}"
-                                            data-rate-id="{{ $inscription->rate_id }}" data-price="{{ $inscription->price }}"><i
-                                                class="la la-edit me-1"></i>
+                                        <button type="button" class="btn btn-sm btn-outline-primary ms-2 pe-2"
+                                            data-bs-toggle="modal" data-bs-target="#editInscriptionModal"
+                                            data-inscription-id="{{ $inscription->id }}"
+                                            data-rate-id="{{ $inscription->rate_id }}"
+                                            data-price="{{ $inscription->price }}"><i class="la la-edit me-1"></i>
                                             Modificar
                                         </button>
                                     @endcan
 
                                     {{-- Dropdown acciones --}}
-                                    @if($entry->confirmation_code)
+                                    @if ($entry->confirmation_code)
                                         <div class="dropdown">
                                             @can('carts.index')
-                                                <button class="btn btn-sm btn-outline-primary dropdown-toggle pe-2" type="button"
-                                                    id="dropdownActions{{ $inscription->id }}" data-bs-toggle="dropdown"
-                                                    data-bs-auto-close="outside" aria-expanded="false"><i class="la la-download me-1"></i>
+                                                <button class="btn btn-sm btn-outline-primary dropdown-toggle pe-2"
+                                                    type="button" id="dropdownActions{{ $inscription->id }}"
+                                                    data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                                                    aria-expanded="false"><i class="la la-download me-1"></i>
                                                     {{ __('backend.cart.download') }}
                                                 </button>
                                             @endcan
 
-                                            <ul class="dropdown-menu" aria-labelledby="dropdownActions{{ $inscription->id }}">
-                                                @if(Route::has('inscription.generate'))
+                                            <ul class="dropdown-menu"
+                                                aria-labelledby="dropdownActions{{ $inscription->id }}">
+                                                @if (Route::has('inscription.generate'))
                                                     <li>
                                                         <a class="dropdown-item"
                                                             href="{{ route('inscription.generate', ['inscription' => $inscription->id, 'web' => 1]) }}"
                                                             target="_blank">
-                                                            <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.download') }}
+                                                            <i class="la la-file-pdf-o me-1"></i>
+                                                            {{ __('backend.cart.inc.download') }}
                                                         </a>
                                                     </li>
                                                     <li>
@@ -127,12 +140,13 @@
                                                     </li>
                                                 @endif
 
-                                                @if(auth()->check() && auth()->user()->isSuperuser())
+                                                @if (auth()->check() && auth()->user()->isSuperuser())
                                                     <li>
                                                         <a class="dropdown-item"
                                                             href="{{ route('open.inscription.pdf', ['inscription' => $inscription->id]) }}?token={{ $entry->token }}"
                                                             target="_blank">
-                                                            <i class="la la-file-pdf-o me-1"></i> {{ __('backend.cart.inc.preview') }}
+                                                            <i class="la la-file-pdf-o me-1"></i>
+                                                            {{ __('backend.cart.inc.preview') }}
                                                         </a>
                                                     </li>
                                                 @endif
@@ -142,9 +156,9 @@
 
                                     {{-- Botón Eliminar --}}
                                     @can('carts.delete')
-                                    <a href="{{ route('cart.inscription.destroy', [$entry->id, $inscription->id]) }}"
-                                        class="btn btn-sm btn-outline-danger pe-2"
-                                        onclick="
+                                        <a href="{{ route('cart.inscription.destroy', [$entry->id, $inscription->id]) }}"
+                                            class="btn btn-sm btn-outline-danger pe-2"
+                                            onclick="
                                             event.preventDefault();
                                             if (!confirm('{{ trans('backpack::crud.delete_confirm') }}')) return;
 
@@ -164,7 +178,7 @@
                                                 alert('No se pudo eliminar: ' + err.message);
                                             });">
                                             <i class="la la-trash me-1"></i> {{ __('backend.cart.inc.delete') }}
-                                    </a>
+                                        </a>
                                     @endcan
                                 </td>
                             </tr>
@@ -187,21 +201,22 @@
                 <input type="hidden" name="inscription_id" id="modalInscriptionId" value="">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="editInscriptionModalLabel">{{__('backend.cart.edit')}}</h5>
+                        <h5 class="modal-title" id="editInscriptionModalLabel">{{ __('backend.cart.edit') }}</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
                     <div class="modal-body">
                         <div class="mb-3">
                             <label for="modalRateId" class="form-label">{{ __('backend.cart.rate') }}</label>
                             <select name="rate_id" id="modalRateId" class="form-select" required>
-                                @foreach($rates as $rate)
+                                @foreach ($rates as $rate)
                                     <option value="{{ $rate->id }}">{{ $rate->name }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="mb-3">
                             <label for="modalPrice" class="form-label">{{ __('backend.cart.price') }}</label>
-                            <input type="number" step="0.01" name="price" id="modalPrice" class="form-control" required>
+                            <input type="number" step="0.01" name="price" id="modalPrice" class="form-control"
+                                required>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -215,7 +230,7 @@
 
     <script>
         var editModal = document.getElementById('editInscriptionModal');
-        editModal.addEventListener('show.bs.modal', function (event) {
+        editModal.addEventListener('show.bs.modal', function(event) {
             var button = event.relatedTarget;
             var inscriptionId = button.getAttribute('data-inscription-id');
             var rateId = button.getAttribute('data-rate-id');

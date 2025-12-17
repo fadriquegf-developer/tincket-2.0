@@ -61,4 +61,4 @@
 <div id="sessions-field-{{ $field['name'] }}" data-props='@json($props)'></div>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="{{ asset('js/vue/sessions-field.js') }}?v={{ filemtime(public_path('js/vue/sessions-field.js')) }}"></script>
+@vite('resources/js/vue/sessions-field.js')

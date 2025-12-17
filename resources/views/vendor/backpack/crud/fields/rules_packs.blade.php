@@ -18,5 +18,5 @@
 
 @push('after_scripts')
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-    <script src="{{ asset('js/vue/rules-field.js') }}?v={{ filemtime(public_path('js/vue/rules-field.js')) }}"></script>
+    @vite('resources/js/vue/rules-field.js')
 @endpush

@@ -112,7 +112,7 @@
     </div>
 
     {{-- Script de validación --}}
-    <script src="{{ asset('js/crud/inscriptions_validator.js') }}?v={{ time() }}"></script>
+    @vite('resources/js/crud/inscriptions_validator.js')
     <script>
         $(function () {
             $("form#validator").tincketInscriptionValidator({

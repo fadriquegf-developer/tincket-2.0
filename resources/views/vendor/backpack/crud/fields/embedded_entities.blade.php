@@ -30,5 +30,4 @@
 
 <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
-<script
-    src="{{ asset('js/vue/embedded-entities-field.js') }}?v={{ filemtime(public_path('js/vue/embedded-entities-field.js')) }}"></script>
+@vite('resources/js/vue/embedded-entities-field.js')
